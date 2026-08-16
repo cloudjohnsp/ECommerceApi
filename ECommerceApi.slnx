@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ECommerce.Api/ECommerce.Api.csproj" />
+    <Project Path="src/ECommerce.Application/ECommerce.Application.csproj" />
+    <Project Path="src/ECommerce.Domain/ECommerce.Domain.csproj" />
+    <Project Path="src/ECommerce.Infrastructure/ECommerce.Infrastructure.csproj" />
+    <Project Path="src/ECommerce.Persistence/ECommerce.Persistence.csproj" />
+    <Project Path="src/ECommerce.Shared/ECommerce.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="ECommerce.Domain.Tests/ECommerce.Domain.Tests.csproj" Id="7fba934c-52fc-474f-bb05-959351400d4c" />
+  </Folder>
+</Solution>
