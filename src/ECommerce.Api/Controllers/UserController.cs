@@ -7,12 +7,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerce.Api.Controllers;
 
-[ApiController]
-public sealed class UserController(ISender mediator) : ControllerBase
+public sealed class UserController(ISender mediator) : BaseApiController
 {
     private readonly ISender _mediator = mediator;
 
-    [HttpPost("api/users")]
+    [HttpPost]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -36,7 +35,7 @@ public sealed class UserController(ISender mediator) : ControllerBase
         return Created("", createdUser.Value);
     }
 
-    [HttpGet("api/users/{userId:guid}")]
+    [HttpGet("{userId:guid}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

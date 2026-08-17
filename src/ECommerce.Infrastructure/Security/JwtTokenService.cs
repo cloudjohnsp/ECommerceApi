@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using ECommerce.Application.Abstractions.Security;
 using ECommerce.Domain.Entities;
@@ -13,7 +14,9 @@ public sealed class JwtTokenService(IOptions<JwtOptions> jwtOptions) : IJwtToken
 {
     private readonly JwtOptions _options = jwtOptions.Value;
 
-    public string GenerateToken(User user)
+    public int AccessTokenExpiresInSeconds => _options.ExpirationMinutes * 60;
+
+    public string GenerateAccessToken(User user)
     {
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SecretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -37,4 +40,20 @@ public sealed class JwtTokenService(IOptions<JwtOptions> jwtOptions) : IJwtToken
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public string GenerateRefreshToken()
+    {
+        byte[] bytes = new byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        return Base64UrlEncoder.Encode(bytes);
+    }
+
+    public string HashRefreshToken(string refreshToken)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    public DateTimeOffset GetRefreshTokenExpiresAt() =>
+        DateTimeOffset.UtcNow.AddDays(_options.RefreshTokenExpirationDays);
 }

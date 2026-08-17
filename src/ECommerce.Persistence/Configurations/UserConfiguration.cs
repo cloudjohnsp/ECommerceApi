@@ -58,6 +58,9 @@ namespace ECommerce.Persistence.Configurations
             builder.Property(x => x.DeactivatedAt)
                 .HasColumnName("deactivated_at");
 
+            builder.Navigation(x => x.RefreshTokens)
+                .HasField("_refreshTokens")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
         }
     }
 }

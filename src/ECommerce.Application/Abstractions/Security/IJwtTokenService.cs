@@ -4,5 +4,10 @@ namespace ECommerce.Application.Abstractions.Security;
 
 public interface IJwtTokenService
 {
-    string GenerateToken(User user);
+    int AccessTokenExpiresInSeconds { get; }
+
+    string GenerateAccessToken(User user);
+    string GenerateRefreshToken();
+    string HashRefreshToken(string refreshToken);
+    DateTimeOffset GetRefreshTokenExpiresAt();
 }

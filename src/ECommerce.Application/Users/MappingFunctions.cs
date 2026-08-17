@@ -6,14 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ECommerce.Application.Users
+namespace ECommerce.Application.Users;
+
+public sealed class MappingFunctions
 {
-    public sealed class MappingFunctions
+    public static UserDto CustomMapUserToUserDto(User user)
     {
-        public static UserDto CustomMapUserToUserDto(User user)
-        {
-            UserDto userDto = user.Adapt<UserDto>();
-            return userDto;
-        }
+        UserDto userDto = user.Adapt<UserDto>();
+        return userDto;
     }
 }

@@ -17,6 +17,9 @@ public sealed class User : Entity
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? DeactivatedAt { get; private set; }
 
+    private readonly List<RefreshToken> _refreshTokens = [];
+    public IReadOnlyCollection<RefreshToken> RefreshTokens => _refreshTokens;
+
     private User()
     {
     }
