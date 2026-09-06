@@ -1,4 +1,5 @@
 ﻿using ECommerce.Api.Contracts.Auth;
+using ECommerce.Api.Contracts.Users;
 using ECommerce.Application.Auth.Commands;
 using ECommerce.Application.Auth.Dtos;
 using ECommerce.Application.Users.Commands;
@@ -13,6 +14,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
 {
     [HttpPost]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -23,12 +25,18 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         {
             return Unauthorized(result.Errors);
         }
+        var response = new AuthResponse(
+            result.Value!.AccessToken,
+            result.Value.RefreshToken,
+            result.Value.ExpiresIn
+        );
 
-        return Ok(ToResponse(result.Value!));
+        return Ok(response);
     }
 
     [HttpPost]
-    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         CreateUserCommand command = new(
@@ -46,7 +54,15 @@ public sealed class AuthController(ISender mediator) : BaseApiController
             return BadRequest(createdUser.Errors);
         }
 
-        return Created("", createdUser.Value);
+        var response = new RegisterResponse(
+            createdUser.Value!.Id,
+            createdUser.Value.FirstName,
+            createdUser.Value.LastName,
+            createdUser.Value.Email,
+            createdUser.Value.Role
+        );
+
+        return Created("", response);
     }
 
     [HttpPost]
@@ -61,8 +77,12 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         {
             return Unauthorized(result.Errors);
         }
-
-        return Ok(ToResponse(result.Value!));
+        var response = new AuthResponse(
+            result.Value!.AccessToken,
+            result.Value.RefreshToken,
+            result.Value.ExpiresIn
+        );
+        return Ok(response);
     }
 
     [HttpPost]
@@ -72,7 +92,4 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         await mediator.Send(new LogoutCommand(request.RefreshToken));
         return NoContent();
     }
-
-    public static AuthResponse ToResponse(AuthTokensDto tokens) =>
-        new(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresIn);
 }
