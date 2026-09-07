@@ -5,7 +5,7 @@ using FluentAssertions;
 
 namespace ECommerce.Domain.Tests.Support;
 
-internal static class UserFactory
+public static class UserFactory
 {
     public static Email CreateEmail(string value = "jane.doe@example.com")
     {

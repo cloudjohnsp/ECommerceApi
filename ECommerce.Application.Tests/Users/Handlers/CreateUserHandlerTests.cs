@@ -2,6 +2,7 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Abstractions.Security;
 using ECommerce.Application.Users;
 using ECommerce.Application.Users.Handlers;
+using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using FluentAssertions;
 using Moq;
@@ -48,7 +49,7 @@ public sealed class CreateUserHandlerTests
 
         _passwordHasher.Verify(hasher => hasher.HashPassword(command.Password), Times.Once);
         _userRepository.Verify(repository => repository.AddAsync(
-            It.IsAny<Entities.User>(),
+            It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -68,7 +69,7 @@ public sealed class CreateUserHandlerTests
             It.IsAny<CancellationToken>()), Times.Never);
         _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
         _userRepository.Verify(repository => repository.AddAsync(
-            It.IsAny<Entities.User>(),
+            It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -90,7 +91,7 @@ public sealed class CreateUserHandlerTests
         result.Errors.Should().Contain("E-mail is already registered.");
         _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
         _userRepository.Verify(repository => repository.AddAsync(
-            It.IsAny<Entities.User>(),
+            It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
     }
