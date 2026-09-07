@@ -38,6 +38,8 @@ public sealed class UpdateUserProfileHandlerTests
         result.Value!.FirstName.Should().Be("John");
         result.Value.LastName.Should().Be("Doe");
         result.Value.Email.Should().Be("john.doe@example.com");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -54,6 +56,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("E-mail is invalid.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -69,6 +72,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("User not found.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -85,6 +89,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("First name must contain between 1 and 100 characters.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -101,6 +106,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("First name contains invalid characters.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -117,6 +123,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("Last name contains invalid characters.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -133,5 +140,6 @@ public sealed class UpdateUserProfileHandlerTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().Contain("Last name must contain between 1 and 100 characters.");
+        _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
