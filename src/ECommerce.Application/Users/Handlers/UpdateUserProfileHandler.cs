@@ -34,6 +34,7 @@ public sealed class UpdateUserProfileHandler(
             request.FirstName ?? user.FirstName,
             request.LastName ?? user.LastName,
             emailResult.Value);
+
         if (updateResult.IsFailure)
         {
             return Result<UserDto>.Failure([.. updateResult.Errors]);
