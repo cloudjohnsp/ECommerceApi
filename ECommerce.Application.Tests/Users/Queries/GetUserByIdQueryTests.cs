@@ -1,4 +1,4 @@
-﻿using ECommerce.Application.Users.Queries;
+﻿using ECommerce.Application.Users;
 using FluentAssertions;
 using System;
 using System.Collections.Generic;

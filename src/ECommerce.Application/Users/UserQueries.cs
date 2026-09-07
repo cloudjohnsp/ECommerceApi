@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ECommerce.Application.Users.Queries;
+namespace ECommerce.Application.Users;
 
 public sealed record GetUserByIdQuery(
     Guid UserId

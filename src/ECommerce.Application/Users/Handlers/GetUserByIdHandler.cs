@@ -1,6 +1,5 @@
 ﻿using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Users.Dtos;
-using ECommerce.Application.Users.Queries;
 using ECommerce.Domain.Entities;
 using ECommerce.Shared.Results;
 using Mapster;

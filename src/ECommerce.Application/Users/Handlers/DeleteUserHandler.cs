@@ -1,5 +1,4 @@
 using ECommerce.Application.Abstractions.Persistence;
-using ECommerce.Application.Users.Commands;
 using ECommerce.Shared.Results;
 using MediatR;
 

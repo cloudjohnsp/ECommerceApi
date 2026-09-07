@@ -1,5 +1,4 @@
-﻿using ECommerce.Application.Users.Commands;
-using FluentValidation;
+﻿using FluentValidation;
 using System;
 using System.Collections.Generic;
 using System.Text;

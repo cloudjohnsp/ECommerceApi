@@ -1,4 +1,4 @@
-﻿using ECommerce.Application.Users.Commands;
+﻿using ECommerce.Application.Users;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using FluentAssertions;

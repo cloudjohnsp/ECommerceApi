@@ -1,8 +1,6 @@
 ﻿using ECommerce.Api.Contracts.Users;
 using ECommerce.Application.Users;
-using ECommerce.Application.Users.Commands;
 using ECommerce.Application.Users.Dtos;
-using ECommerce.Application.Users.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

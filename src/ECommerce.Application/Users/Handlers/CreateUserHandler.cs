@@ -1,6 +1,5 @@
 ﻿using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Abstractions.Security;
-using ECommerce.Application.Users.Commands;
 using ECommerce.Application.Users.Dtos;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.ValueObjects;
