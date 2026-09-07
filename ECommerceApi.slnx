@@ -8,6 +8,7 @@
     <Project Path="src/ECommerce.Shared/ECommerce.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="ECommerce.Application.Tests/ECommerce.Application.Tests.csproj" Id="930cc35e-7dd9-4b03-9b16-f19c0b12bc90" />
     <Project Path="ECommerce.Domain.Tests/ECommerce.Domain.Tests.csproj" Id="7fba934c-52fc-474f-bb05-959351400d4c" />
   </Folder>
 </Solution>
