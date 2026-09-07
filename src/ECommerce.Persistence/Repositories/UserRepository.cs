@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Domain.Entities;
 using ECommerce.Persistence.Contexts;
@@ -34,6 +33,15 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
             .AnyAsync(u => u.Email.Value == normalizedEmail, cancellationToken);
     }
 
+    public async Task<bool> ExistsByEmailAsync(string email, Guid excludingUserId, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        return await _dbContext.Users
+            .AsNoTracking()
+            .AnyAsync(u => u.Id != excludingUserId && u.Email.Value == normalizedEmail, cancellationToken);
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _dbContext.Users.AddAsync(user, cancellationToken);
@@ -41,6 +49,7 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
 
     public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        _dbContext.Users.Update(user);
+        await Task.CompletedTask;
     }
 }
