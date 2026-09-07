@@ -1,6 +1,6 @@
 ﻿using ECommerce.Api.Contracts.Auth;
 using ECommerce.Api.Contracts.Users;
-using ECommerce.Application.Auth.Commands;
+using ECommerce.Application.Auth;
 using ECommerce.Application.Users;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;

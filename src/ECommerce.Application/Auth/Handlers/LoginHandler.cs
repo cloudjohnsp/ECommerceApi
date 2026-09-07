@@ -1,6 +1,5 @@
 ﻿using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Abstractions.Security;
-using ECommerce.Application.Auth.Commands;
 using ECommerce.Application.Auth.Dtos;
 using ECommerce.Shared.Results;
 using MediatR;

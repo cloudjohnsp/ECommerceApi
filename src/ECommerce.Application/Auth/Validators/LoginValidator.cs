@@ -1,4 +1,3 @@
-using ECommerce.Application.Auth.Commands;
 using FluentValidation;
 
 namespace ECommerce.Application.Auth.Validators;
