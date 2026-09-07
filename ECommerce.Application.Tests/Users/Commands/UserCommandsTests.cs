@@ -3,7 +3,7 @@ using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using FluentAssertions;
 
-namespace ECommerce.Application.Tests.Commands;
+namespace ECommerce.Application.Tests.Users.Commands;
 
 
 public class UserCommandsTests
