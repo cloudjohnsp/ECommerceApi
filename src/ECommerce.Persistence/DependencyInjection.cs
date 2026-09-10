@@ -1,6 +1,7 @@
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Persistence.Contexts;
+using ECommerce.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
         return services;
     }
 }
