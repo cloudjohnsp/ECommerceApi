@@ -55,6 +55,25 @@ public sealed class Product : Entity
         return Result.Success();
     }
 
+    public Result RemoveStock(int quantity)
+    {
+        if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
+        if (!IsActive) return Result.Failure("Product is inactive.");
+        if (Stock < quantity) return Result.Failure($"Insufficient stock for product '{Name}'.");
+
+        Stock -= quantity;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
+
+    public Result RestoreStock(int quantity)
+    {
+        if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
+        Stock += quantity;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
+
     private static Result Validate(string? name, string? description, decimal price, int stock)
     {
         var errors = new List<string>();
