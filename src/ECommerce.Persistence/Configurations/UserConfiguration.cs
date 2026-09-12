@@ -61,6 +61,12 @@ namespace ECommerce.Persistence.Configurations
             builder.Navigation(x => x.RefreshTokens)
                 .HasField("_refreshTokens")
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            builder.HasIndex(x => x.FirstName);
+
+            builder.HasIndex(x => x.LastName);
+
+            builder.HasIndex(x => x.Email.Value).IsUnique();
         }
     }
 }
