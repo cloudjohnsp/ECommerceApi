@@ -33,6 +33,9 @@ namespace ECommerce.Persistence.Configurations
                     .HasColumnName("email")
                     .IsRequired()
                     .HasMaxLength(320);
+
+                email.HasIndex(e => e.Value)
+                    .IsUnique();
             });
 
             builder.Property(x => x.PasswordHash)
@@ -66,7 +69,6 @@ namespace ECommerce.Persistence.Configurations
 
             builder.HasIndex(x => x.LastName);
 
-            builder.HasIndex(x => x.Email.Value).IsUnique();
         }
     }
 }
