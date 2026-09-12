@@ -74,4 +74,28 @@ public sealed class ProductTests
         product.DeactivatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
         product.UpdatedAt.Should().Be(product.DeactivatedAt);
     }
+
+    [Fact]
+    public void RemoveStock_WithAvailableQuantity_DecreasesStock()
+    {
+        var product = ProductFactory.Create(stock: 10);
+        product.RemoveStock(4).IsSuccess.Should().BeTrue();
+        product.Stock.Should().Be(6);
+    }
+
+    [Fact]
+    public void RemoveStock_WithInsufficientQuantity_PreservesStock()
+    {
+        var product = ProductFactory.Create(stock: 2);
+        product.RemoveStock(3).IsFailure.Should().BeTrue();
+        product.Stock.Should().Be(2);
+    }
+
+    [Fact]
+    public void RestoreStock_IncreasesStock()
+    {
+        var product = ProductFactory.Create(stock: 2);
+        product.RestoreStock(3).IsSuccess.Should().BeTrue();
+        product.Stock.Should().Be(5);
+    }
 }
