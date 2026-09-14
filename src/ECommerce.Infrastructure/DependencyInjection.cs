@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using RabbitMQ.Client;
 
 namespace ECommerce.Infrastructure;
 
@@ -20,6 +21,38 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenService, JwtTokenService>();
 
         services.AddJwtAuthentication(configuration);
+        services.AddRabbitMq(configuration);
+
+        return services;
+    }
+
+    private static IServiceCollection AddRabbitMq(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<RabbitMqOptions>()
+            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.HostName), "RabbitMq:HostName is required.")
+            .Validate(options => options.Port > 0, "RabbitMq:Port must be greater than zero.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.UserName), "RabbitMq:UserName is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Password), "RabbitMq:Password is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.VirtualHost), "RabbitMq:VirtualHost is required.")
+            .ValidateOnStart();
+
+        var rabbitMqOptions = configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
+            ?? throw new InvalidOperationException("RabbitMq configuration section is missing.");
+
+        services.AddSingleton(_ => new ConnectionFactory
+        {
+            HostName = rabbitMqOptions.HostName,
+            Port = rabbitMqOptions.Port,
+            UserName = rabbitMqOptions.UserName,
+            Password = rabbitMqOptions.Password,
+            VirtualHost = rabbitMqOptions.VirtualHost,
+            ClientProvidedName = rabbitMqOptions.ClientProvidedName,
+            AutomaticRecoveryEnabled = true,
+            TopologyRecoveryEnabled = true
+        });
 
         return services;
     }
