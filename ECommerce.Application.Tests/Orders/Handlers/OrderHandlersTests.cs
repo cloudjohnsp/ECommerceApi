@@ -32,7 +32,8 @@ public sealed class OrderHandlersTests
         result.Value!.Total.Should().Be(product.Price * 3);
         product.Stock.Should().Be(7);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -45,7 +46,8 @@ public sealed class OrderHandlersTests
 
         result.IsFailure.Should().BeTrue();
         _products.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -63,6 +65,8 @@ public sealed class OrderHandlersTests
         result.IsFailure.Should().BeTrue();
         product.Stock.Should().Be(2);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
