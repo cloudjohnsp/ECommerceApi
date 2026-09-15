@@ -26,12 +26,13 @@ public sealed class CreateOrderHandler(
             var requestedItems = request.Items
                 .GroupBy(item => item.ProductId)
                 .Select(group => new CreateOrderItem(group.Key, group.Sum(item => item.Quantity)))
+                .OrderBy(item => item.ProductId)
                 .ToArray();
 
             var products = new List<(Product Product, int Quantity)>();
             foreach (var item in requestedItems)
             {
-                var product = await productRepository.GetByIdAsync(item.ProductId, cancellationToken);
+                var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
                 if (product is null) return Result<OrderDto>.Failure($"Product '{item.ProductId}' not found.");
                 if (product.Stock < item.Quantity)
                     return Result<OrderDto>.Failure($"Insufficient stock for product '{product.Name}'.");

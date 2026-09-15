@@ -22,7 +22,7 @@ public sealed class OrderHandlersTests
         var customer = UserFactory.Create();
         var product = ProductFactory.Create(stock: 10);
         _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
-        _products.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(_orders.Object, _users.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
@@ -45,7 +45,7 @@ public sealed class OrderHandlersTests
             new CreateOrderCommand(Guid.NewGuid(), [new CreateOrderItem(Guid.NewGuid(), 1)]), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        _products.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -56,7 +56,7 @@ public sealed class OrderHandlersTests
         var customer = UserFactory.Create();
         var product = ProductFactory.Create(stock: 2);
         _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
-        _products.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(_orders.Object, _users.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(

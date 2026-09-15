@@ -10,6 +10,11 @@ public sealed class ProductRepository(AppDbContext dbContext) : IProductReposito
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Products.FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
+    public Task<Product?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.Products
+            .FromSqlInterpolated($"SELECT * FROM products WHERE id = {id} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Products.AsNoTracking().OrderBy(product => product.Name).ToListAsync(cancellationToken);
 
