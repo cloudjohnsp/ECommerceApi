@@ -1,8 +1,10 @@
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Orders.Dtos;
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using System.Text.Json;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -10,6 +12,7 @@ public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUserRepository userRepository,
     IProductRepository productRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -53,11 +56,17 @@ public sealed class CreateOrderHandler(
                 productRepository.Update(product);
             }
 
+            var orderDto = order.ToDto();
+            var outboxMessage = new OutboxMessage(
+                OutBoxMessageType.OrderCreated,
+                JsonSerializer.Serialize(orderDto));
+
             await orderRepository.AddAsync(order, cancellationToken);
+            await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
 
-            return Result<OrderDto>.Success(order.ToDto());
+            return Result<OrderDto>.Success(orderDto);
         }
         catch (Exception ex)
         {
