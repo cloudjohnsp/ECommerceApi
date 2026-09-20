@@ -12,6 +12,7 @@ public sealed class Payment : Entity
     public string? ExternalPaymentId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? PaidAt { get; private set; }
+    public DateTimeOffset? FailedAt { get; private set; }
 
     private Payment()
     {
@@ -42,14 +43,32 @@ public sealed class Payment : Entity
             : Result<Payment>.Success(new Payment(orderId, amount, provider!.Trim()));
     }
 
-    public Result MarkAsPaid(string? externalPaymentId)
+    public Result RegisterExternalPayment(string? externalPaymentId)
     {
-        if (Status != PaymentStatus.Pending)
-            return Result.Failure("Only pending payments can be marked as paid.");
         if (string.IsNullOrWhiteSpace(externalPaymentId) || externalPaymentId.Trim().Length > 200)
             return Result.Failure("External payment id must contain between 1 and 200 characters.");
 
-        ExternalPaymentId = externalPaymentId.Trim();
+        var normalizedExternalPaymentId = externalPaymentId.Trim();
+        if (ExternalPaymentId is not null)
+            return ExternalPaymentId == normalizedExternalPaymentId
+                ? Result.Success()
+                : Result.Failure("Payment is already associated with another external payment id.");
+
+        if (Status != PaymentStatus.Pending)
+            return Result.Failure("Only pending payments can be associated with an external payment id.");
+
+        ExternalPaymentId = normalizedExternalPaymentId;
+        return Result.Success();
+    }
+
+    public Result MarkAsPaid(string? externalPaymentId)
+    {
+        var registerResult = RegisterExternalPayment(externalPaymentId);
+        if (registerResult.IsFailure) return registerResult;
+        if (Status == PaymentStatus.Paid) return Result.Success();
+        if (Status != PaymentStatus.Pending)
+            return Result.Failure("Only pending payments can be marked as paid.");
+
         Status = PaymentStatus.Paid;
         PaidAt = DateTimeOffset.UtcNow;
         return Result.Success();
@@ -63,6 +82,7 @@ public sealed class Payment : Entity
             return Result.Success();
 
         Status = PaymentStatus.Failed;
+        FailedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }
 }

@@ -22,5 +22,6 @@ namespace ECommerce.Persistence.Contexts
         public DbSet<Order> Orders => Set<Order>();
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+        public DbSet<Payment> Payments => Set<Payment>();
     }
 }

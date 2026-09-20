@@ -31,11 +31,16 @@ services:
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=postgres-db;Port=5432;Database=ecommerce;Username=postgres;Password=postgres
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: guest
       RabbitMq__Password: guest
       RabbitMq__VirtualHost: /
+      PaymentGateway__BaseUrl: http://host.docker.internal:5002
+      PaymentGateway__CallbackUrl: http://host.docker.internal:8080/api/webhooks/payments
+      PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:-development-secret}
+      PaymentGateway__TimeoutSeconds: 10
     ports:
       - "8080:8080"
       - "8081:8081" 

@@ -1,7 +1,9 @@
 using System.Text;
 using ECommerce.Application.Abstractions.Security;
+using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Domain.Entities;
 using ECommerce.Infrastructure.Options;
+using ECommerce.Infrastructure.Payments;
 using ECommerce.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -22,6 +24,34 @@ public static class DependencyInjection
 
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);
+        services.AddPaymentGateway(configuration);
+
+        return services;
+    }
+
+    private static IServiceCollection AddPaymentGateway(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<PaymentGatewayOptions>()
+            .Bind(configuration.GetSection(PaymentGatewayOptions.SectionName))
+            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
+                "PaymentGateway:BaseUrl must be an absolute URL.")
+            .Validate(options => Uri.TryCreate(options.CallbackUrl, UriKind.Absolute, out _),
+                "PaymentGateway:CallbackUrl must be an absolute URL.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.WebhookSecret),
+                "PaymentGateway:WebhookSecret is required.")
+            .Validate(options => options.TimeoutSeconds > 0,
+                "PaymentGateway:TimeoutSeconds must be greater than zero.")
+            .ValidateOnStart();
+
+        services.AddHttpClient<IPaymentGateway, PaymentGatewayClient>((serviceProvider, client) =>
+        {
+            var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentGatewayOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
+        services.AddSingleton<IPaymentWebhookSignatureVerifier, PaymentWebhookSignatureVerifier>();
 
         return services;
     }

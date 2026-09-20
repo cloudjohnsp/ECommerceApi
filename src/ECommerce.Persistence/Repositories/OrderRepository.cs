@@ -11,6 +11,12 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
         dbContext.Orders.Include(order => order.Items)
             .FirstOrDefaultAsync(order => order.Id == id, cancellationToken);
 
+    public Task<Order?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.Orders
+            .FromSqlInterpolated($"SELECT * FROM orders WHERE \"Id\" = {id} FOR UPDATE")
+            .Include(order => order.Items)
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Orders.AsNoTracking().Include(order => order.Items)
             .OrderByDescending(order => order.CreatedAt).ToListAsync(cancellationToken);
