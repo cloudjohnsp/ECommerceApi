@@ -121,11 +121,34 @@ public sealed class PaymentHandlersTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Webhook_Declined_WhenOrderIsAlreadyCancelled_DoesNotRestoreStockAgain()
+    {
+        var order = OrderFactory.Create();
+        order.Cancel();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.RegisterExternalPayment("pay_123");
+        SetupWebhook(payment, order);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                "{\"event\":\"payment.declined\",\"data\":{\"id\":\"pay_123\",\"status\":\"declined\"}}",
+                "valid"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Failed);
+        _products.Verify(
+            x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private void SetupWebhook(Payment payment, Order order)
     {
         _signatureVerifier.Setup(x => x.IsValid(It.IsAny<string>(), "valid")).Returns(true);
         _payments.Setup(x => x.GetByExternalIdForUpdateAsync("pay_123", It.IsAny<CancellationToken>())).ReturnsAsync(payment);
-        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
     }
 
     private ProcessPaymentWebhookHandler CreateWebhookHandler() => new(

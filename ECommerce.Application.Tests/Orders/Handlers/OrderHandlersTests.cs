@@ -119,8 +119,8 @@ public sealed class OrderHandlersTests
         var orderResult = Order.Create(Guid.NewGuid());
         orderResult.Value!.AddItem(product.Id, product.Name, product.Price, 3);
         var order = orderResult.Value;
-        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _products.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new DeleteOrderHandler(_orders.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
@@ -128,7 +128,7 @@ public sealed class OrderHandlersTests
         result.IsSuccess.Should().BeTrue();
         order.Status.Should().Be(OrderStatus.Cancelled);
         product.Stock.Should().Be(10);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -136,13 +136,27 @@ public sealed class OrderHandlersTests
     {
         var order = OrderFactory.Create();
         order.MarkAsPaid();
-        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(_orders.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        _products.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeletePendingOrder_WhenProductCannotBeLoaded_RollsBackTransaction()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var handler = new DeleteOrderHandler(_orders.Object, _products.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

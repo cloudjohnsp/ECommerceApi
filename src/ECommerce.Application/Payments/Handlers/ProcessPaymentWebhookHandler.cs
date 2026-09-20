@@ -50,7 +50,7 @@ public sealed class ProcessPaymentWebhookHandler(
             if (webhook.Event == "payment.declined" && payment.Status == PaymentStatus.Failed)
                 return Result.Success();
 
-            var order = await orderRepository.GetByIdAsync(payment.OrderId, cancellationToken);
+            var order = await orderRepository.GetByIdForUpdateAsync(payment.OrderId, cancellationToken);
             if (order is null) return Result.Failure("Order not found.");
 
             Result transitionResult;
@@ -68,16 +68,21 @@ public sealed class ProcessPaymentWebhookHandler(
                     transitionResult = payment.MarkAsFailed();
                     if (transitionResult.IsFailure) return transitionResult;
 
-                    transitionResult = order.Cancel();
-                    if (transitionResult.IsFailure) return transitionResult;
-
-                    foreach (var item in order.Items)
+                    if (order.Status != OrderStatus.Cancelled)
                     {
-                        var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
-                        if (product is null)
-                            return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
-                        product.RestoreStock(item.Quantity);
-                        productRepository.Update(product);
+                        transitionResult = order.Cancel();
+                        if (transitionResult.IsFailure) return transitionResult;
+
+                        foreach (var item in order.Items.OrderBy(item => item.ProductId))
+                        {
+                            var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
+                            if (product is null)
+                                return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
+
+                            var restoreResult = product.RestoreStock(item.Quantity);
+                            if (restoreResult.IsFailure) return restoreResult;
+                            productRepository.Update(product);
+                        }
                     }
                     break;
 
