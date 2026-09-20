@@ -44,6 +44,29 @@ public sealed class PaymentTests
     }
 
     [Fact]
+    public void RegisterExternalPayment_KeepsPaymentPending()
+    {
+        var payment = Payment.Create(Guid.NewGuid(), 100m, "ECommercePayment").Value!;
+
+        var result = payment.RegisterExternalPayment("pay_123");
+
+        result.IsSuccess.Should().BeTrue();
+        payment.ExternalPaymentId.Should().Be("pay_123");
+        payment.Status.Should().Be(PaymentStatus.Pending);
+    }
+
+    [Fact]
+    public void RegisterExternalPayment_WithSameId_IsIdempotent()
+    {
+        var payment = Payment.Create(Guid.NewGuid(), 100m, "ECommercePayment").Value!;
+        payment.RegisterExternalPayment("pay_123");
+
+        var result = payment.RegisterExternalPayment("pay_123");
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
     public void MarkAsFailed_AfterPaymentWasPaid_ReturnsFailure()
     {
         var payment = Payment.Create(Guid.NewGuid(), 100m, "Stripe").Value!;
