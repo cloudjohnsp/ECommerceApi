@@ -14,7 +14,6 @@ public sealed class OrderHandlersTests
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<IProductRepository> _products = new();
-    private readonly Mock<IOutboxMessageRepository> _outboxMessages = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
 
     [Fact]
@@ -25,7 +24,7 @@ public sealed class OrderHandlersTests
         _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object, _unitOfWork.Object);
+            _orders.Object, _users.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
             new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 3)]), CancellationToken.None);
@@ -34,11 +33,6 @@ public sealed class OrderHandlersTests
         result.Value!.Total.Should().Be(product.Price * 3);
         product.Stock.Should().Be(7);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Once);
-        _outboxMessages.Verify(x => x.AddAsync(
-            It.Is<OutboxMessage>(message =>
-                message.Type == OutBoxMessageType.OrderCreated &&
-                message.Payload.Contains(result.Value.Id.ToString())),
-            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -47,7 +41,7 @@ public sealed class OrderHandlersTests
     public async Task Create_WithUnknownCustomer_ReturnsFailureWithoutChangingStock()
     {
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object, _unitOfWork.Object);
+            _orders.Object, _users.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
             new CreateOrderCommand(Guid.NewGuid(), [new CreateOrderItem(Guid.NewGuid(), 1)]), CancellationToken.None);
@@ -66,7 +60,7 @@ public sealed class OrderHandlersTests
         _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object, _unitOfWork.Object);
+            _orders.Object, _users.Object, _products.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
             new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 3)]), CancellationToken.None);

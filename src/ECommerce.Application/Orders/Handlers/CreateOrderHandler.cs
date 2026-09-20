@@ -12,7 +12,6 @@ public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUserRepository userRepository,
     IProductRepository productRepository,
-    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -62,7 +61,6 @@ public sealed class CreateOrderHandler(
                 JsonSerializer.Serialize(orderDto));
 
             await orderRepository.AddAsync(order, cancellationToken);
-            await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
 
