@@ -14,12 +14,23 @@ public sealed class OutboxMessage
     private OutboxMessage() { }
 
     public OutboxMessage(OutBoxMessageType type, string data)
+        : this(Guid.NewGuid(), type, data)
     {
-        Id = Guid.NewGuid();
+    }
+
+    public OutboxMessage(Guid id, OutBoxMessageType type, string data)
+    {
+        if (id == Guid.Empty) throw new ArgumentException("Outbox message id is required.", nameof(id));
+        Id = id;
         Type = type;
         Payload = data;
         CreatedAt = DateTime.UtcNow;
         Status = OutBoxMessageStatus.Pending;
     }
 
+    public void MarkProcessed()
+    {
+        Status = OutBoxMessageStatus.Processed;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }

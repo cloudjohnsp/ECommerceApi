@@ -5,12 +5,14 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using System.Text.Json;
 
 namespace ECommerce.Application.Payments.Handlers;
 
 public sealed class CreatePaymentHandler(
     IOrderRepository orderRepository,
     IPaymentRepository paymentRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IPaymentGateway paymentGateway,
     IUnitOfWork unitOfWork) : IRequestHandler<CreatePaymentCommand, Result<PaymentDto>>
 {
@@ -19,6 +21,7 @@ public sealed class CreatePaymentHandler(
         CancellationToken cancellationToken)
     {
         Payment payment;
+        OutboxMessage? intention = null;
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -43,6 +46,24 @@ public sealed class CreatePaymentHandler(
                 payment = existingPayment;
             }
 
+            if (payment.ExternalPaymentId is null)
+            {
+                intention = await outboxMessageRepository.GetByIdAsync(payment.Id, cancellationToken);
+                if (intention is null)
+                {
+                    var gatewayPayment = new CreateGatewayPayment(
+                        payment.Id,
+                        payment.OrderId,
+                        payment.Amount,
+                        request.Currency.ToUpperInvariant());
+                    intention = new OutboxMessage(
+                        payment.Id,
+                        OutBoxMessageType.PaymentCreationRequested,
+                        JsonSerializer.Serialize(gatewayPayment));
+                    await outboxMessageRepository.AddAsync(intention, cancellationToken);
+                }
+            }
+
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
         }
@@ -55,13 +76,8 @@ public sealed class CreatePaymentHandler(
         if (payment.ExternalPaymentId is not null)
             return Result<PaymentDto>.Success(payment.ToDto());
 
-        var gatewayResult = await paymentGateway.CreateAsync(
-            new CreateGatewayPayment(
-                payment.Id,
-                payment.OrderId,
-                payment.Amount,
-                request.Currency.ToUpperInvariant()),
-            cancellationToken);
+        var gatewayPaymentRequest = JsonSerializer.Deserialize<CreateGatewayPayment>(intention!.Payload)!;
+        var gatewayResult = await paymentGateway.CreateAsync(gatewayPaymentRequest, cancellationToken);
 
         if (gatewayResult.IsFailure)
             return Result<PaymentDto>.Failure([.. gatewayResult.Errors]);
@@ -71,6 +87,8 @@ public sealed class CreatePaymentHandler(
             return Result<PaymentDto>.Failure([.. registerResult.Errors]);
 
         paymentRepository.Update(payment);
+        intention.MarkProcessed();
+        outboxMessageRepository.Update(intention);
         await unitOfWork.Commit(cancellationToken);
         return Result<PaymentDto>.Success(payment.ToDto());
     }
