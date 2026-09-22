@@ -7,7 +7,8 @@ public sealed class Product : Entity
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public decimal Price { get; private set; }
-    public int Stock { get; private set; }
+    public Inventory Inventory { get; private set; } = null!;
+    public int AvailableStock => Inventory.AvailableStock;
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -20,7 +21,7 @@ public sealed class Product : Entity
         Name = name;
         Description = description;
         Price = price;
-        Stock = stock;
+        Inventory = new Inventory(Id, stock);
         IsActive = true;
         CreatedAt = DateTimeOffset.UtcNow;
     }
@@ -38,10 +39,11 @@ public sealed class Product : Entity
         var validation = Validate(name, description, price, stock);
         if (validation.IsFailure) return validation;
 
+        var stockResult = Inventory.SetStock(stock);
+        if (stockResult.IsFailure) return stockResult;
         Name = name.Trim();
         Description = description.Trim();
         Price = price;
-        Stock = stock;
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }
@@ -55,21 +57,36 @@ public sealed class Product : Entity
         return Result.Success();
     }
 
-    public Result RemoveStock(int quantity)
+    public Result ReserveStock(int quantity)
     {
-        if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
         if (!IsActive) return Result.Failure("Product is inactive.");
-        if (Stock < quantity) return Result.Failure($"Insufficient stock for product '{Name}'.");
+        if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
+        var result = Inventory.Reserve(quantity);
+        if (result.IsFailure) return result;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
 
-        Stock -= quantity;
+    public Result ReduceStock(int quantity)
+    {
+        var result = Inventory.ConsumeReservation(quantity);
+        if (result.IsFailure) return result;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
+
+    public Result ReleaseReservedStock(int quantity)
+    {
+        var result = Inventory.ReleaseReservation(quantity);
+        if (result.IsFailure) return result;
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }
 
     public Result RestoreStock(int quantity)
     {
-        if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
-        Stock += quantity;
+        var result = Inventory.Restore(quantity);
+        if (result.IsFailure) return result;
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }

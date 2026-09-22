@@ -22,6 +22,31 @@ namespace ECommerce.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ECommerce.Domain.Entities.Inventory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("_reservedStock")
+                        .HasColumnType("integer")
+                        .HasColumnName("reserved_stock");
+
+                    b.Property<int>("_stock")
+                        .HasColumnType("integer")
+                        .HasColumnName("stock");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.ToTable("inventories", (string)null);
+                });
+
             modelBuilder.Entity("ECommerce.Domain.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -211,10 +236,6 @@ namespace ECommerce.Persistence.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("price");
 
-                    b.Property<int>("Stock")
-                        .HasColumnType("integer")
-                        .HasColumnName("stock");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -318,6 +339,15 @@ namespace ECommerce.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("ECommerce.Domain.Entities.Inventory", b =>
+                {
+                    b.HasOne("ECommerce.Domain.Entities.Product", null)
+                        .WithOne("Inventory")
+                        .HasForeignKey("ECommerce.Domain.Entities.Inventory", "ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ECommerce.Domain.Entities.Order", b =>
                 {
                     b.HasOne("ECommerce.Domain.Entities.User", null)
@@ -391,6 +421,12 @@ namespace ECommerce.Persistence.Migrations
             modelBuilder.Entity("ECommerce.Domain.Entities.Order", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ECommerce.Domain.Entities.Product", b =>
+                {
+                    b.Navigation("Inventory")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ECommerce.Domain.Entities.User", b =>
