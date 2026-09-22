@@ -28,8 +28,8 @@ public sealed class DeleteOrderHandler(
                 if (product is null)
                     return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
 
-                var restoreResult = product.RestoreStock(item.Quantity);
-                if (restoreResult.IsFailure) return restoreResult;
+                var releaseResult = product.ReleaseReservedStock(item.Quantity);
+                if (releaseResult.IsFailure) return releaseResult;
                 productRepository.Update(product);
             }
 

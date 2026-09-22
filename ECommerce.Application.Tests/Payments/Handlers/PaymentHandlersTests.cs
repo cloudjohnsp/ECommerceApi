@@ -63,10 +63,14 @@ public sealed class PaymentHandlersTests
     [Fact]
     public async Task Webhook_Approved_MarksPaymentAndOrderAsPaid()
     {
-        var order = OrderFactory.Create();
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(3);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 3);
         var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = CreateWebhookHandler();
 
         var result = await handler.Handle(
@@ -78,13 +82,15 @@ public sealed class PaymentHandlersTests
         result.IsSuccess.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.Paid);
         order.Status.Should().Be(OrderStatus.Paid);
+        product.AvailableStock.Should().Be(7);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Webhook_Declined_CancelsOrderAndRestoresStock()
     {
-        var product = ProductFactory.Create(stock: 7);
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(3);
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 3);
         var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
@@ -102,7 +108,7 @@ public sealed class PaymentHandlersTests
         result.IsSuccess.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.Failed);
         order.Status.Should().Be(OrderStatus.Cancelled);
-        product.Stock.Should().Be(10);
+        product.AvailableStock.Should().Be(10);
     }
 
     [Fact]

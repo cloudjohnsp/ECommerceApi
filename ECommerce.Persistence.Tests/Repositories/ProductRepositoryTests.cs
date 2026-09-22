@@ -85,10 +85,28 @@ public sealed class ProductRepositoryTests
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        var persisted = await context.Products.AsNoTracking().SingleAsync();
+        var persisted = await context.Products.AsNoTracking().Include(product => product.Inventory).SingleAsync();
         persisted.Name.Should().Be("Mouse");
         persisted.Price.Should().Be(199.90m);
-        persisted.Stock.Should().Be(20);
+        persisted.AvailableStock.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_LoadsInventoryWithReservations()
+    {
+        await using var context = CreateContext();
+        var product = CreateProduct();
+        product.ReserveStock(2).IsSuccess.Should().BeTrue();
+        context.Products.Add(product);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var result = await new ProductRepository(context).GetByIdAsync(product.Id);
+
+        result.Should().NotBeNull();
+        result!.AvailableStock.Should().Be(3);
+        result.ReleaseReservedStock(2).IsSuccess.Should().BeTrue();
+        result.AvailableStock.Should().Be(5);
     }
 
     private static AppDbContext CreateContext()

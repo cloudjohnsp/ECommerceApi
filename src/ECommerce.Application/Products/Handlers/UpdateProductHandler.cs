@@ -10,14 +10,25 @@ public sealed class UpdateProductHandler(IProductRepository repository, IUnitOfW
 {
     public async Task<Result<ProductDto>> Handle(UpdateProductCommand request, CancellationToken cancellationToken)
     {
-        var product = await repository.GetByIdAsync(request.ProductId, cancellationToken);
-        if (product is null) return Result<ProductDto>.Failure("Product not found.");
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var product = await repository.GetByIdForUpdateAsync(request.ProductId, cancellationToken);
+            if (product is null) return Result<ProductDto>.Failure("Product not found.");
 
-        var result = product.Update(request.Name, request.Description, request.Price, request.Stock);
-        if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
+            var result = product.Update(request.Name, request.Description, request.Price, request.Stock);
+            if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
 
-        repository.Update(product);
-        await unitOfWork.Commit(cancellationToken);
-        return Result<ProductDto>.Success(product.ToDto());
+            repository.Update(product);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            return Result<ProductDto>.Success(product.ToDto());
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }

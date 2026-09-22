@@ -16,7 +16,7 @@ public sealed class ProductTests
         result.Value.Name.Should().Be("Notebook");
         result.Value.Description.Should().Be("Gaming notebook");
         result.Value.Price.Should().Be(4999.90m);
-        result.Value.Stock.Should().Be(10);
+        result.Value.AvailableStock.Should().Be(10);
         result.Value.IsActive.Should().BeTrue();
         result.Value.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
     }
@@ -44,7 +44,7 @@ public sealed class ProductTests
         product.Name.Should().Be("Mouse");
         product.Description.Should().Be("Wireless mouse");
         product.Price.Should().Be(199.90m);
-        product.Stock.Should().Be(25);
+        product.AvailableStock.Should().Be(25);
         product.UpdatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
     }
 
@@ -58,7 +58,7 @@ public sealed class ProductTests
         result.IsFailure.Should().BeTrue();
         product.Name.Should().Be("Notebook");
         product.Price.Should().Be(4999.90m);
-        product.Stock.Should().Be(10);
+        product.AvailableStock.Should().Be(10);
         product.UpdatedAt.Should().BeNull();
     }
 
@@ -76,19 +76,25 @@ public sealed class ProductTests
     }
 
     [Fact]
-    public void RemoveStock_WithAvailableQuantity_DecreasesStock()
+    public void ReserveAndReduceStock_ConsumesOnlyRequestedReservation()
     {
         var product = ProductFactory.Create(stock: 10);
-        product.RemoveStock(4).IsSuccess.Should().BeTrue();
-        product.Stock.Should().Be(6);
+        product.ReserveStock(4).IsSuccess.Should().BeTrue();
+        product.ReserveStock(2).IsSuccess.Should().BeTrue();
+        product.AvailableStock.Should().Be(4);
+        product.ReduceStock(4).IsSuccess.Should().BeTrue();
+        product.AvailableStock.Should().Be(4);
+        product.ReleaseReservedStock(2).IsSuccess.Should().BeTrue();
+        product.AvailableStock.Should().Be(6);
     }
 
     [Fact]
-    public void RemoveStock_WithInsufficientQuantity_PreservesStock()
+    public void ReserveStock_WithInsufficientAvailableQuantity_PreservesStock()
     {
         var product = ProductFactory.Create(stock: 2);
-        product.RemoveStock(3).IsFailure.Should().BeTrue();
-        product.Stock.Should().Be(2);
+        product.ReserveStock(1).IsSuccess.Should().BeTrue();
+        product.ReserveStock(2).IsFailure.Should().BeTrue();
+        product.AvailableStock.Should().Be(1);
     }
 
     [Fact]
@@ -96,6 +102,19 @@ public sealed class ProductTests
     {
         var product = ProductFactory.Create(stock: 2);
         product.RestoreStock(3).IsSuccess.Should().BeTrue();
-        product.Stock.Should().Be(5);
+        product.AvailableStock.Should().Be(5);
+    }
+
+    [Fact]
+    public void Update_StockBelowReservedQuantity_DoesNotMutateProduct()
+    {
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(6).IsSuccess.Should().BeTrue();
+
+        var result = product.Update("Changed", "Changed", 100m, 5);
+
+        result.IsFailure.Should().BeTrue();
+        product.Name.Should().Be("Notebook");
+        product.AvailableStock.Should().Be(4);
     }
 }

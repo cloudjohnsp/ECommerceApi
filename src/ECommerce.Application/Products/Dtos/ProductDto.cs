@@ -5,7 +5,7 @@ public sealed record ProductDto(
     string Name,
     string Description,
     decimal Price,
-    int Stock,
+    int AvailableStock,
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);

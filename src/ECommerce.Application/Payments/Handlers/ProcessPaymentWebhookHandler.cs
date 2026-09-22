@@ -62,6 +62,15 @@ public sealed class ProcessPaymentWebhookHandler(
 
                     transitionResult = order.MarkAsPaid();
                     if (transitionResult.IsFailure) return transitionResult;
+                    foreach (var item in order.Items.OrderBy(item => item.ProductId))
+                    {
+                        var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
+                        if (product is null)
+                            return Result.Failure($"Product '{item.ProductId}' not found while reducing stock.");
+                        var reduceResult = product.ReduceStock(item.Quantity);
+                        if (reduceResult.IsFailure) return reduceResult;
+                        productRepository.Update(product);
+                    }
                     break;
 
                 case "payment.declined":
@@ -79,8 +88,8 @@ public sealed class ProcessPaymentWebhookHandler(
                             if (product is null)
                                 return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
 
-                            var restoreResult = product.RestoreStock(item.Quantity);
-                            if (restoreResult.IsFailure) return restoreResult;
+                            var releaseResult = product.ReleaseReservedStock(item.Quantity);
+                            if (releaseResult.IsFailure) return releaseResult;
                             productRepository.Update(product);
                         }
                     }

@@ -12,6 +12,7 @@ public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUserRepository userRepository,
     IProductRepository productRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -36,8 +37,8 @@ public sealed class CreateOrderHandler(
             {
                 var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
                 if (product is null) return Result<OrderDto>.Failure($"Product '{item.ProductId}' not found.");
-                if (product.Stock < item.Quantity)
-                    return Result<OrderDto>.Failure($"Insufficient stock for product '{product.Name}'.");
+                if (product.AvailableStock < item.Quantity)
+                    return Result<OrderDto>.Failure($"Insufficient available stock for product '{product.Name}'.");
                 products.Add((product, item.Quantity));
             }
 
@@ -50,7 +51,7 @@ public sealed class CreateOrderHandler(
                 var addResult = order.AddItem(product.Id, product.Name, product.Price, quantity);
                 if (addResult.IsFailure) return Result<OrderDto>.Failure([.. addResult.Errors]);
 
-                var stockResult = product.RemoveStock(quantity);
+                var stockResult = product.ReserveStock(quantity);
                 if (stockResult.IsFailure) return Result<OrderDto>.Failure([.. stockResult.Errors]);
                 productRepository.Update(product);
             }
@@ -58,9 +59,11 @@ public sealed class CreateOrderHandler(
             var orderDto = order.ToDto();
             var outboxMessage = new OutboxMessage(
                 OutBoxMessageType.OrderCreated,
-                JsonSerializer.Serialize(orderDto));
+                JsonSerializer.Serialize(orderDto)
+            );
 
             await orderRepository.AddAsync(order, cancellationToken);
+            await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
 

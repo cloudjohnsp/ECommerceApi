@@ -5,6 +5,7 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Tests.Support;
 using FluentAssertions;
 using Moq;
+using System.Text.Json;
 
 namespace ECommerce.Application.Tests.Products.Handlers;
 
@@ -23,6 +24,11 @@ public sealed class ProductHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Name.Should().Be(command.Name);
+        result.Value.AvailableStock.Should().Be(10);
+        var json = JsonSerializer.Serialize(result.Value);
+        json.Should().Contain("AvailableStock");
+        json.Should().NotContain("\"Stock\"");
+        json.Should().NotContain("ReservedStock");
         _repository.Verify(x => x.AddAsync(It.Is<Product>(p => p.Name == command.Name), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -69,7 +75,7 @@ public sealed class ProductHandlersTests
     public async Task Update_WhenProductExists_UpdatesAndCommits()
     {
         var product = ProductFactory.Create();
-        _repository.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        _repository.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new UpdateProductCommand(product.Id, "Mouse", "Wireless", 150, 20), CancellationToken.None);
@@ -77,7 +83,7 @@ public sealed class ProductHandlersTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Name.Should().Be("Mouse");
         _repository.Verify(x => x.Update(product), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -89,7 +95,7 @@ public sealed class ProductHandlersTests
 
         result.IsFailure.Should().BeTrue();
         _repository.Verify(x => x.Update(It.IsAny<Product>()), Times.Never);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
