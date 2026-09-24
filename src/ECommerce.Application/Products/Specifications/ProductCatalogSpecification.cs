@@ -29,12 +29,12 @@ public sealed class ProductCatalogSpecification : ISpecification<Product>
     private static Func<IQueryable<Product>, IOrderedQueryable<Product>> CreateOrdering(
         string sortBy,
         bool descending) => (sortBy.ToLowerInvariant(), descending) switch
-    {
-        ("price", false) => products => products.OrderBy(product => product.Price),
-        ("price", true) => products => products.OrderByDescending(product => product.Price),
-        ("createdat", false) => products => products.OrderBy(product => product.CreatedAt),
-        ("createdat", true) => products => products.OrderByDescending(product => product.CreatedAt),
-        ("name", true) => products => products.OrderByDescending(product => product.Name),
-        _ => products => products.OrderBy(product => product.Name)
-    };
+        {
+            ("price", false) => products => products.OrderBy(product => product.Price),
+            ("price", true) => products => products.OrderByDescending(product => product.Price),
+            ("createdat", false) => products => products.OrderBy(product => product.CreatedAt),
+            ("createdat", true) => products => products.OrderByDescending(product => product.CreatedAt),
+            ("name", true) => products => products.OrderByDescending(product => product.Name),
+            _ => products => products.OrderBy(product => product.Name)
+        };
 }

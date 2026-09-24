@@ -44,6 +44,14 @@ continua atendendo pelo PostgreSQL; o readiness check sinaliza a degradação.
 dotnet run --project src/ECommerce.Api
 ```
 
+## Integração contínua
+
+O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,
+build e os testes da solução em cada pull request e push para `main`. Depois que
+essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
+publicá-la; publicação e deploy permanecem separados porque exigem a escolha do
+registry e do ambiente de destino.
+
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;

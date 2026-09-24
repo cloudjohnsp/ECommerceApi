@@ -6,7 +6,7 @@ using System.Text;
 namespace ECommerce.Application.Users.Validators;
 
 public sealed class GetUserByIdValidator : AbstractValidator<GetUserByIdQuery>
-{ 
+{
     public GetUserByIdValidator()
     {
         RuleFor(query => query.UserId)

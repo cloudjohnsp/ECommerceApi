@@ -7,8 +7,8 @@ namespace ECommerce.Application.Users.Validators
 {
     public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
     {
-        public CreateUserValidator() 
-        { 
+        public CreateUserValidator()
+        {
             RuleFor(user => user.FirstName)
                 .NotEmpty().WithMessage("First name is required.")
                 .MaximumLength(100).WithMessage("First name cannot exceed 100 characters.");

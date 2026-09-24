@@ -55,11 +55,11 @@ public sealed class PaymentGatewayClientTests
 
     private static IOptions<PaymentGatewayOptions> CreateOptions() =>
         Microsoft.Extensions.Options.Options.Create(new PaymentGatewayOptions
-    {
-        BaseUrl = "http://gateway",
-        CallbackUrl = "http://api/api/webhooks/payments",
-        WebhookSecret = "test-secret",
-        TimeoutSeconds = 5
+        {
+            BaseUrl = "http://gateway",
+            CallbackUrl = "http://api/api/webhooks/payments",
+            WebhookSecret = "test-secret",
+            TimeoutSeconds = 5
         });
 
     private sealed class StubHttpMessageHandler(
