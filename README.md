@@ -20,7 +20,7 @@ e outro mais restritivo para `/api/auth/login`, `/api/auth/register`,
 O catálogo é paginado e aceita busca textual, faixa de preço e ordenação:
 
 ```http
-GET /api/products?search=mouse&minPrice=50&maxPrice=500&sortBy=price&descending=true&page=1&pageSize=20
+GET /api/products?search=mouse&categoryId=00000000-0000-0000-0000-000000000000&minPrice=50&maxPrice=500&sortBy=price&descending=true&page=1&pageSize=20
 ```
 
 `sortBy` aceita `name`, `price` ou `createdAt`, e `pageSize` é limitado a 100.
@@ -38,6 +38,12 @@ Categorias possuem CRUD próprio em `/api/v1/categories` (ou na rota legada
 `/api/categories`). Leituras são públicas; criação, alteração e desativação
 lógica exigem a role `Administrator`. O slug é gerado pelo domínio a partir do
 nome e possui índice único no PostgreSQL.
+
+Produtos podem opcionalmente receber `categoryId` na criação ou atualização, e
+o catálogo pode ser filtrado por esse identificador. A Application só aceita
+categorias ativas e existentes; a relação é protegida por chave estrangeira e,
+se uma categoria for removida fisicamente em manutenção, o PostgreSQL define o
+vínculo do produto como nulo.
 
 ## Projetos
 

@@ -18,12 +18,14 @@ public sealed class ProductHandlersTests
     private readonly Mock<IProductRepository> _repository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IProductCache> _cache = new();
+    private readonly Mock<ICategoryRepository> _categories = new();
 
     [Fact]
     public async Task Create_WithValidCommand_PersistsAndReturnsProduct()
     {
         var command = new CreateProductCommand("Notebook", "Gaming notebook", 4999.90m, 10);
-        var handler = new CreateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
+        var handler = new CreateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -39,6 +41,39 @@ public sealed class ProductHandlersTests
         _cache.Verify(x => x.SetAsync(
             It.Is<ProductDto>(product => product.Id == result.Value.Id),
             CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_WithCategory_AssignsExistingCategory()
+    {
+        var category = Category.Create("Computers").Value!;
+        _categories.Setup(repository => repository.GetByIdAsync(
+                category.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(category);
+        var command = new CreateProductCommand("Notebook", "Gaming", 4999.90m, 10, category.Id);
+        var handler = new CreateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.CategoryId.Should().Be(category.Id);
+    }
+
+    [Fact]
+    public async Task Create_WithUnknownCategory_ReturnsFailureWithoutPersisting()
+    {
+        var handler = new CreateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
+
+        var result = await handler.Handle(
+            new CreateProductCommand("Notebook", "Gaming", 4999.90m, 10, Guid.NewGuid()),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Category not found.");
+        _repository.Verify(repository => repository.AddAsync(
+            It.IsAny<Product>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -109,7 +144,8 @@ public sealed class ProductHandlersTests
     {
         var product = ProductFactory.Create();
         _repository.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
-        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
+        var handler = new UpdateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
 
         var result = await handler.Handle(new UpdateProductCommand(product.Id, "Mouse", "Wireless", 150, 20), CancellationToken.None);
 
@@ -123,9 +159,32 @@ public sealed class ProductHandlersTests
     }
 
     [Fact]
+    public async Task Update_WithCategory_AssignsExistingCategory()
+    {
+        var product = ProductFactory.Create();
+        var category = Category.Create("Accessories").Value!;
+        _repository.Setup(repository => repository.GetByIdForUpdateAsync(
+                product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        _categories.Setup(repository => repository.GetByIdAsync(
+                category.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(category);
+        var handler = new UpdateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
+
+        var result = await handler.Handle(
+            new UpdateProductCommand(product.Id, "Mouse", "Wireless", 150, 20, category.Id),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.CategoryId.Should().Be(category.Id);
+    }
+
+    [Fact]
     public async Task Update_WhenProductDoesNotExist_DoesNotCommit()
     {
-        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
+        var handler = new UpdateProductHandler(
+            _repository.Object, _unitOfWork.Object, _cache.Object, _categories.Object);
 
         var result = await handler.Handle(new UpdateProductCommand(Guid.NewGuid(), "Mouse", "Wireless", 150, 20), CancellationToken.None);
 

@@ -15,7 +15,8 @@ public sealed class ProductCatalogSpecification : ISpecification<Product>
                 product.Name.ToLower().Contains(search) ||
                 product.Description.ToLower().Contains(search)) &&
             (!query.MinPrice.HasValue || product.Price >= query.MinPrice.Value) &&
-            (!query.MaxPrice.HasValue || product.Price <= query.MaxPrice.Value);
+            (!query.MaxPrice.HasValue || product.Price <= query.MaxPrice.Value) &&
+            (!query.CategoryId.HasValue || product.CategoryId == query.CategoryId.Value);
         ApplyOrdering = CreateOrdering(query.SortBy, query.Descending);
         Skip = (query.Page - 1) * query.PageSize;
         Take = query.PageSize;

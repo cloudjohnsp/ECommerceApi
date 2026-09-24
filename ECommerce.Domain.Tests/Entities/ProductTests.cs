@@ -21,6 +21,17 @@ public sealed class ProductTests
         result.Value.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void Create_WithCategory_AssignsCategory()
+    {
+        var categoryId = Guid.NewGuid();
+
+        var result = Product.Create("Notebook", "Gaming", 4999.90m, 10, categoryId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.CategoryId.Should().Be(categoryId);
+    }
+
     [Theory]
     [InlineData("", "Description", 10, 1, "Product name must contain between 1 and 150 characters.")]
     [InlineData("Product", "Description", 0, 1, "Product price must be greater than zero.")]
@@ -46,6 +57,18 @@ public sealed class ProductTests
         product.Price.Should().Be(199.90m);
         product.AvailableStock.Should().Be(25);
         product.UpdatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Update_WithCategory_ChangesCategory()
+    {
+        var product = ProductFactory.Create();
+        var categoryId = Guid.NewGuid();
+
+        var result = product.Update("Mouse", "Wireless", 199.90m, 25, categoryId);
+
+        result.IsSuccess.Should().BeTrue();
+        product.CategoryId.Should().Be(categoryId);
     }
 
     [Fact]

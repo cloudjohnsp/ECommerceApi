@@ -7,6 +7,7 @@ public sealed class Product : Entity
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public decimal Price { get; private set; }
+    public Guid? CategoryId { get; private set; }
     public Inventory Inventory { get; private set; } = null!;
     public int AvailableStock => Inventory.AvailableStock;
     public bool IsActive { get; private set; }
@@ -16,25 +17,36 @@ public sealed class Product : Entity
 
     private Product() { }
 
-    private Product(string name, string description, decimal price, int stock)
+    private Product(string name, string description, decimal price, int stock, Guid? categoryId)
     {
         Name = name;
         Description = description;
         Price = price;
+        CategoryId = categoryId;
         Inventory = new Inventory(Id, stock);
         IsActive = true;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
-    public static Result<Product> Create(string name, string description, decimal price, int stock)
+    public static Result<Product> Create(
+        string name,
+        string description,
+        decimal price,
+        int stock,
+        Guid? categoryId = null)
     {
         var validation = Validate(name, description, price, stock);
         return validation.IsFailure
             ? Result<Product>.Failure([.. validation.Errors])
-            : Result<Product>.Success(new Product(name.Trim(), description.Trim(), price, stock));
+            : Result<Product>.Success(new Product(name.Trim(), description.Trim(), price, stock, categoryId));
     }
 
-    public Result Update(string name, string description, decimal price, int stock)
+    public Result Update(
+        string name,
+        string description,
+        decimal price,
+        int stock,
+        Guid? categoryId = null)
     {
         var validation = Validate(name, description, price, stock);
         if (validation.IsFailure) return validation;
@@ -44,6 +56,7 @@ public sealed class Product : Entity
         Name = name.Trim();
         Description = description.Trim();
         Price = price;
+        CategoryId = categoryId;
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }

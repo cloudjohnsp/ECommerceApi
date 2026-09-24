@@ -10,12 +10,24 @@ namespace ECommerce.Application.Products.Handlers;
 public sealed class CreateProductHandler(
     IProductRepository repository,
     IUnitOfWork unitOfWork,
-    IProductCache productCache)
+    IProductCache productCache,
+    ICategoryRepository categoryRepository)
     : IRequestHandler<CreateProductCommand, Result<ProductDto>>
 {
     public async Task<Result<ProductDto>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
     {
-        var result = Product.Create(request.Name, request.Description, request.Price, request.Stock);
+        if (request.CategoryId.HasValue &&
+            await categoryRepository.GetByIdAsync(request.CategoryId.Value, cancellationToken) is null)
+        {
+            return Result<ProductDto>.Failure("Category not found.");
+        }
+
+        var result = Product.Create(
+            request.Name,
+            request.Description,
+            request.Price,
+            request.Stock,
+            request.CategoryId);
         if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
 
         await repository.AddAsync(result.Value!, cancellationToken);

@@ -10,6 +10,7 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
         RuleFor(x => x.Description).MaximumLength(2000);
         RuleFor(x => x.Price).GreaterThan(0);
         RuleFor(x => x.Stock).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.CategoryId).NotEmpty().When(x => x.CategoryId.HasValue);
     }
 }
 
@@ -22,6 +23,7 @@ public sealed class UpdateProductValidator : AbstractValidator<UpdateProductComm
         RuleFor(x => x.Description).MaximumLength(2000);
         RuleFor(x => x.Price).GreaterThan(0);
         RuleFor(x => x.Stock).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.CategoryId).NotEmpty().When(x => x.CategoryId.HasValue);
     }
 }
 
@@ -47,6 +49,7 @@ public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
             .Must(sortBy => AllowedSortFields.Contains(sortBy, StringComparer.OrdinalIgnoreCase))
             .WithMessage("SortBy must be one of: name, price, createdAt.");
         RuleFor(x => x.Search).MaximumLength(150);
+        RuleFor(x => x.CategoryId).NotEmpty().When(x => x.CategoryId.HasValue);
     }
 }
 

@@ -13,4 +13,5 @@ public sealed record GetProductsQuery(
     string SortBy = "name",
     bool Descending = false,
     int Page = 1,
-    int PageSize = 20) : IRequest<Result<PagedResult<ProductDto>>>;
+    int PageSize = 20,
+    Guid? CategoryId = null) : IRequest<Result<PagedResult<ProductDto>>>;

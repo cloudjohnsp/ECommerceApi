@@ -8,4 +8,5 @@ public sealed record ProductDto(
     int AvailableStock,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    Guid? CategoryId = null);

@@ -138,6 +138,25 @@ public sealed class ProductRepositoryTests
         result.PageSize.Should().Be(1);
     }
 
+    [Fact]
+    public async Task SearchAsync_WithCategory_ReturnsOnlyProductsInCategory()
+    {
+        await using var context = CreateContext();
+        var category = Category.Create("Accessories").Value!;
+        var categorized = Product.Create("Mouse", "Wireless", 150, 5, category.Id).Value!;
+        var uncategorized = CreateProduct("Notebook", 5000);
+        context.Categories.Add(category);
+        context.Products.AddRange(categorized, uncategorized);
+        await context.SaveChangesAsync();
+        var repository = new ProductRepository(context);
+        var specification = new ProductCatalogSpecification(
+            new GetProductsQuery(CategoryId: category.Id));
+
+        var result = await repository.SearchAsync(specification);
+
+        result.Items.Should().ContainSingle().Which.Id.Should().Be(categorized.Id);
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

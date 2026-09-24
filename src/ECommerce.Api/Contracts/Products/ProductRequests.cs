@@ -1,7 +1,17 @@
 namespace ECommerce.Api.Contracts.Products;
 
-public sealed record CreateProductRequest(string Name, string Description, decimal Price, int Stock);
-public sealed record UpdateProductRequest(string Name, string Description, decimal Price, int Stock);
+public sealed record CreateProductRequest(
+    string Name,
+    string Description,
+    decimal Price,
+    int Stock,
+    Guid? CategoryId = null);
+public sealed record UpdateProductRequest(
+    string Name,
+    string Description,
+    decimal Price,
+    int Stock,
+    Guid? CategoryId = null);
 
 public sealed class ProductSearchRequest
 {
@@ -12,4 +22,5 @@ public sealed class ProductSearchRequest
     public bool Descending { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
+    public Guid? CategoryId { get; init; }
 }

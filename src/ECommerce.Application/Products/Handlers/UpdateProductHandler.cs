@@ -9,7 +9,8 @@ namespace ECommerce.Application.Products.Handlers;
 public sealed class UpdateProductHandler(
     IProductRepository repository,
     IUnitOfWork unitOfWork,
-    IProductCache productCache)
+    IProductCache productCache,
+    ICategoryRepository categoryRepository)
     : IRequestHandler<UpdateProductCommand, Result<ProductDto>>
 {
     public async Task<Result<ProductDto>> Handle(UpdateProductCommand request, CancellationToken cancellationToken)
@@ -20,8 +21,18 @@ public sealed class UpdateProductHandler(
         {
             var product = await repository.GetByIdForUpdateAsync(request.ProductId, cancellationToken);
             if (product is null) return Result<ProductDto>.Failure("Product not found.");
+            if (request.CategoryId.HasValue &&
+                await categoryRepository.GetByIdAsync(request.CategoryId.Value, cancellationToken) is null)
+            {
+                return Result<ProductDto>.Failure("Category not found.");
+            }
 
-            var result = product.Update(request.Name, request.Description, request.Price, request.Stock);
+            var result = product.Update(
+                request.Name,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.CategoryId);
             if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
 
             repository.Update(product);

@@ -4,10 +4,21 @@ using MediatR;
 
 namespace ECommerce.Application.Products;
 
-public sealed record CreateProductCommand(string Name, string Description, decimal Price, int Stock)
+public sealed record CreateProductCommand(
+    string Name,
+    string Description,
+    decimal Price,
+    int Stock,
+    Guid? CategoryId = null)
     : IRequest<Result<ProductDto>>;
 
-public sealed record UpdateProductCommand(Guid ProductId, string Name, string Description, decimal Price, int Stock)
+public sealed record UpdateProductCommand(
+    Guid ProductId,
+    string Name,
+    string Description,
+    decimal Price,
+    int Stock,
+    Guid? CategoryId = null)
     : IRequest<Result<ProductDto>>;
 
 public sealed record DeleteProductCommand(Guid ProductId) : IRequest<Result>;

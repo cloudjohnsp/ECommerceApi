@@ -24,7 +24,8 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
             request.SortBy,
             request.Descending,
             request.Page,
-            request.PageSize), cancellationToken);
+            request.PageSize,
+            request.CategoryId), cancellationToken);
         return Ok(result.Value);
     }
 
@@ -45,7 +46,12 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
     public async Task<IActionResult> Create(CreateProductRequest request, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(
-            new CreateProductCommand(request.Name, request.Description, request.Price, request.Stock), cancellationToken);
+            new CreateProductCommand(
+                request.Name,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.CategoryId), cancellationToken);
         if (result.IsFailure) return BadRequest(result.Errors);
 
         return CreatedAtAction(nameof(GetById), new { productId = result.Value!.Id }, result.Value);
@@ -59,7 +65,13 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
     public async Task<IActionResult> Update(Guid productId, UpdateProductRequest request, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(
-            new UpdateProductCommand(productId, request.Name, request.Description, request.Price, request.Stock), cancellationToken);
+            new UpdateProductCommand(
+                productId,
+                request.Name,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.CategoryId), cancellationToken);
         return result.IsFailure
             ? result.Errors.Contains("Product not found.") ? NotFound(result.Errors) : BadRequest(result.Errors)
             : Ok(result.Value);
