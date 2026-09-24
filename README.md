@@ -34,6 +34,11 @@ usam o prefixo `/api/v1` (por exemplo, `GET /api/v1/products`). As rotas
 anteriores sob `/api` continuam disponíveis e assumem v1 por compatibilidade;
 respostas informam as versões suportadas nos headers de API versioning.
 
+Categorias possuem CRUD próprio em `/api/v1/categories` (ou na rota legada
+`/api/categories`). Leituras são públicas; criação, alteração e desativação
+lógica exigem a role `Administrator`. O slug é gerado pelo domínio a partir do
+nome e possui índice único no PostgreSQL.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.
