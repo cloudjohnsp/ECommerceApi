@@ -12,6 +12,11 @@ do cliente é obtido do JWT, portanto um `CustomerId` enviado por um cliente nã
 pode ser usado para operar em nome de outra conta. Administradores mantêm visão
 global dos pedidos.
 
+A borda HTTP aplica CORS somente às origens configuradas em
+`ApiProtection:AllowedOrigins` e rate limiting por cliente. Há um limite global
+e outro mais restritivo para `/api/auth/login`, `/api/auth/register`,
+`/api/auth/refresh` e `/api/auth/logout`.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

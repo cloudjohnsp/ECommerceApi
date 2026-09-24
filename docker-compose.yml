@@ -42,6 +42,7 @@ services:
       PaymentGateway__CallbackUrl: http://host.docker.internal:8080/api/webhooks/payments
       PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:-development-secret}
       PaymentGateway__TimeoutSeconds: 10
+      ApiProtection__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
     ports:
       - "8080:8080"
       - "8081:8081" 

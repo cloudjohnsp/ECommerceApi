@@ -5,13 +5,16 @@ using ECommerce.Application.Users;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using ECommerce.Api.Security;
 
 namespace ECommerce.Api.Controllers;
 
 [AllowAnonymous]
+[EnableRateLimiting(ApiRateLimitPolicy.Authentication)]
 public sealed class AuthController(ISender mediator) : BaseApiController
 {
-    [HttpPost]
+    [HttpPost("login")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -33,7 +36,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         return Ok(response);
     }
 
-    [HttpPost]
+    [HttpPost("register")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -64,7 +67,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         return Created("", response);
     }
 
-    [HttpPost]
+    [HttpPost("refresh")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
@@ -84,7 +87,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         return Ok(response);
     }
 
-    [HttpPost]
+    [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
     {
