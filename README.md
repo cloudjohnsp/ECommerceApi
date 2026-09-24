@@ -45,3 +45,9 @@ executada imediatamente e um serviço em segundo plano reprocessa intenções qu
 continuarem pendentes, usando o `Payment.Id` como chave de idempotência no
 gateway. O intervalo e o tamanho do lote são configurados em
 `OutboxProcessor` no `appsettings.json`.
+
+Eventos de pedido armazenados na outbox são publicados no exchange durável
+`ecommerce.events` do RabbitMQ com uma routing key como `order.created`. A
+publicação usa confirmação do broker e entrega persistente. Como o processamento
+é *at-least-once*, consumidores devem deduplicar pelo `MessageId`, que corresponde
+ao identificador da mensagem na outbox.

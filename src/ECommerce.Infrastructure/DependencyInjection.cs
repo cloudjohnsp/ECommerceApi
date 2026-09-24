@@ -5,6 +5,8 @@ using ECommerce.Domain.Entities;
 using ECommerce.Infrastructure.Options;
 using ECommerce.Infrastructure.Payments;
 using ECommerce.Infrastructure.Security;
+using ECommerce.Infrastructure.Messaging;
+using ECommerce.Application.Abstractions.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -84,6 +86,7 @@ public static class DependencyInjection
             .Validate(options => !string.IsNullOrWhiteSpace(options.UserName), "RabbitMq:UserName is required.")
             .Validate(options => !string.IsNullOrWhiteSpace(options.Password), "RabbitMq:Password is required.")
             .Validate(options => !string.IsNullOrWhiteSpace(options.VirtualHost), "RabbitMq:VirtualHost is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.ExchangeName), "RabbitMq:ExchangeName is required.")
             .ValidateOnStart();
 
         var rabbitMqOptions = configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
@@ -100,6 +103,8 @@ public static class DependencyInjection
             AutomaticRecoveryEnabled = true,
             TopologyRecoveryEnabled = true
         });
+        services.AddSingleton<IIntegrationEventPublisher, RabbitMqEventPublisher>();
+        services.AddHostedService<IntegrationEventOutboxWorker>();
 
         return services;
     }

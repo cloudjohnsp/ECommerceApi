@@ -37,6 +37,7 @@ services:
       RabbitMq__UserName: guest
       RabbitMq__Password: guest
       RabbitMq__VirtualHost: /
+      RabbitMq__ExchangeName: ecommerce.events
       PaymentGateway__BaseUrl: http://host.docker.internal:5002
       PaymentGateway__CallbackUrl: http://host.docker.internal:8080/api/webhooks/payments
       PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:-development-secret}

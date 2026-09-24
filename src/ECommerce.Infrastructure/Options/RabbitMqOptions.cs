@@ -10,4 +10,5 @@ public sealed class RabbitMqOptions
     public string Password { get; init; } = "guest";
     public string VirtualHost { get; init; } = "/";
     public string ClientProvidedName { get; init; } = "ecommerce-api";
+    public string ExchangeName { get; init; } = "ecommerce.events";
 }

@@ -8,6 +8,8 @@ using System.Reflection;
 using FluentValidation;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Payments;
+using ECommerce.Application.Abstractions.Messaging;
+using ECommerce.Application.Messaging;
 
 namespace ECommerce.Application;
 
@@ -23,6 +25,7 @@ public static class DependencyInjection
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly(), ServiceLifetime.Transient);
         services.AddScoped<IPaymentCreationProcessor, PaymentCreationProcessor>();
+        services.AddScoped<IIntegrationEventOutboxProcessor, IntegrationEventOutboxProcessor>();
         services.RegisterMapsterConfiguration();
         return services;
     }
