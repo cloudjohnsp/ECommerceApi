@@ -4,21 +4,24 @@ using ECommerce.Application.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ECommerce.Api.Authorization;
 
 namespace ECommerce.Api.Controllers;
 
+[Authorize]
 public sealed class UserController(ISender mediator) : BaseApiController
 {
     private readonly ISender _mediator = mediator;
 
     [HttpGet("{userId:guid}")]
-    [Authorize]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserById([FromRoute] Guid userId)
     {
+        if (!User.CanAccessUser(userId)) return Forbid();
+
         GetUserByIdQuery query = new(userId);
         var user = await _mediator.Send(query);
         if (user.IsFailure)
@@ -30,13 +33,14 @@ public sealed class UserController(ISender mediator) : BaseApiController
     }
 
     [HttpPut("{userId:guid}/profile")]
-    [Authorize]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateProfile(Guid userId, [FromBody] UpdateUserProfileRequest request)
     {
+        if (!User.CanAccessUser(userId)) return Forbid();
+
         var result = await _mediator.Send(new UpdateUserProfileCommand(userId, request.FirstName, request.LastName, request.Email));
         if (result.IsFailure)
         {
@@ -47,13 +51,14 @@ public sealed class UserController(ISender mediator) : BaseApiController
     }
 
     [HttpPut("{userId:guid}/password")]
-    [Authorize]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ChangePassword(Guid userId, [FromBody] ChangePasswordRequest request)
     {
+        if (!User.IsUser(userId)) return Forbid();
+
         var result = await _mediator.Send(new ChangeUserPasswordCommand(userId, request.Password));
         if (result.IsFailure)
         {
@@ -64,7 +69,7 @@ public sealed class UserController(ISender mediator) : BaseApiController
     }
 
     [HttpPut("{userId:guid}/role")]
-    [Authorize]
+    [Authorize(Roles = "Administrator")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -81,13 +86,14 @@ public sealed class UserController(ISender mediator) : BaseApiController
     }
 
     [HttpDelete("{userId:guid}")]
-    [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid userId)
     {
+        if (!User.CanAccessUser(userId)) return Forbid();
+
         var result = await _mediator.Send(new DeleteUserCommand(userId));
         if (result.IsFailure)
         {

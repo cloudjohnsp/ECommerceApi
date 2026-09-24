@@ -7,8 +7,7 @@ public sealed record RegisterRequest(
     string FirstName,
     string LastName,
     string Email,
-    string Password,
-    UserRole Role = UserRole.Customer
+    string Password
 );
 
 public sealed record RefreshTokenRequest(string RefreshToken);

@@ -2,6 +2,11 @@
 
 Backend de e-commerce organizado com Clean Architecture.
 
+O cadastro público cria exclusivamente usuários com a role `Customer`. A
+alteração de roles exige `Administrator`; operações de perfil e desativação são
+limitadas ao próprio usuário ou a administradores, e a troca de senha é restrita
+ao próprio usuário.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

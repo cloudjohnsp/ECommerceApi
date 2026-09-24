@@ -43,7 +43,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
             request.LastName,
             request.Email,
             request.Password,
-            request.Role
+            ECommerce.Domain.Enums.UserRole.Customer
         );
 
         var createdUser = await mediator.Send(command);
