@@ -8,4 +8,5 @@ public sealed class RedisOptions
     public string Configuration { get; init; } = "localhost:6379,abortConnect=false,connectTimeout=1000";
     public string InstanceName { get; init; } = "ecommerce:";
     public int ProductExpirationMinutes { get; init; } = 5;
+    public int CategoryExpirationMinutes { get; init; } = 10;
 }

@@ -46,6 +46,8 @@ public static class DependencyInjection
                 "Redis:Configuration is required when Redis is enabled.")
             .Validate(options => options.ProductExpirationMinutes > 0,
                 "Redis:ProductExpirationMinutes must be greater than zero.")
+            .Validate(options => options.CategoryExpirationMinutes > 0,
+                "Redis:CategoryExpirationMinutes must be greater than zero.")
             .ValidateOnStart();
 
         var options = configuration.GetSection(RedisOptions.SectionName).Get<RedisOptions>()
@@ -53,6 +55,7 @@ public static class DependencyInjection
         if (!options.Enabled)
         {
             services.AddSingleton<IProductCache, NullProductCache>();
+            services.AddSingleton<ICategoryCache, NullCategoryCache>();
             return services;
         }
 
@@ -62,6 +65,7 @@ public static class DependencyInjection
             redis.InstanceName = options.InstanceName;
         });
         services.AddScoped<IProductCache, RedisProductCache>();
+        services.AddScoped<ICategoryCache, RedisCategoryCache>();
         services.AddHealthChecks()
             .AddCheck<RedisHealthCheck>(
                 "redis",

@@ -24,10 +24,12 @@ GET /api/products?search=mouse&categoryId=00000000-0000-0000-0000-000000000000&m
 ```
 
 `sortBy` aceita `name`, `price` ou `createdAt`, e `pageSize` é limitado a 100.
-Leituras individuais usam cache-aside no Redis por cinco minutos. Criação,
-alteração, desativação e mudanças de estoque atualizam ou invalidam a entrada
-depois do commit. Se o Redis estiver temporariamente indisponível, a aplicação
-continua atendendo pelo PostgreSQL; o readiness check sinaliza a degradação.
+Leituras individuais de produtos usam cache-aside no Redis por cinco minutos;
+consultas individuais e a listagem de categorias, por dez minutos. Criação,
+alteração, desativação e mudanças de estoque atualizam ou invalidam as entradas
+somente depois do commit. Se o Redis estiver temporariamente indisponível, a
+aplicação continua atendendo pelo PostgreSQL; o readiness check sinaliza a
+degradação.
 
 Todos os controllers públicos pertencem à versão `1.0`. As rotas explícitas
 usam o prefixo `/api/v1` (por exemplo, `GET /api/v1/products`). As rotas
