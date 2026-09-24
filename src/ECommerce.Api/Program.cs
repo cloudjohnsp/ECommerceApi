@@ -5,6 +5,7 @@ using ECommerce.Infrastructure;
 using ECommerce.Persistence;
 using ECommerce.Api;
 using ECommerce.Api.Security;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,14 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/api/health");
+app.MapHealthChecks("/api/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/api/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 
 app.Run();
 

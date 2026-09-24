@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using RabbitMQ.Client;
+using ECommerce.Infrastructure.HealthChecks;
 
 namespace ECommerce.Infrastructure;
 
@@ -70,6 +71,17 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
+        services.AddHttpClient(PaymentGatewayHealthCheck.HttpClientName, (serviceProvider, client) =>
+        {
+            var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentGatewayOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
+        services.AddHealthChecks()
+            .AddCheck<PaymentGatewayHealthCheck>(
+                "payment-gateway",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(5));
         services.AddSingleton<IPaymentWebhookSignatureVerifier, PaymentWebhookSignatureVerifier>();
 
         return services;
@@ -105,6 +117,11 @@ public static class DependencyInjection
         });
         services.AddSingleton<IIntegrationEventPublisher, RabbitMqEventPublisher>();
         services.AddHostedService<IntegrationEventOutboxWorker>();
+        services.AddHealthChecks()
+            .AddCheck<RabbitMqHealthCheck>(
+                "rabbitmq",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(5));
 
         return services;
     }

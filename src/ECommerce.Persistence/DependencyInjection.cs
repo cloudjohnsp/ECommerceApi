@@ -5,6 +5,7 @@ using ECommerce.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using ECommerce.Persistence.HealthChecks;
 
 namespace ECommerce.Persistence;
 
@@ -15,6 +16,11 @@ public static class DependencyInjection
         string connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddHealthChecks()
+            .AddCheck<PostgresHealthCheck>(
+                "postgres",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(5));
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IUserRepository, UserRepository>();

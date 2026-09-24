@@ -21,9 +21,9 @@ public sealed class ApiProtectionTests
         await using var factory = new ProtectedApiFactory(globalLimit: 2, authenticationLimit: 10);
         using var client = factory.CreateClient(CreateClientOptions());
 
-        (await client.GetAsync("/api/health")).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.GetAsync("/api/health")).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.GetAsync("/api/health")).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (await client.GetAsync("/api/health/live")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/api/health/live")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/api/health/live")).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ApiProtectionTests
     {
         await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);
         using var client = factory.CreateClient(CreateClientOptions());
-        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/health");
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/health/live");
         request.Headers.Add("Origin", "https://frontend.example.com");
         request.Headers.Add("Access-Control-Request-Method", "GET");
 

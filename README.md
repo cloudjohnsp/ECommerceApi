@@ -40,7 +40,11 @@ GET /api/products?search=mouse&minPrice=50&maxPrice=500&sortBy=price&descending=
 dotnet run --project src/ECommerce.Api
 ```
 
-O health check fica disponível em `/api/health`.
+Health checks disponíveis:
+
+- `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
+- `/api/health/ready`: verifica PostgreSQL, RabbitMQ e o gateway de pagamento;
+- `/api/health`: executa todas as verificações registradas.
 
 ## Gateway de pagamento
 
