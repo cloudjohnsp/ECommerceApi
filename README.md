@@ -24,6 +24,10 @@ GET /api/products?search=mouse&minPrice=50&maxPrice=500&sortBy=price&descending=
 ```
 
 `sortBy` aceita `name`, `price` ou `createdAt`, e `pageSize` é limitado a 100.
+Leituras individuais usam cache-aside no Redis por cinco minutos. Criação,
+alteração, desativação e mudanças de estoque atualizam ou invalidam a entrada
+depois do commit. Se o Redis estiver temporariamente indisponível, a aplicação
+continua atendendo pelo PostgreSQL; o readiness check sinaliza a degradação.
 
 ## Projetos
 
@@ -43,7 +47,7 @@ dotnet run --project src/ECommerce.Api
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
-- `/api/health/ready`: verifica PostgreSQL, RabbitMQ e o gateway de pagamento;
+- `/api/health/ready`: verifica PostgreSQL, Redis, RabbitMQ e o gateway de pagamento;
 - `/api/health`: executa todas as verificações registradas.
 
 ## Observabilidade

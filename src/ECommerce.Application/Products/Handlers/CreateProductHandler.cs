@@ -1,3 +1,4 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Products.Dtos;
 using ECommerce.Domain.Entities;
@@ -6,7 +7,10 @@ using MediatR;
 
 namespace ECommerce.Application.Products.Handlers;
 
-public sealed class CreateProductHandler(IProductRepository repository, IUnitOfWork unitOfWork)
+public sealed class CreateProductHandler(
+    IProductRepository repository,
+    IUnitOfWork unitOfWork,
+    IProductCache productCache)
     : IRequestHandler<CreateProductCommand, Result<ProductDto>>
 {
     public async Task<Result<ProductDto>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
@@ -16,6 +20,8 @@ public sealed class CreateProductHandler(IProductRepository repository, IUnitOfW
 
         await repository.AddAsync(result.Value!, cancellationToken);
         await unitOfWork.Commit(cancellationToken);
-        return Result<ProductDto>.Success(result.Value!.ToDto());
+        var productDto = result.Value!.ToDto();
+        await productCache.SetAsync(productDto, CancellationToken.None);
+        return Result<ProductDto>.Success(productDto);
     }
 }

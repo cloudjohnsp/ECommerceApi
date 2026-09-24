@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Domain.Enums;
@@ -12,7 +13,8 @@ public sealed class ProcessPaymentWebhookHandler(
     IPaymentRepository paymentRepository,
     IOrderRepository orderRepository,
     IProductRepository productRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<ProcessPaymentWebhookCommand, Result>
+    IUnitOfWork unitOfWork,
+    IProductCache productCache) : IRequestHandler<ProcessPaymentWebhookCommand, Result>
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -103,6 +105,8 @@ public sealed class ProcessPaymentWebhookHandler(
             orderRepository.Update(order);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
+            await Task.WhenAll(order.Items.Select(item =>
+                productCache.RemoveAsync(item.ProductId, CancellationToken.None)));
             return Result.Success();
         }
         finally

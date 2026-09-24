@@ -1,10 +1,14 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Shared.Results;
 using MediatR;
 
 namespace ECommerce.Application.Products.Handlers;
 
-public sealed class DeleteProductHandler(IProductRepository repository, IUnitOfWork unitOfWork)
+public sealed class DeleteProductHandler(
+    IProductRepository repository,
+    IUnitOfWork unitOfWork,
+    IProductCache productCache)
     : IRequestHandler<DeleteProductCommand, Result>
 {
     public async Task<Result> Handle(DeleteProductCommand request, CancellationToken cancellationToken)
@@ -17,6 +21,7 @@ public sealed class DeleteProductHandler(IProductRepository repository, IUnitOfW
 
         repository.Update(product);
         await unitOfWork.Commit(cancellationToken);
+        await productCache.RemoveAsync(product.Id, CancellationToken.None);
         return Result.Success();
     }
 }

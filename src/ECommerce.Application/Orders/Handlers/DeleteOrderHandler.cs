@@ -1,3 +1,4 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Shared.Results;
 using MediatR;
@@ -7,7 +8,8 @@ namespace ECommerce.Application.Orders.Handlers;
 public sealed class DeleteOrderHandler(
     IOrderRepository orderRepository,
     IProductRepository productRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteOrderCommand, Result>
+    IUnitOfWork unitOfWork,
+    IProductCache productCache) : IRequestHandler<DeleteOrderCommand, Result>
 {
     public async Task<Result> Handle(DeleteOrderCommand request, CancellationToken cancellationToken)
     {
@@ -37,6 +39,8 @@ public sealed class DeleteOrderHandler(
             orderRepository.Update(order);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
+            await Task.WhenAll(order.Items.Select(item =>
+                productCache.RemoveAsync(item.ProductId, CancellationToken.None)));
             return Result.Success();
         }
         finally

@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using RabbitMQ.Client;
 using ECommerce.Infrastructure.HealthChecks;
+using ECommerce.Application.Abstractions.Caching;
+using ECommerce.Infrastructure.Caching;
 
 namespace ECommerce.Infrastructure;
 
@@ -27,8 +29,44 @@ public static class DependencyInjection
 
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);
+        services.AddRedisCache(configuration);
         services.AddPaymentGateway(configuration);
         services.AddPaymentOutboxProcessor(configuration);
+
+        return services;
+    }
+
+    private static IServiceCollection AddRedisCache(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<RedisOptions>()
+            .Bind(configuration.GetSection(RedisOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Configuration),
+                "Redis:Configuration is required when Redis is enabled.")
+            .Validate(options => options.ProductExpirationMinutes > 0,
+                "Redis:ProductExpirationMinutes must be greater than zero.")
+            .ValidateOnStart();
+
+        var options = configuration.GetSection(RedisOptions.SectionName).Get<RedisOptions>()
+            ?? new RedisOptions();
+        if (!options.Enabled)
+        {
+            services.AddSingleton<IProductCache, NullProductCache>();
+            return services;
+        }
+
+        services.AddStackExchangeRedisCache(redis =>
+        {
+            redis.Configuration = options.Configuration;
+            redis.InstanceName = options.InstanceName;
+        });
+        services.AddScoped<IProductCache, RedisProductCache>();
+        services.AddHealthChecks()
+            .AddCheck<RedisHealthCheck>(
+                "redis",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(5));
 
         return services;
     }

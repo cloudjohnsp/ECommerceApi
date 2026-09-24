@@ -1,3 +1,4 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Orders.Dtos;
 using ECommerce.Domain.Entities;
@@ -13,7 +14,8 @@ public sealed class CreateOrderHandler(
     IUserRepository userRepository,
     IProductRepository productRepository,
     IOutboxMessageRepository outboxMessageRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
+    IUnitOfWork unitOfWork,
+    IProductCache productCache) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
@@ -66,6 +68,8 @@ public sealed class CreateOrderHandler(
             await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
+            await Task.WhenAll(products.Select(item =>
+                productCache.RemoveAsync(item.Product.Id, CancellationToken.None)));
 
             return Result<OrderDto>.Success(orderDto);
         }

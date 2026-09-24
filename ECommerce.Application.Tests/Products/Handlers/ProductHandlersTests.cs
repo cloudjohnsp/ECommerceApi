@@ -1,5 +1,7 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Products;
+using ECommerce.Application.Products.Dtos;
 using ECommerce.Application.Products.Handlers;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Tests.Support;
@@ -15,12 +17,13 @@ public sealed class ProductHandlersTests
 {
     private readonly Mock<IProductRepository> _repository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IProductCache> _cache = new();
 
     [Fact]
     public async Task Create_WithValidCommand_PersistsAndReturnsProduct()
     {
         var command = new CreateProductCommand("Notebook", "Gaming notebook", 4999.90m, 10);
-        var handler = new CreateProductHandler(_repository.Object, _unitOfWork.Object);
+        var handler = new CreateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -33,6 +36,9 @@ public sealed class ProductHandlersTests
         json.Should().NotContain("ReservedStock");
         _repository.Verify(x => x.AddAsync(It.Is<Product>(p => p.Name == command.Name), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _cache.Verify(x => x.SetAsync(
+            It.Is<ProductDto>(product => product.Id == result.Value.Id),
+            CancellationToken.None), Times.Once);
     }
 
     [Fact]
@@ -40,18 +46,40 @@ public sealed class ProductHandlersTests
     {
         var product = ProductFactory.Create();
         _repository.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
-        var handler = new GetProductByIdHandler(_repository.Object);
+        var handler = new GetProductByIdHandler(_repository.Object, _cache.Object);
 
         var result = await handler.Handle(new GetProductByIdQuery(product.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Id.Should().Be(product.Id);
+        _cache.Verify(x => x.SetAsync(
+            It.Is<ProductDto>(cached => cached.Id == product.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetById_WhenProductIsCached_DoesNotQueryRepository()
+    {
+        var cached = new ProductDto(
+            Guid.NewGuid(), "Mouse", "Wireless", 150, 8, true,
+            DateTimeOffset.UtcNow, null);
+        _cache.Setup(x => x.GetAsync(cached.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cached);
+        var handler = new GetProductByIdHandler(_repository.Object, _cache.Object);
+
+        var result = await handler.Handle(new GetProductByIdQuery(cached.Id), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().BeSameAs(cached);
+        _repository.Verify(
+            x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
     public async Task GetById_WhenProductDoesNotExist_ReturnsFailure()
     {
-        var handler = new GetProductByIdHandler(_repository.Object);
+        var handler = new GetProductByIdHandler(_repository.Object, _cache.Object);
 
         var result = await handler.Handle(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -81,7 +109,7 @@ public sealed class ProductHandlersTests
     {
         var product = ProductFactory.Create();
         _repository.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
-        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object);
+        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(new UpdateProductCommand(product.Id, "Mouse", "Wireless", 150, 20), CancellationToken.None);
 
@@ -89,12 +117,15 @@ public sealed class ProductHandlersTests
         result.Value!.Name.Should().Be("Mouse");
         _repository.Verify(x => x.Update(product), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _cache.Verify(x => x.SetAsync(
+            It.Is<ProductDto>(cached => cached.Id == product.Id && cached.Name == "Mouse"),
+            CancellationToken.None), Times.Once);
     }
 
     [Fact]
     public async Task Update_WhenProductDoesNotExist_DoesNotCommit()
     {
-        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object);
+        var handler = new UpdateProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(new UpdateProductCommand(Guid.NewGuid(), "Mouse", "Wireless", 150, 20), CancellationToken.None);
 
@@ -108,7 +139,7 @@ public sealed class ProductHandlersTests
     {
         var product = ProductFactory.Create();
         _repository.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
-        var handler = new DeleteProductHandler(_repository.Object, _unitOfWork.Object);
+        var handler = new DeleteProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(new DeleteProductCommand(product.Id), CancellationToken.None);
 
@@ -116,12 +147,13 @@ public sealed class ProductHandlersTests
         product.IsActive.Should().BeFalse();
         _repository.Verify(x => x.Update(product), Times.Once);
         _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _cache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
     [Fact]
     public async Task Delete_WhenProductDoesNotExist_ReturnsFailureWithoutCommit()
     {
-        var handler = new DeleteProductHandler(_repository.Object, _unitOfWork.Object);
+        var handler = new DeleteProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(new DeleteProductCommand(Guid.NewGuid()), CancellationToken.None);
 

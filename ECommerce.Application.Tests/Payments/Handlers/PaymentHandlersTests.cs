@@ -1,3 +1,4 @@
+using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Payments;
@@ -17,6 +18,7 @@ public sealed class PaymentHandlersTests
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IProductRepository> _products = new();
+    private readonly Mock<IProductCache> _productCache = new();
     private readonly Mock<IPaymentCreationProcessor> _paymentProcessor = new();
     private readonly Mock<IPaymentWebhookSignatureVerifier> _signatureVerifier = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
@@ -186,6 +188,7 @@ public sealed class PaymentHandlersTests
         order.Status.Should().Be(OrderStatus.Paid);
         product.AvailableStock.Should().Be(7);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
     [Fact]
@@ -211,6 +214,7 @@ public sealed class PaymentHandlersTests
         payment.Status.Should().Be(PaymentStatus.Failed);
         order.Status.Should().Be(OrderStatus.Cancelled);
         product.AvailableStock.Should().Be(10);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
     [Fact]
@@ -264,5 +268,6 @@ public sealed class PaymentHandlersTests
         _payments.Object,
         _orders.Object,
         _products.Object,
-        _unitOfWork.Object);
+        _unitOfWork.Object,
+        _productCache.Object);
 }
