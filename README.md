@@ -60,6 +60,12 @@ configure `Observability:OtlpEndpoint` (por exemplo,
 `http://localhost:4317`). O endpoint Prometheus pode ser desativado com
 `Observability:EnablePrometheus=false`.
 
+O `docker-compose.yml` também inicia Prometheus em
+`http://localhost:9090` e Grafana em `http://localhost:3001`. O datasource e o
+dashboard **ECommerce API** são provisionados automaticamente. As credenciais
+iniciais do Grafana são `admin`/`admin` e podem ser substituídas pelas variáveis
+`GRAFANA_ADMIN_USER` e `GRAFANA_ADMIN_PASSWORD`.
+
 ## Gateway de pagamento
 
 Execute o projeto `ECommercePayment` em `http://localhost:5002`. Depois de criar

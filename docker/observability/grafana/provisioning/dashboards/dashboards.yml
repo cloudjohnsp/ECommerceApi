@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: ECommerce
+    orgId: 1
+    folder: ECommerce
+    type: file
+    disableDeletion: true
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
