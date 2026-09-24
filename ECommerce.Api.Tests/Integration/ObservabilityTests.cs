@@ -58,6 +58,32 @@ public sealed class ObservabilityTests
         body.Should().Contain("service_name=\"ECommerce.Api\"");
     }
 
+    [Fact]
+    public async Task VersionedRoute_ForVersionOne_RemainsAvailableAlongsideLegacyRoute()
+    {
+        await using var factory = new ObservableApiFactory();
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var versionedResponse = await client.GetAsync("/api/v1/health");
+        using var legacyResponse = await client.GetAsync("/api/health");
+
+        versionedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        legacyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        versionedResponse.Headers.GetValues("api-supported-versions")
+            .Should().Contain("1.0");
+    }
+
+    [Fact]
+    public async Task VersionedRoute_ForUnsupportedVersion_ReturnsNotFound()
+    {
+        await using var factory = new ObservableApiFactory();
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var response = await client.GetAsync("/api/v2/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     private static WebApplicationFactoryClientOptions CreateClientOptions() => new()
     {
         BaseAddress = new Uri("https://localhost"),

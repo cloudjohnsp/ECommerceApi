@@ -1,5 +1,6 @@
 ﻿using ECommerce.Api.OpenApi;
 using ECommerce.Application;
+using Asp.Versioning;
 using ECommerce.Infrastructure;
 using ECommerce.Persistence;
 using ECommerce.Api.Options;
@@ -18,6 +19,13 @@ public static class DependencyInjection
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddControllers();
+        services.AddApiVersioning(options =>
+        {
+            options.DefaultApiVersion = new ApiVersion(1, 0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ReportApiVersions = true;
+            options.ApiVersionReader = new UrlSegmentApiVersionReader();
+        }).AddMvc();
         services.Configure<RouteOptions>(options =>
         {
             options.LowercaseUrls = true;

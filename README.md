@@ -29,6 +29,11 @@ alteração, desativação e mudanças de estoque atualizam ou invalidam a entra
 depois do commit. Se o Redis estiver temporariamente indisponível, a aplicação
 continua atendendo pelo PostgreSQL; o readiness check sinaliza a degradação.
 
+Todos os controllers públicos pertencem à versão `1.0`. As rotas explícitas
+usam o prefixo `/api/v1` (por exemplo, `GET /api/v1/products`). As rotas
+anteriores sob `/api` continuam disponíveis e assumem v1 por compatibilidade;
+respostas informam as versões suportadas nos headers de API versioning.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

@@ -1,5 +1,6 @@
 using ECommerce.Application.Payments;
 using MediatR;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,9 @@ namespace ECommerce.Api.Controllers;
 
 [AllowAnonymous]
 [ApiController]
+[ApiVersion(1.0)]
 [Route("api/webhooks/payments")]
+[Route("api/v{version:apiVersion}/webhooks/payments")]
 public sealed class PaymentWebhooksController(ISender mediator) : ControllerBase
 {
     [HttpPost]
