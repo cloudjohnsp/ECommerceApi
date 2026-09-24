@@ -4,6 +4,7 @@ using ECommerce.Application.Products.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Api.Controllers;
 
@@ -11,10 +12,19 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
 {
     [HttpGet]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(IReadOnlyCollection<ProductDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<ProductDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] ProductSearchRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new GetProductsQuery(), cancellationToken);
+        var result = await mediator.Send(new GetProductsQuery(
+            request.Search,
+            request.MinPrice,
+            request.MaxPrice,
+            request.SortBy,
+            request.Descending,
+            request.Page,
+            request.PageSize), cancellationToken);
         return Ok(result.Value);
     }
 

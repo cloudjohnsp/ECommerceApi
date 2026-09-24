@@ -3,6 +3,8 @@ using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using ECommerce.Application.Products;
+using ECommerce.Application.Products.Specifications;
 
 namespace ECommerce.Persistence.Tests.Repositories;
 
@@ -109,6 +111,33 @@ public sealed class ProductRepositoryTests
         result.AvailableStock.Should().Be(5);
     }
 
+    [Fact]
+    public async Task SearchAsync_FiltersProductsAndAppliesPagination()
+    {
+        await using var context = CreateContext();
+        context.Products.AddRange(
+            CreateProduct("Basic Mouse", 50),
+            CreateProduct("Gaming Mouse", 150),
+            CreateProduct("Notebook", 5000),
+            CreateProduct("Premium Mouse", 300));
+        await context.SaveChangesAsync();
+        var repository = new ProductRepository(context);
+        var specification = new ProductCatalogSpecification(new GetProductsQuery(
+            Search: "mouse",
+            MinPrice: 100,
+            SortBy: "price",
+            Descending: true,
+            Page: 1,
+            PageSize: 1));
+
+        var result = await repository.SearchAsync(specification);
+
+        result.TotalCount.Should().Be(2);
+        result.Items.Should().ContainSingle().Which.Name.Should().Be("Premium Mouse");
+        result.Page.Should().Be(1);
+        result.PageSize.Should().Be(1);
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -117,9 +146,9 @@ public sealed class ProductRepositoryTests
         return new AppDbContext(options);
     }
 
-    private static Product CreateProduct(string name = "Notebook")
+    private static Product CreateProduct(string name = "Notebook", decimal price = 100)
     {
-        var result = Product.Create(name, "Description", 100, 5);
+        var result = Product.Create(name, "Description", price, 5);
         result.IsSuccess.Should().BeTrue();
         return result.Value!;
     }

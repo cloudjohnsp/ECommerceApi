@@ -17,6 +17,14 @@ A borda HTTP aplica CORS somente às origens configuradas em
 e outro mais restritivo para `/api/auth/login`, `/api/auth/register`,
 `/api/auth/refresh` e `/api/auth/logout`.
 
+O catálogo é paginado e aceita busca textual, faixa de preço e ordenação:
+
+```http
+GET /api/products?search=mouse&minPrice=50&maxPrice=500&sortBy=price&descending=true&page=1&pageSize=20
+```
+
+`sortBy` aceita `name`, `price` ou `createdAt`, e `pageSize` é limitado a 100.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

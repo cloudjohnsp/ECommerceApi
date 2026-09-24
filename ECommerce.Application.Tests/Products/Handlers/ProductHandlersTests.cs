@@ -6,6 +6,8 @@ using ECommerce.Domain.Tests.Support;
 using FluentAssertions;
 using Moq;
 using System.Text.Json;
+using ECommerce.Application.Abstractions.Specifications;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Application.Tests.Products.Handlers;
 
@@ -61,14 +63,17 @@ public sealed class ProductHandlersTests
     public async Task GetAll_ReturnsMappedProducts()
     {
         Product[] products = [ProductFactory.Create("Notebook"), ProductFactory.Create("Mouse")];
-        _repository.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(products);
+        _repository.Setup(x => x.SearchAsync(
+                It.IsAny<ISpecification<Product>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<Product>(products, 1, 20, products.Length));
         var handler = new GetProductsHandler(_repository.Object);
 
         var result = await handler.Handle(new GetProductsQuery(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().HaveCount(2);
-        result.Value!.Select(x => x.Name).Should().BeEquivalentTo("Notebook", "Mouse");
+        result.Value!.Items.Should().HaveCount(2);
+        result.Value.Items.Select(x => x.Name).Should().BeEquivalentTo("Notebook", "Mouse");
+        result.Value.TotalCount.Should().Be(2);
     }
 
     [Fact]

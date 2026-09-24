@@ -30,6 +30,26 @@ public sealed class GetProductByIdValidator : AbstractValidator<GetProductByIdQu
     public GetProductByIdValidator() => RuleFor(x => x.ProductId).NotEmpty();
 }
 
+public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
+{
+    private static readonly string[] AllowedSortFields = ["name", "price", "createdAt"];
+
+    public GetProductsValidator()
+    {
+        RuleFor(x => x.Page).GreaterThan(0);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+        RuleFor(x => x.MinPrice).GreaterThanOrEqualTo(0).When(x => x.MinPrice.HasValue);
+        RuleFor(x => x.MaxPrice).GreaterThanOrEqualTo(0).When(x => x.MaxPrice.HasValue);
+        RuleFor(x => x.MaxPrice)
+            .GreaterThanOrEqualTo(x => x.MinPrice)
+            .When(x => x.MinPrice.HasValue && x.MaxPrice.HasValue);
+        RuleFor(x => x.SortBy)
+            .Must(sortBy => AllowedSortFields.Contains(sortBy, StringComparer.OrdinalIgnoreCase))
+            .WithMessage("SortBy must be one of: name, price, createdAt.");
+        RuleFor(x => x.Search).MaximumLength(150);
+    }
+}
+
 public sealed class DeleteProductValidator : AbstractValidator<DeleteProductCommand>
 {
     public DeleteProductValidator() => RuleFor(x => x.ProductId).NotEmpty();

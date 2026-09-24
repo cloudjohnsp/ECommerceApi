@@ -36,4 +36,21 @@ public sealed class ProductValidatorsTests
 
         result.Errors.Should().Contain(x => x.PropertyName == "ProductId");
     }
+
+    [Fact]
+    public async Task GetProducts_WithInvalidPaginationPriceRangeAndSort_IsInvalid()
+    {
+        var validator = new GetProductsValidator();
+
+        var result = await validator.ValidateAsync(new GetProductsQuery(
+            MinPrice: 100,
+            MaxPrice: 50,
+            SortBy: "unknown",
+            Page: 0,
+            PageSize: 101));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Select(error => error.PropertyName)
+            .Should().Contain(["MaxPrice", "SortBy", "Page", "PageSize"]);
+    }
 }
