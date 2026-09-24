@@ -13,7 +13,7 @@ public sealed class CreatePaymentHandler(
     IOrderRepository orderRepository,
     IPaymentRepository paymentRepository,
     IOutboxMessageRepository outboxMessageRepository,
-    IPaymentGateway paymentGateway,
+    IPaymentCreationProcessor paymentCreationProcessor,
     IUnitOfWork unitOfWork) : IRequestHandler<CreatePaymentCommand, Result<PaymentDto>>
 {
     public async Task<Result<PaymentDto>> Handle(
@@ -76,20 +76,9 @@ public sealed class CreatePaymentHandler(
         if (payment.ExternalPaymentId is not null)
             return Result<PaymentDto>.Success(payment.ToDto());
 
-        var gatewayPaymentRequest = JsonSerializer.Deserialize<CreateGatewayPayment>(intention!.Payload)!;
-        var gatewayResult = await paymentGateway.CreateAsync(gatewayPaymentRequest, cancellationToken);
-
-        if (gatewayResult.IsFailure)
-            return Result<PaymentDto>.Failure([.. gatewayResult.Errors]);
-
-        var registerResult = payment.RegisterExternalPayment(gatewayResult.Value!.ExternalPaymentId);
-        if (registerResult.IsFailure)
-            return Result<PaymentDto>.Failure([.. registerResult.Errors]);
-
-        paymentRepository.Update(payment);
-        intention.MarkProcessed();
-        outboxMessageRepository.Update(intention);
-        await unitOfWork.Commit(cancellationToken);
-        return Result<PaymentDto>.Success(payment.ToDto());
+        var processResult = await paymentCreationProcessor.ProcessAsync(payment.Id, cancellationToken);
+        return processResult.IsFailure
+            ? Result<PaymentDto>.Failure([.. processResult.Errors])
+            : Result<PaymentDto>.Success(processResult.Value!.ToDto());
     }
 }

@@ -38,3 +38,10 @@ O gateway retorna um identificador `pay_...`. A aprovação ou recusa feita no
 simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segredo
 `PaymentGateway:WebhookSecret` deve ser igual ao `WEBHOOK_SECRET` configurado no
 gateway.
+
+Ao iniciar um pagamento, a API salva o pagamento e uma intenção
+`PaymentCreationRequested` na outbox dentro da mesma transação. A tentativa é
+executada imediatamente e um serviço em segundo plano reprocessa intenções que
+continuarem pendentes, usando o `Payment.Id` como chave de idempotência no
+gateway. O intervalo e o tamanho do lote são configurados em
+`OutboxProcessor` no `appsettings.json`.

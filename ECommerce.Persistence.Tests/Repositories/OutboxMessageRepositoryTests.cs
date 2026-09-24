@@ -50,6 +50,25 @@ public sealed class OutboxMessageRepositoryTests
         processed.UpdatedAt.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task GetPendingIdsAsync_ReturnsOnlyPendingMessagesOfRequestedTypeWithinBatchSize()
+    {
+        await using var context = CreateContext();
+        var repository = new OutboxMessageRepository(context);
+        var first = new OutboxMessage(Guid.NewGuid(), OutBoxMessageType.PaymentCreationRequested, "{}");
+        var second = new OutboxMessage(Guid.NewGuid(), OutBoxMessageType.PaymentCreationRequested, "{}");
+        var processed = new OutboxMessage(Guid.NewGuid(), OutBoxMessageType.PaymentCreationRequested, "{}");
+        processed.MarkProcessed();
+        var orderMessage = new OutboxMessage(OutBoxMessageType.OrderCreated, "{}");
+        context.OutboxMessages.AddRange(first, second, processed, orderMessage);
+        await context.SaveChangesAsync();
+
+        var ids = await repository.GetPendingIdsAsync(OutBoxMessageType.PaymentCreationRequested, 1);
+
+        ids.Should().ContainSingle();
+        ids.Single().Should().Be(first.Id);
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

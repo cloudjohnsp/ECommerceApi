@@ -6,6 +6,8 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using FluentValidation;
+using ECommerce.Application.Abstractions.Payments;
+using ECommerce.Application.Payments;
 
 namespace ECommerce.Application;
 
@@ -20,6 +22,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly(), ServiceLifetime.Transient);
+        services.AddScoped<IPaymentCreationProcessor, PaymentCreationProcessor>();
         services.RegisterMapsterConfiguration();
         return services;
     }

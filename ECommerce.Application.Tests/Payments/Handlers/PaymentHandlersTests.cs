@@ -17,20 +17,28 @@ public sealed class PaymentHandlersTests
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IProductRepository> _products = new();
-    private readonly Mock<IPaymentGateway> _gateway = new();
+    private readonly Mock<IPaymentCreationProcessor> _paymentProcessor = new();
     private readonly Mock<IPaymentWebhookSignatureVerifier> _signatureVerifier = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IOutboxMessageRepository> _outbox = new();
 
     [Fact]
-    public async Task Create_WithPendingOrder_CreatesGatewayPaymentAndStoresExternalId()
+    public async Task Create_WithPendingOrder_PersistsIntentionBeforeProcessingIt()
     {
         var order = OrderFactory.Create();
+        Payment? createdPayment = null;
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _gateway.Setup(x => x.CreateAsync(It.IsAny<CreateGatewayPayment>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<GatewayPayment>.Success(new GatewayPayment("pay_123", "pending")));
+        _payments.Setup(x => x.AddAsync(It.IsAny<Payment>(), It.IsAny<CancellationToken>()))
+            .Callback<Payment, CancellationToken>((payment, _) => createdPayment = payment)
+            .Returns(Task.CompletedTask);
+        _paymentProcessor.Setup(x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                createdPayment!.RegisterExternalPayment("pay_123");
+                return Result<Payment>.Success(createdPayment);
+            });
         var handler = new CreatePaymentHandler(
-            _orders.Object, _payments.Object, _outbox.Object, _gateway.Object, _unitOfWork.Object);
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
 
@@ -40,9 +48,9 @@ public sealed class PaymentHandlersTests
         _payments.Verify(x => x.AddAsync(It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Once);
         _outbox.Verify(x => x.AddAsync(It.Is<OutboxMessage>(message =>
             message.Type == OutBoxMessageType.PaymentCreationRequested &&
-            message.Status == OutBoxMessageStatus.Processed), It.IsAny<CancellationToken>()), Times.Once);
+            message.Status == OutBoxMessageStatus.Pending), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _paymentProcessor.Verify(x => x.ProcessAsync(createdPayment!.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -54,14 +62,14 @@ public sealed class PaymentHandlersTests
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
         var handler = new CreatePaymentHandler(
-            _orders.Object, _payments.Object, _outbox.Object, _gateway.Object, _unitOfWork.Object);
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.ExternalPaymentId.Should().Be("pay_123");
-        _gateway.Verify(
-            x => x.CreateAsync(It.IsAny<CreateGatewayPayment>(), It.IsAny<CancellationToken>()),
+        _paymentProcessor.Verify(
+            x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -70,8 +78,8 @@ public sealed class PaymentHandlersTests
     {
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _gateway.Setup(x => x.CreateAsync(It.IsAny<CreateGatewayPayment>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<GatewayPayment>.Failure("Gateway unavailable."));
+        _paymentProcessor.Setup(x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<Payment>.Failure("Gateway unavailable."));
         OutboxMessage? intention = null;
         _outbox.Setup(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
             .Callback<OutboxMessage, CancellationToken>((message, _) => intention = message)
@@ -80,12 +88,12 @@ public sealed class PaymentHandlersTests
             .Callback(() =>
             {
                 intention.Should().NotBeNull();
-                _gateway.Verify(x => x.CreateAsync(
-                    It.IsAny<CreateGatewayPayment>(), It.IsAny<CancellationToken>()), Times.Never);
+                _paymentProcessor.Verify(x => x.ProcessAsync(
+                    It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
             })
             .Returns(Task.CompletedTask);
         var handler = new CreatePaymentHandler(
-            _orders.Object, _payments.Object, _outbox.Object, _gateway.Object, _unitOfWork.Object);
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
 
@@ -99,34 +107,7 @@ public sealed class PaymentHandlersTests
         payload.Amount.Should().Be(order.Total);
         payload.Currency.Should().Be("BRL");
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task Create_WhenRetryingPendingPayment_ReusesOutboxRequestAndIdempotencyKey()
-    {
-        var order = OrderFactory.Create();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
-        var originalRequest = new CreateGatewayPayment(payment.Id, order.Id, order.Total, "BRL");
-        var intention = new OutboxMessage(
-            payment.Id,
-            OutBoxMessageType.PaymentCreationRequested,
-            JsonSerializer.Serialize(originalRequest));
-        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
-        _outbox.Setup(x => x.GetByIdAsync(payment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(intention);
-        _gateway.Setup(x => x.CreateAsync(originalRequest, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<GatewayPayment>.Success(new GatewayPayment("pay_123", "pending")));
-        var handler = new CreatePaymentHandler(
-            _orders.Object, _payments.Object, _outbox.Object, _gateway.Object, _unitOfWork.Object);
-
-        var result = await handler.Handle(new CreatePaymentCommand(order.Id, "USD"), CancellationToken.None);
-
-        result.IsSuccess.Should().BeTrue();
-        intention.Status.Should().Be(OutBoxMessageStatus.Processed);
-        _outbox.Verify(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
-        _outbox.Verify(x => x.Update(intention), Times.Once);
-        _gateway.Verify(x => x.CreateAsync(originalRequest, It.IsAny<CancellationToken>()), Times.Once);
+        _paymentProcessor.Verify(x => x.ProcessAsync(intention.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -137,15 +118,15 @@ public sealed class PaymentHandlersTests
         _outbox.Setup(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Outbox write failed."));
         var handler = new CreatePaymentHandler(
-            _orders.Object, _payments.Object, _outbox.Object, _gateway.Object, _unitOfWork.Object);
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None));
 
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        _gateway.Verify(x => x.CreateAsync(
-            It.IsAny<CreateGatewayPayment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _paymentProcessor.Verify(x => x.ProcessAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

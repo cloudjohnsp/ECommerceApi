@@ -25,7 +25,24 @@ public static class DependencyInjection
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);
         services.AddPaymentGateway(configuration);
+        services.AddPaymentOutboxProcessor(configuration);
 
+        return services;
+    }
+
+    private static IServiceCollection AddPaymentOutboxProcessor(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<OutboxProcessorOptions>()
+            .Bind(configuration.GetSection(OutboxProcessorOptions.SectionName))
+            .Validate(options => options.PollingIntervalSeconds > 0,
+                "OutboxProcessor:PollingIntervalSeconds must be greater than zero.")
+            .Validate(options => options.BatchSize > 0,
+                "OutboxProcessor:BatchSize must be greater than zero.")
+            .ValidateOnStart();
+
+        services.AddHostedService<PaymentOutboxWorker>();
         return services;
     }
 
