@@ -46,6 +46,20 @@ Health checks disponíveis:
 - `/api/health/ready`: verifica PostgreSQL, RabbitMQ e o gateway de pagamento;
 - `/api/health`: executa todas as verificações registradas.
 
+## Observabilidade
+
+A API produz logs estruturados em JSON com Serilog, incluindo `CorrelationId`,
+`TraceId` e `SpanId`, e adiciona `X-Correlation-ID` a toda resposta. Um
+identificador válido recebido nesse header é preservado; caso ele não seja
+enviado, a API gera um novo identificador.
+
+OpenTelemetry coleta métricas de ASP.NET Core, `HttpClient` e runtime, além de
+traces de requisições e chamadas HTTP de saída. O Prometheus pode coletar as
+métricas em `GET /metrics`. Para enviar traces e métricas a um collector OTLP,
+configure `Observability:OtlpEndpoint` (por exemplo,
+`http://localhost:4317`). O endpoint Prometheus pode ser desativado com
+`Observability:EnablePrometheus=false`.
+
 ## Gateway de pagamento
 
 Execute o projeto `ECommercePayment` em `http://localhost:5002`. Depois de criar

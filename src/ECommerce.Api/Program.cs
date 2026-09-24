@@ -1,18 +1,35 @@
 using ECommerce.Application;
 using ECommerce.Api.Middlewares;
 using ECommerce.Api.OpenApi;
+using ECommerce.Api.Options;
 using ECommerce.Infrastructure;
 using ECommerce.Persistence;
 using ECommerce.Api;
 using ECommerce.Api.Security;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using OpenTelemetry.Metrics;
+using Serilog;
+using Serilog.Formatting.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new JsonFormatter(renderMessage: true)));
 
 builder.Services.AddApi(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseHttpsRedirection();
@@ -34,6 +51,8 @@ app.MapHealthChecks("/api/health/ready", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
 });
+if (app.Services.GetRequiredService<IOptions<ObservabilityOptions>>().Value.EnablePrometheus)
+    app.MapPrometheusScrapingEndpoint("/metrics");
 
 app.Run();
 

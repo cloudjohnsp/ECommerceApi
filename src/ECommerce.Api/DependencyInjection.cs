@@ -5,6 +5,9 @@ using ECommerce.Persistence;
 using ECommerce.Api.Options;
 using ECommerce.Api.Security;
 using Microsoft.AspNetCore.RateLimiting;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 
@@ -26,12 +29,66 @@ public static class DependencyInjection
         });
         services.AddHealthChecks();
         services.AddApiProtection(configuration);
+        services.AddApiObservability(configuration);
         services.AddApplication();
         services.AddInfrastructure(configuration);
         services.AddPersistence(configuration);
 
         return services;
     }
+
+    private static IServiceCollection AddApiObservability(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<ObservabilityOptions>()
+            .Bind(configuration.GetSection(ObservabilityOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.ServiceName),
+                "Observability:ServiceName is required.")
+            .Validate(options => string.IsNullOrWhiteSpace(options.OtlpEndpoint) ||
+                    Uri.TryCreate(options.OtlpEndpoint, UriKind.Absolute, out _),
+                "Observability:OtlpEndpoint must be an absolute URI when configured.")
+            .ValidateOnStart();
+
+        var options = configuration.GetSection(ObservabilityOptions.SectionName)
+            .Get<ObservabilityOptions>() ?? new ObservabilityOptions();
+
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(options.ServiceName))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddAspNetCoreInstrumentation(instrumentation =>
+                    {
+                        instrumentation.Filter = context =>
+                            !context.Request.Path.StartsWithSegments("/metrics");
+                    })
+                    .AddHttpClientInstrumentation();
+
+                if (TryGetOtlpEndpoint(options, out var endpoint))
+                    tracing.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
+
+                if (options.EnablePrometheus)
+                    metrics.AddPrometheusExporter();
+
+                if (TryGetOtlpEndpoint(options, out var endpoint))
+                    metrics.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
+            });
+
+        return services;
+    }
+
+    private static bool TryGetOtlpEndpoint(
+        ObservabilityOptions options,
+        out Uri endpoint) =>
+        Uri.TryCreate(options.OtlpEndpoint, UriKind.Absolute, out endpoint!);
 
     private static IServiceCollection AddApiProtection(
         this IServiceCollection services,
