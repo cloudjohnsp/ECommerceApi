@@ -44,6 +44,12 @@ continua atendendo pelo PostgreSQL; o readiness check sinaliza a degradação.
 dotnet run --project src/ECommerce.Api
 ```
 
+Por padrão, a execução local não altera o schema automaticamente. Gere e
+aplique migrations de forma explícita durante o desenvolvimento. No Compose,
+`DatabaseInitialization:ApplyMigrationsOnStartup` é habilitado: a API aguarda os
+health checks de PostgreSQL, RabbitMQ e Redis e aplica migrations pendentes com
+retry limitado antes de começar a atender requisições.
+
 ## Integração contínua
 
 O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,

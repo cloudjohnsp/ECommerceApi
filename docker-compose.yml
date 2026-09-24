@@ -11,6 +11,11 @@ services:
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -24,6 +29,11 @@ services:
     restart: unless-stopped
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:8.2.9-alpine
@@ -34,6 +44,11 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   ecommerce-api:  
     build:
@@ -42,6 +57,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=postgres-db;Port=5432;Database=ecommerce;Username=postgres;Password=postgres
+      DatabaseInitialization__ApplyMigrationsOnStartup: "true"
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: guest
@@ -58,9 +74,12 @@ services:
       - "8080:8080"
       - "8081:8081" 
     depends_on:
-      - postgres-db
-      - rabbitmq
-      - redis
+      postgres-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   prometheus:

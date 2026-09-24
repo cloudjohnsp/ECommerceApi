@@ -24,6 +24,8 @@ builder.Services.AddApi(builder.Configuration);
 
 var app = builder.Build();
 
+await app.Services.ApplyDatabaseMigrationsAsync();
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>
 {
