@@ -11,7 +11,7 @@ public sealed class GetOrderByIdHandler(IOrderRepository repository)
     public async Task<Result<OrderDto>> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(request.OrderId, cancellationToken);
-        return order is null
+        return order is null || request.CustomerId is { } customerId && order.CustomerId != customerId
             ? Result<OrderDto>.Failure("Order not found.")
             : Result<OrderDto>.Success(order.ToDto());
     }
@@ -22,7 +22,9 @@ public sealed class GetOrdersHandler(IOrderRepository repository)
 {
     public async Task<Result<IReadOnlyCollection<OrderDto>>> Handle(GetOrdersQuery request, CancellationToken cancellationToken)
     {
-        var orders = await repository.GetAllAsync(cancellationToken);
+        var orders = request.CustomerId is { } customerId
+            ? await repository.GetByCustomerIdAsync(customerId, cancellationToken)
+            : await repository.GetAllAsync(cancellationToken);
         IReadOnlyCollection<OrderDto> result = [.. orders.Select(order => order.ToDto())];
         return Result<IReadOnlyCollection<OrderDto>>.Success(result);
     }

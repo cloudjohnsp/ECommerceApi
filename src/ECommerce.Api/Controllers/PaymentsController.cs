@@ -4,6 +4,7 @@ using ECommerce.Application.Payments.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ECommerce.Api.Authorization;
 
 namespace ECommerce.Api.Controllers;
 
@@ -15,7 +16,8 @@ public sealed class PaymentsController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(Guid orderId, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new GetPaymentByOrderIdQuery(orderId), cancellationToken);
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(new GetPaymentByOrderIdQuery(orderId, customerId), cancellationToken);
         return result.IsFailure ? NotFound(result.Errors) : Ok(result.Value);
     }
 
@@ -29,8 +31,9 @@ public sealed class PaymentsController(ISender mediator) : BaseApiController
         CreatePaymentRequest request,
         CancellationToken cancellationToken)
     {
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
         var result = await mediator.Send(
-            new CreatePaymentCommand(request.OrderId, request.Currency),
+            new CreatePaymentCommand(request.OrderId, request.Currency, customerId),
             cancellationToken);
         if (result.IsSuccess) return Ok(result.Value);
 

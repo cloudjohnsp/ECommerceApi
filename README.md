@@ -7,6 +7,11 @@ alteração de roles exige `Administrator`; operações de perfil e desativaçã
 limitadas ao próprio usuário ou a administradores, e a troca de senha é restrita
 ao próprio usuário.
 
+Clientes consultam, cancelam e pagam somente os próprios pedidos. O identificador
+do cliente é obtido do JWT, portanto um `CustomerId` enviado por um cliente não
+pode ser usado para operar em nome de outra conta. Administradores mantêm visão
+global dos pedidos.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

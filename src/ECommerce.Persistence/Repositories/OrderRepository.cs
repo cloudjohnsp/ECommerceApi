@@ -21,6 +21,15 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
         await dbContext.Orders.AsNoTracking().Include(order => order.Items)
             .OrderByDescending(order => order.CreatedAt).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<Order>> GetByCustomerIdAsync(
+        Guid customerId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Orders.AsNoTracking()
+            .Include(order => order.Items)
+            .Where(order => order.CustomerId == customerId)
+            .OrderByDescending(order => order.CreatedAt)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Order order, CancellationToken cancellationToken = default) =>
         await dbContext.Orders.AddAsync(order, cancellationToken);
 

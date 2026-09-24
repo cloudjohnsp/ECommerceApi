@@ -4,6 +4,9 @@ using ECommerce.Api.Contracts.Users;
 using ECommerce.Api.Controllers;
 using ECommerce.Application.Users;
 using ECommerce.Application.Users.Dtos;
+using ECommerce.Api.Contracts.Orders;
+using ECommerce.Application.Orders;
+using ECommerce.Application.Orders.Dtos;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using FluentAssertions;
@@ -79,6 +82,35 @@ public sealed class AuthorizationControllerTests
 
         result.Should().BeOfType<ForbidResult>();
         mediator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task CreateOrder_CustomerCannotSubmitOrderForAnotherCustomer()
+    {
+        var authenticatedUserId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(x => x.Send(It.IsAny<CreateOrderCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderDto>.Failure("Expected test response."));
+        var controller = new OrdersController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(authenticatedUserId, UserRole.Customer)
+                }
+            }
+        };
+
+        await controller.Create(
+            new CreateOrderRequest(
+                Guid.NewGuid(),
+                [new CreateOrderItemRequest(Guid.NewGuid(), 1)]),
+            CancellationToken.None);
+
+        mediator.Verify(x => x.Send(
+            It.Is<CreateOrderCommand>(command => command.CustomerId == authenticatedUserId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static ClaimsPrincipal CreatePrincipal(Guid userId, UserRole role) => new(

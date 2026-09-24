@@ -4,5 +4,5 @@ using MediatR;
 
 namespace ECommerce.Application.Orders;
 
-public sealed record GetOrderByIdQuery(Guid OrderId) : IRequest<Result<OrderDto>>;
-public sealed record GetOrdersQuery : IRequest<Result<IReadOnlyCollection<OrderDto>>>;
+public sealed record GetOrderByIdQuery(Guid OrderId, Guid? CustomerId = null) : IRequest<Result<OrderDto>>;
+public sealed record GetOrdersQuery(Guid? CustomerId = null) : IRequest<Result<IReadOnlyCollection<OrderDto>>>;

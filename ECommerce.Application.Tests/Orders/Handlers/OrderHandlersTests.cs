@@ -92,6 +92,20 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
+    public async Task GetById_ForAnotherCustomer_ReturnsNotFound()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var handler = new GetOrderByIdHandler(_orders.Object);
+
+        var result = await handler.Handle(
+            new GetOrderByIdQuery(order.Id, Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Order not found.");
+    }
+
+    [Fact]
     public async Task GetAll_ReturnsMappedOrders()
     {
         _orders.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>()))
@@ -102,6 +116,21 @@ public sealed class OrderHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetAll_WithCustomerScope_UsesCustomerFilteredRepositoryQuery()
+    {
+        var customerId = Guid.NewGuid();
+        _orders.Setup(x => x.GetByCustomerIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([OrderFactory.Create(customerId)]);
+        var handler = new GetOrdersHandler(_orders.Object);
+
+        var result = await handler.Handle(new GetOrdersQuery(customerId), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().ContainSingle().Which.CustomerId.Should().Be(customerId);
+        _orders.Verify(x => x.GetAllAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -151,6 +180,23 @@ public sealed class OrderHandlersTests
         result.IsFailure.Should().BeTrue();
         _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteOrder_ForAnotherCustomer_ReturnsNotFoundWithoutChangingOrder()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var handler = new DeleteOrderHandler(_orders.Object, _products.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new DeleteOrderCommand(order.Id, Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Order not found.");
+        order.Status.Should().Be(OrderStatus.Pending);
+        _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

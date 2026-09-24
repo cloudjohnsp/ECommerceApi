@@ -4,6 +4,7 @@ using ECommerce.Application.Orders.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ECommerce.Api.Authorization;
 
 namespace ECommerce.Api.Controllers;
 
@@ -14,7 +15,8 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
     [ProducesResponseType(typeof(IReadOnlyCollection<OrderDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new GetOrdersQuery(), cancellationToken);
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(new GetOrdersQuery(customerId), cancellationToken);
         return Ok(result.Value);
     }
 
@@ -23,7 +25,8 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid orderId, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new GetOrderByIdQuery(orderId), cancellationToken);
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(new GetOrderByIdQuery(orderId, customerId), cancellationToken);
         return result.IsFailure ? NotFound(result.Errors) : Ok(result.Value);
     }
 
@@ -32,7 +35,9 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateOrderRequest request, CancellationToken cancellationToken)
     {
-        var command = new CreateOrderCommand(request.CustomerId,
+        if (!User.TryGetCustomerScope(out var customerScope)) return Forbid();
+        var customerId = customerScope ?? request.CustomerId;
+        var command = new CreateOrderCommand(customerId,
             [.. request.Items.Select(item => new CreateOrderItem(item.ProductId, item.Quantity))]);
         var result = await mediator.Send(command, cancellationToken);
         if (result.IsFailure) return BadRequest(result.Errors);
@@ -58,7 +63,8 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid orderId, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new DeleteOrderCommand(orderId), cancellationToken);
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(new DeleteOrderCommand(orderId, customerId), cancellationToken);
         return result.IsFailure
             ? result.Errors.Contains("Order not found.") ? NotFound(result.Errors) : BadRequest(result.Errors)
             : NoContent();

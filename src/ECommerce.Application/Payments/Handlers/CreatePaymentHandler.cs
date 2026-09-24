@@ -27,7 +27,8 @@ public sealed class CreatePaymentHandler(
         try
         {
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
-            if (order is null) return Result<PaymentDto>.Failure("Order not found.");
+            if (order is null || request.CustomerId is { } customerId && order.CustomerId != customerId)
+                return Result<PaymentDto>.Failure("Order not found.");
             if (order.Status != OrderStatus.Pending)
                 return Result<PaymentDto>.Failure("Only pending orders can be sent for payment.");
 

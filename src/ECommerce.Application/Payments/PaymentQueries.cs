@@ -4,4 +4,4 @@ using MediatR;
 
 namespace ECommerce.Application.Payments;
 
-public sealed record GetPaymentByOrderIdQuery(Guid OrderId) : IRequest<Result<PaymentDto>>;
+public sealed record GetPaymentByOrderIdQuery(Guid OrderId, Guid? CustomerId = null) : IRequest<Result<PaymentDto>>;

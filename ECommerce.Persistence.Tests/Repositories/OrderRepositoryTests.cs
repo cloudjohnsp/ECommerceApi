@@ -57,6 +57,23 @@ public sealed class OrderRepositoryTests
     }
 
     [Fact]
+    public async Task GetByCustomerIdAsync_ReturnsOnlyCustomersOrders()
+    {
+        await using var context = CreateContext();
+        var customerId = Guid.NewGuid();
+        var expected = CreateOrder(customerId);
+        context.Orders.AddRange(expected, CreateOrder(Guid.NewGuid()));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new OrderRepository(context);
+
+        var result = await repository.GetByCustomerIdAsync(customerId);
+
+        result.Should().ContainSingle().Which.Id.Should().Be(expected.Id);
+        result.Single().Items.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Update_PersistsStatusChange()
     {
         await using var context = CreateContext();
@@ -80,9 +97,9 @@ public sealed class OrderRepositoryTests
         return new AppDbContext(options);
     }
 
-    private static Order CreateOrder()
+    private static Order CreateOrder(Guid? customerId = null)
     {
-        var result = Order.Create(Guid.NewGuid());
+        var result = Order.Create(customerId ?? Guid.NewGuid());
         result.Value!.AddItem(Guid.NewGuid(), "Notebook", 100m, 2);
         return result.Value;
     }

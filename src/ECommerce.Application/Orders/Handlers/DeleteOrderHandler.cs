@@ -16,7 +16,8 @@ public sealed class DeleteOrderHandler(
         try
         {
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
-            if (order is null) return Result.Failure("Order not found.");
+            if (order is null || request.CustomerId is { } customerId && order.CustomerId != customerId)
+                return Result.Failure("Order not found.");
             if (order.Status == Domain.Enums.OrderStatus.Cancelled) return Result.Success();
 
             var result = order.Cancel();

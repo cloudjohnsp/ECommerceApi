@@ -4,5 +4,8 @@ using MediatR;
 
 namespace ECommerce.Application.Payments;
 
-public sealed record CreatePaymentCommand(Guid OrderId, string Currency) : IRequest<Result<PaymentDto>>;
+public sealed record CreatePaymentCommand(
+    Guid OrderId,
+    string Currency,
+    Guid? CustomerId = null) : IRequest<Result<PaymentDto>>;
 public sealed record ProcessPaymentWebhookCommand(string Payload, string? Signature) : IRequest<Result>;

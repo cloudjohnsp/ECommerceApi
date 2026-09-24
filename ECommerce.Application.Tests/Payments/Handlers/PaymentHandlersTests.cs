@@ -130,6 +130,39 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Create_ForAnotherCustomersOrder_ReturnsNotFoundWithoutCreatingPayment()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var handler = new CreatePaymentHandler(
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Order not found.");
+        _payments.Verify(x => x.AddAsync(It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _outbox.Verify(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPayment_ForAnotherCustomersOrder_ReturnsNotFoundWithoutLoadingPayment()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var handler = new GetPaymentByOrderIdHandler(_payments.Object, _orders.Object);
+
+        var result = await handler.Handle(
+            new GetPaymentByOrderIdQuery(order.Id, Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment not found.");
+        _payments.Verify(x => x.GetByOrderIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Webhook_Approved_MarksPaymentAndOrderAsPaid()
     {
         var product = ProductFactory.Create(stock: 10);
