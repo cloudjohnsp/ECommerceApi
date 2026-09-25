@@ -86,6 +86,8 @@ na trilha.
 - `ECommerce.Persistence`: implementações de acesso a dados.
 - `ECommerce.Infrastructure`: integrações externas.
 - `ECommerce.Shared`: tipos reutilizáveis.
+- `ECommerce.Worker`: consumidor RabbitMQ, inbox idempotente, notificações e
+  geração simulada de notas fiscais.
 
 ## Executar
 
@@ -102,6 +104,24 @@ dotnet user-secrets set "RabbitMq:Password" "<password>" --project src/ECommerce
 dotnet user-secrets set "PaymentGateway:WebhookSecret" "<shared-secret>" --project src/ECommerce.Api
 dotnet run --project src/ECommerce.Api
 ```
+
+O Worker usa seu próprio schema `worker` no PostgreSQL e aplica as migrations
+dele ao iniciar. Para executá-lo fora do Compose, configure os segredos e inicie
+o processo separadamente:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:WorkerDatabase" "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>" --project src/ECommerce.Worker
+dotnet user-secrets set "RabbitMq:UserName" "ecommerce" --project src/ECommerce.Worker
+dotnet user-secrets set "RabbitMq:Password" "<password>" --project src/ECommerce.Worker
+dotnet run --project src/ECommerce.Worker
+```
+
+O consumidor recebe `order.created`, `order.paid`, `payment.failed`,
+`order.refunded` e `order.cancelled`. A tabela de inbox impede efeitos duplicados;
+projeção, nota fiscal e notificação são persistidas atomicamente antes do ACK.
+Falhas transitórias são reenfileiradas e, após o limite da fila quorum, seguem
+para `ecommerce.worker.orders.dead`. E-mails usam uma segunda outbox com lease e
+backoff exponencial, visível no Mailpit durante o desenvolvimento.
 
 `UserSecretsId` é usado somente no ambiente `Development`. Em ambientes
 publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre de

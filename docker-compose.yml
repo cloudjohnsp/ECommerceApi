@@ -124,6 +124,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  ecommerce-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__WorkerDatabase: Host=postgres-db;Port=5432;Database=ecommerce;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: ${RABBITMQ_USER:-ecommerce}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:?Create .env from .env.example and set RABBITMQ_PASSWORD}
+      RabbitMq__VirtualHost: /
+      RabbitMq__ExchangeName: ecommerce.events
+      Email__Enabled: "true"
+      Email__Host: mailpit
+      Email__Port: 1025
+      Email__UseSsl: "false"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.13.3
     container_name: prometheus
