@@ -42,6 +42,10 @@ jobs:
         env:
           RUN_POSTGRES_INTEGRATION_TESTS: true
 
+      - name: Enforce unit test coverage
+        shell: pwsh
+        run: ./scripts/verify-unit-coverage.ps1 -Configuration Release
+
   container:
     name: Build container
     runs-on: ubuntu-latest

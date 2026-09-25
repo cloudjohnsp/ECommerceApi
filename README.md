@@ -107,6 +107,11 @@ disponível e executar os testes com `RUN_POSTGRES_INTEGRATION_TESTS=true`; sem
 essa opção, somente esses cenários são reportados como ignorados. O workflow de
 CI habilita a opção e executa os testes contra um container efêmero.
 
+O script `scripts/verify-unit-coverage.ps1` mede separadamente as assemblies de
+Domain e Application e exige cobertura de linhas superior a 80% em cada uma. O
+mesmo gate é executado pelo CI para impedir regressões na cobertura das regras de
+negócio e dos casos de uso.
+
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
