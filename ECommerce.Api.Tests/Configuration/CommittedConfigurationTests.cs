@@ -60,6 +60,26 @@ public sealed class CommittedConfigurationTests
         workflow.Should().NotContain("publish-profile:");
     }
 
+    [Fact]
+    public void PostmanEnvironment_DoesNotContainCredentials()
+    {
+        var root = FindSolutionRoot();
+        var environmentPath = Path.Combine(
+            root, "postman", "Local.postman_environment.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(environmentPath));
+        var variables = document.RootElement.GetProperty("values")
+            .EnumerateArray()
+            .ToDictionary(
+                item => item.GetProperty("key").GetString()!,
+                item => item.GetProperty("value").GetString() ?? string.Empty);
+
+        variables["password"].Should().BeEmpty();
+        variables["accessToken"].Should().BeEmpty();
+        variables["refreshToken"].Should().BeEmpty();
+        variables["confirmationToken"].Should().BeEmpty();
+        variables["baseUrl"].Should().Be("http://localhost:5000/api/v1");
+    }
+
     private static string Read(JsonElement root, string section, string key) =>
         root.GetProperty(section).GetProperty(key).GetString() ?? string.Empty;
 

@@ -176,6 +176,16 @@ Health checks disponíveis:
   Azure Blob Storage e SMTP;
 - `/api/health`: executa todas as verificações registradas.
 
+## Coleção Postman
+
+Importe `postman/ECommerceApi.postman_collection.json` e
+`postman/Local.postman_environment.json`. Informe `email` e `password` apenas no
+ambiente local do Postman. A requisição de login salva automaticamente access e
+refresh tokens, enquanto criação de categoria, produto e pedido atualiza os IDs
+usados nas requisições seguintes. Após cadastrar um cliente, copie do Mailpit o
+token para `confirmationToken` e execute a confirmação antes do login. A coleção
+não contém credenciais versionadas.
+
 ## Observabilidade
 
 A API produz logs estruturados em JSON com Serilog, incluindo `CorrelationId`,
