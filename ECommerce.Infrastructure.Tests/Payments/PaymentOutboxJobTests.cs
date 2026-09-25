@@ -29,7 +29,7 @@ public sealed class PaymentOutboxJobTests
         await job.ExecuteAsync(CancellationToken.None);
 
         Assert.Equal([firstId, secondId], processor.ProcessedIds);
-        Assert.Equal(OutBoxMessageType.PaymentCreationRequested, repository.RequestedType);
+        Assert.Equal([OutBoxMessageType.PaymentCreationRequested], repository.RequestedTypes);
         Assert.Equal(10, repository.RequestedBatchSize);
     }
 
@@ -50,19 +50,19 @@ public sealed class PaymentOutboxJobTests
 
     private sealed class StubOutboxRepository(IReadOnlyCollection<Guid> pendingIds) : IOutboxMessageRepository
     {
-        public OutBoxMessageType RequestedType { get; private set; }
+        public IReadOnlyCollection<OutBoxMessageType> RequestedTypes { get; private set; } = [];
         public int RequestedBatchSize { get; private set; }
         public Exception? Exception { get; init; }
 
         public Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
-            OutBoxMessageType type,
+            IReadOnlyCollection<OutBoxMessageType> types,
             int take,
             CancellationToken cancellationToken = default)
         {
             if (Exception is not null)
                 return Task.FromException<IReadOnlyCollection<Guid>>(Exception);
 
-            RequestedType = type;
+            RequestedTypes = types;
             RequestedBatchSize = take;
             return Task.FromResult(pendingIds);
         }

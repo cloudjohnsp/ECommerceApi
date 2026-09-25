@@ -107,6 +107,7 @@ public sealed class RabbitMqOrderConsumer(
                 exception,
                 "Integration event {MessageId} failed and will be retried.",
                 delivery.BasicProperties.MessageId);
+            await Task.Delay(TimeSpan.FromSeconds(_options.RetryDelaySeconds), stoppingToken);
             await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, stoppingToken);
         }
     }

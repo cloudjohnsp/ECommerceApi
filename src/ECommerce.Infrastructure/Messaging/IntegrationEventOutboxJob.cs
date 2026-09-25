@@ -30,21 +30,18 @@ public sealed class IntegrationEventOutboxJob(
     [DisableConcurrentExecution(timeoutInSeconds: 600)]
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        foreach (var messageType in IntegrationEventTypes)
+        var messageIds = await repository.GetPendingIdsAsync(
+            IntegrationEventTypes,
+            _options.BatchSize,
+            cancellationToken);
+        foreach (var messageId in messageIds)
         {
-            var messageIds = await repository.GetPendingIdsAsync(
-                messageType,
-                _options.BatchSize,
-                cancellationToken);
-            foreach (var messageId in messageIds)
-            {
-                var result = await processor.ProcessAsync(messageId, cancellationToken);
-                if (result.IsFailure)
-                    logger.LogWarning(
-                        "Integration outbox message {MessageId} remains pending: {Errors}",
-                        messageId,
-                        string.Join("; ", result.Errors));
-            }
+            var result = await processor.ProcessAsync(messageId, cancellationToken);
+            if (result.IsFailure)
+                logger.LogWarning(
+                    "Integration outbox message {MessageId} remains pending: {Errors}",
+                    messageId,
+                    string.Join("; ", result.Errors));
         }
     }
 }

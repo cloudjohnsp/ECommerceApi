@@ -7,7 +7,7 @@ public interface IOutboxMessageRepository
 {
     Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
-        OutBoxMessageType type,
+        IReadOnlyCollection<OutBoxMessageType> types,
         int take,
         CancellationToken cancellationToken = default);
     Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default);

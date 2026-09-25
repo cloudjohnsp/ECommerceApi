@@ -15,5 +15,6 @@ public sealed class WorkerRabbitMqOptions
     public string DeadLetterExchangeName { get; init; } = "ecommerce.events.dlx";
     public string DeadLetterQueueName { get; init; } = "ecommerce.worker.orders.dead";
     public int DeliveryLimit { get; init; } = 5;
+    public int RetryDelaySeconds { get; init; } = 15;
     public int ReconnectDelaySeconds { get; init; } = 5;
 }

@@ -45,15 +45,12 @@ public sealed class IntegrationEventOutboxJobTests
         public List<OutBoxMessageType> RequestedTypes { get; } = [];
 
         public Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
-            OutBoxMessageType type,
+            IReadOnlyCollection<OutBoxMessageType> types,
             int take,
             CancellationToken cancellationToken = default)
         {
-            RequestedTypes.Add(type);
-            IReadOnlyCollection<Guid> ids = type == OutBoxMessageType.OrderCreated
-                ? [orderCreatedMessageId]
-                : [];
-            return Task.FromResult(ids);
+            RequestedTypes.AddRange(types);
+            return Task.FromResult<IReadOnlyCollection<Guid>>([orderCreatedMessageId]);
         }
 
         public Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>

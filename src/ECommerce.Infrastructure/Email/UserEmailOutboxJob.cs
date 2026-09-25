@@ -25,22 +25,19 @@ public sealed class UserEmailOutboxJob(
     [DisableConcurrentExecution(timeoutInSeconds: 600)]
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        foreach (var messageType in EmailMessageTypes)
+        var messageIds = await repository.GetPendingIdsAsync(
+            EmailMessageTypes,
+            _options.BatchSize,
+            cancellationToken);
+        foreach (var messageId in messageIds)
         {
-            var messageIds = await repository.GetPendingIdsAsync(
-                messageType,
-                _options.BatchSize,
-                cancellationToken);
-            foreach (var messageId in messageIds)
+            var result = await processor.ProcessAsync(messageId, cancellationToken);
+            if (result.IsFailure)
             {
-                var result = await processor.ProcessAsync(messageId, cancellationToken);
-                if (result.IsFailure)
-                {
-                    logger.LogWarning(
-                        "User e-mail outbox message {MessageId} remains pending: {Errors}",
-                        messageId,
-                        string.Join("; ", result.Errors));
-                }
+                logger.LogWarning(
+                    "User e-mail outbox message {MessageId} remains pending: {Errors}",
+                    messageId,
+                    string.Join("; ", result.Errors));
             }
         }
     }

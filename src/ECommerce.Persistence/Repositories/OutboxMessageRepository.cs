@@ -12,12 +12,12 @@ public sealed class OutboxMessageRepository(AppDbContext dbContext) : IOutboxMes
         dbContext.OutboxMessages.FirstOrDefaultAsync(message => message.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
-        OutBoxMessageType type,
+        IReadOnlyCollection<OutBoxMessageType> types,
         int take,
         CancellationToken cancellationToken = default) =>
         await dbContext.OutboxMessages
             .AsNoTracking()
-            .Where(message => message.Type == type && message.Status == OutBoxMessageStatus.Pending)
+            .Where(message => types.Contains(message.Type) && message.Status == OutBoxMessageStatus.Pending)
             .OrderBy(message => message.CreatedAt)
             .Select(message => message.Id)
             .Take(take)

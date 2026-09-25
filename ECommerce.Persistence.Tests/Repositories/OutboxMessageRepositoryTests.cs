@@ -51,7 +51,7 @@ public sealed class OutboxMessageRepositoryTests
     }
 
     [Fact]
-    public async Task GetPendingIdsAsync_ReturnsOnlyPendingMessagesOfRequestedTypeWithinBatchSize()
+    public async Task GetPendingIdsAsync_ReturnsRequestedTypesInGlobalCreationOrderWithinBatchSize()
     {
         await using var context = CreateContext();
         var repository = new OutboxMessageRepository(context);
@@ -63,10 +63,11 @@ public sealed class OutboxMessageRepositoryTests
         context.OutboxMessages.AddRange(first, second, processed, orderMessage);
         await context.SaveChangesAsync();
 
-        var ids = await repository.GetPendingIdsAsync(OutBoxMessageType.PaymentCreationRequested, 1);
+        var ids = await repository.GetPendingIdsAsync(
+            [OutBoxMessageType.PaymentCreationRequested, OutBoxMessageType.OrderCreated],
+            3);
 
-        ids.Should().ContainSingle();
-        ids.Single().Should().Be(first.Id);
+        ids.Should().Equal(first.Id, second.Id, orderMessage.Id);
     }
 
     private static AppDbContext CreateContext()

@@ -20,7 +20,7 @@ public sealed class PaymentOutboxJob(
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var messageIds = await repository.GetPendingIdsAsync(
-            OutBoxMessageType.PaymentCreationRequested,
+            [OutBoxMessageType.PaymentCreationRequested],
             _options.BatchSize,
             cancellationToken);
 

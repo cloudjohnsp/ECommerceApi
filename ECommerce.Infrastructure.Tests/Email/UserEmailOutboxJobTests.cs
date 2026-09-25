@@ -39,18 +39,12 @@ public sealed class UserEmailOutboxJobTests
         public List<OutBoxMessageType> RequestedTypes { get; } = [];
 
         public Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
-            OutBoxMessageType type,
+            IReadOnlyCollection<OutBoxMessageType> types,
             int take,
             CancellationToken cancellationToken = default)
         {
-            RequestedTypes.Add(type);
-            IReadOnlyCollection<Guid> ids = type switch
-            {
-                OutBoxMessageType.EmailConfirmationRequested => [confirmationId],
-                OutBoxMessageType.PasswordResetRequested => [resetId],
-                _ => []
-            };
-            return Task.FromResult(ids);
+            RequestedTypes.AddRange(types);
+            return Task.FromResult<IReadOnlyCollection<Guid>>([confirmationId, resetId]);
         }
 
         public Task<OutboxMessage?> GetByIdAsync(

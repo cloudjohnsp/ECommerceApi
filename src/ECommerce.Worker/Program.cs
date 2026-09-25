@@ -29,6 +29,7 @@ builder.Services.AddOptions<WorkerRabbitMqOptions>()
     .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterExchangeName), "RabbitMq:DeadLetterExchangeName is required.")
     .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterQueueName), "RabbitMq:DeadLetterQueueName is required.")
     .Validate(options => options.DeliveryLimit > 0, "RabbitMq:DeliveryLimit must be positive.")
+    .Validate(options => options.RetryDelaySeconds > 0, "RabbitMq:RetryDelaySeconds must be positive.")
     .Validate(options => options.ReconnectDelaySeconds > 0, "RabbitMq:ReconnectDelaySeconds must be positive.")
     .ValidateOnStart();
 builder.Services.AddOptions<WorkerEmailOptions>()
