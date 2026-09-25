@@ -97,6 +97,7 @@ public sealed class ObservabilityTests
         body.Should().Contain("/api/v{version}/auth/forgot-password");
         body.Should().Contain("/api/v{version}/auth/reset-password");
         body.Should().Contain("/api/v{version}/payments/{orderId}/refund");
+        body.Should().Contain("/api/v{version}/user/{userId}/history");
     }
 
     private static WebApplicationFactoryClientOptions CreateClientOptions() => new()

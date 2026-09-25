@@ -139,6 +139,13 @@ public sealed class DatabaseSeeder(
             throw new InvalidOperationException(string.Join("; ", confirmationResult.Errors));
 
         await dbContext.Users.AddAsync(administrator, cancellationToken);
+        await dbContext.UserAuditEntries.AddAsync(
+            new UserAuditEntry(
+                administrator.Id,
+                null,
+                UserAuditAction.Created,
+                "{\"source\":\"database-seed\"}"),
+            cancellationToken);
     }
 
     private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken cancellationToken)

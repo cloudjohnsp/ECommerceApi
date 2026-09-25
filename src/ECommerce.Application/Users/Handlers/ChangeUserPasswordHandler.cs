@@ -10,7 +10,8 @@ namespace ECommerce.Application.Users.Handlers;
 public sealed class ChangeUserPasswordHandler(
     IUserRepository userRepository,
     IUnitOfWork unitOfWork,
-    IPasswordHasher passwordHasher) : IRequestHandler<ChangeUserPasswordCommand, Result<UserDto>>
+    IPasswordHasher passwordHasher,
+    IUserAuditRepository auditRepository) : IRequestHandler<ChangeUserPasswordCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(ChangeUserPasswordCommand request, CancellationToken cancellationToken)
     {
@@ -27,6 +28,9 @@ public sealed class ChangeUserPasswordHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.PasswordChanged(user, request.ActorUserId),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
 
         return Result<UserDto>.Success(user.Adapt<UserDto>());

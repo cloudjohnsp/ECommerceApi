@@ -19,6 +19,7 @@ namespace ECommerce.Persistence.Contexts
         public DbSet<User> Users => Set<User>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<UserActionToken> UserActionTokens => Set<UserActionToken>();
+        public DbSet<UserAuditEntry> UserAuditEntries => Set<UserAuditEntry>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<ProductImage> ProductImages => Set<ProductImage>();
         public DbSet<Category> Categories => Set<Category>();

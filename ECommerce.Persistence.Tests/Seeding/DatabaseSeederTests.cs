@@ -41,6 +41,8 @@ public sealed class DatabaseSeederTests
         administrator.Role.Should().Be(UserRole.Administrator);
         administrator.IsEmailConfirmed.Should().BeTrue();
         administrator.PasswordHash.Should().Be("hashed:StrongPassword1!");
+        (await assertionContext.UserAuditEntries.CountAsync(entry =>
+            entry.UserId == administrator.Id && entry.Action == UserAuditAction.Created)).Should().Be(1);
     }
 
     [Fact]

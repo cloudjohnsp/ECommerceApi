@@ -8,7 +8,8 @@ namespace ECommerce.Application.Users.Handlers;
 
 public sealed class ChangeUserRoleHandler(
     IUserRepository userRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<ChangeUserRoleCommand, Result<UserDto>>
+    IUnitOfWork unitOfWork,
+    IUserAuditRepository auditRepository) : IRequestHandler<ChangeUserRoleCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(ChangeUserRoleCommand request, CancellationToken cancellationToken)
     {
@@ -18,6 +19,7 @@ public sealed class ChangeUserRoleHandler(
             return Result<UserDto>.Failure("User not found.");
         }
 
+        var previousRole = user.Role;
         var changeResult = user.ChangeRole(request.Role);
         if (changeResult.IsFailure)
         {
@@ -25,6 +27,9 @@ public sealed class ChangeUserRoleHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.RoleChanged(user, request.ActorUserId, previousRole),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
 
         return Result<UserDto>.Success(user.Adapt<UserDto>());

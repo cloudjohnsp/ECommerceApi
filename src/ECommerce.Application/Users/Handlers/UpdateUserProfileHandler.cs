@@ -16,7 +16,8 @@ public sealed class UpdateUserProfileHandler(
     IUnitOfWork unitOfWork,
     IUserActionTokenRepository tokenRepository,
     IOutboxMessageRepository outboxMessageRepository,
-    IUserActionTokenService tokenService) : IRequestHandler<UpdateUserProfileCommand, Result<UserDto>>
+    IUserActionTokenService tokenService,
+    IUserAuditRepository auditRepository) : IRequestHandler<UpdateUserProfileCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(UpdateUserProfileCommand request, CancellationToken cancellationToken)
     {
@@ -37,7 +38,10 @@ public sealed class UpdateUserProfileHandler(
             return Result<UserDto>.Failure("E-mail is already registered.");
         }
 
-        var emailChanged = user.Email.Value != emailResult.Value.Value;
+        var previousFirstName = user.FirstName;
+        var previousLastName = user.LastName;
+        var previousEmail = user.Email.Value;
+        var emailChanged = previousEmail != emailResult.Value.Value;
         var updateResult = user.UpdateProfile(
             request.FirstName ?? user.FirstName,
             request.LastName ?? user.LastName,
@@ -69,6 +73,14 @@ public sealed class UpdateUserProfileHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.ProfileUpdated(
+                user,
+                request.ActorUserId,
+                previousFirstName,
+                previousLastName,
+                previousEmail),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
 
         return Result<UserDto>.Success(user.Adapt<UserDto>());

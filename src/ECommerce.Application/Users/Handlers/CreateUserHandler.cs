@@ -22,7 +22,8 @@ public sealed class CreateUserHandler(
     IPasswordHasher _passwordHasher,
     IUserActionTokenRepository userActionTokenRepository,
     IOutboxMessageRepository outboxMessageRepository,
-    IUserActionTokenService userActionTokenService)
+    IUserActionTokenService userActionTokenService,
+    IUserAuditRepository auditRepository)
     : IRequestHandler<CreateUserCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(CreateUserCommand command, CancellationToken cancellationToken)
@@ -55,6 +56,9 @@ public sealed class CreateUserHandler(
         await _userRepository.AddAsync(userResult.Value!, cancellationToken);
         await userActionTokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
         await outboxMessageRepository.AddAsync(pendingTokenResult.Value.OutboxMessage, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.Created(userResult.Value!),
+            cancellationToken);
         await _unitOfWork.Commit(cancellationToken);
 
         UserDto userDto = userResult.Value!.Adapt<UserDto>();

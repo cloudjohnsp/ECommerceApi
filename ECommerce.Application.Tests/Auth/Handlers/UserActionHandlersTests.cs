@@ -20,6 +20,7 @@ public sealed class UserActionHandlersTests
     private readonly Mock<IUserActionTokenService> _tokenService = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IUserAuditRepository> _audit = new();
 
     public UserActionHandlersTests()
     {
@@ -40,7 +41,7 @@ public sealed class UserActionHandlersTests
                 user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = new ConfirmEmailHandler(
-            _tokens.Object, _users.Object, _tokenService.Object, _unitOfWork.Object);
+            _tokens.Object, _users.Object, _tokenService.Object, _unitOfWork.Object, _audit.Object);
 
         var result = await handler.Handle(new ConfirmEmailCommand("raw-token"), CancellationToken.None);
 
@@ -52,6 +53,9 @@ public sealed class UserActionHandlersTests
             It.IsAny<DateTimeOffset>(),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry => entry.Action == UserAuditAction.EmailConfirmed),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -122,7 +126,8 @@ public sealed class UserActionHandlersTests
             _refreshTokens.Object,
             _tokenService.Object,
             _passwordHasher.Object,
-            _unitOfWork.Object);
+            _unitOfWork.Object,
+            _audit.Object);
 
         var result = await handler.Handle(
             new ResetPasswordCommand("raw-token", "NewPassword1!"),
@@ -133,6 +138,10 @@ public sealed class UserActionHandlersTests
         _refreshTokens.Verify(repository => repository.RevokeAllForUserAsync(
             user.Id, It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry =>
+                entry.Action == UserAuditAction.PasswordChanged && entry.ChangesJson == "{}"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static UserActionToken CreateToken(Guid userId, UserActionTokenType type) =>

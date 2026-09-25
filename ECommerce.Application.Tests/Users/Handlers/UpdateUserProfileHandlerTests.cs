@@ -20,6 +20,7 @@ public sealed class UpdateUserProfileHandlerTests
     private readonly Mock<IUserActionTokenRepository> _tokenRepository = new();
     private readonly Mock<IOutboxMessageRepository> _outboxRepository = new();
     private readonly Mock<IUserActionTokenService> _tokenService = new();
+    private readonly Mock<IUserAuditRepository> _auditRepository = new();
 
     public UpdateUserProfileHandlerTests()
     {
@@ -56,6 +57,12 @@ public sealed class UpdateUserProfileHandlerTests
             It.IsAny<CancellationToken>()), Times.Once);
         _outboxRepository.Verify(repository => repository.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.EmailConfirmationRequested),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _auditRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry =>
+                entry.UserId == user.Id &&
+                entry.Action == UserAuditAction.ProfileUpdated &&
+                entry.ChangesJson.Contains("john.doe@example.com", StringComparison.Ordinal)),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -166,5 +173,6 @@ public sealed class UpdateUserProfileHandlerTests
         _unitOfWork.Object,
         _tokenRepository.Object,
         _outboxRepository.Object,
-        _tokenService.Object);
+        _tokenService.Object,
+        _auditRepository.Object);
 }

@@ -4,6 +4,7 @@ using ECommerce.Domain.Enums;
 using ECommerce.Domain.ValueObjects;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Users;
 using EmailValue = ECommerce.Domain.ValueObjects.Email;
 
 namespace ECommerce.Application.Auth.Handlers;
@@ -12,7 +13,8 @@ public sealed class ConfirmEmailHandler(
     IUserActionTokenRepository tokenRepository,
     IUserRepository userRepository,
     IUserActionTokenService tokenService,
-    IUnitOfWork unitOfWork) : IRequestHandler<ConfirmEmailCommand, Result>
+    IUnitOfWork unitOfWork,
+    IUserAuditRepository auditRepository) : IRequestHandler<ConfirmEmailCommand, Result>
 {
     private const string InvalidTokenMessage = "Invalid or expired email confirmation token.";
 
@@ -37,6 +39,9 @@ public sealed class ConfirmEmailHandler(
             now,
             cancellationToken);
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.EmailConfirmed(user),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
         return Result.Success();
     }
@@ -87,7 +92,8 @@ public sealed class ResetPasswordHandler(
     IRefreshTokenRepository refreshTokenRepository,
     IUserActionTokenService tokenService,
     IPasswordHasher passwordHasher,
-    IUnitOfWork unitOfWork) : IRequestHandler<ResetPasswordCommand, Result>
+    IUnitOfWork unitOfWork,
+    IUserAuditRepository auditRepository) : IRequestHandler<ResetPasswordCommand, Result>
 {
     private const string InvalidTokenMessage = "Invalid or expired password reset token.";
 
@@ -116,6 +122,9 @@ public sealed class ResetPasswordHandler(
             cancellationToken);
         await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.PasswordChanged(user, null),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
         return Result.Success();
     }

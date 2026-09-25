@@ -87,6 +87,57 @@ public sealed class AuthorizationControllerTests
     }
 
     [Fact]
+    public async Task ChangeRole_RecordsAuthenticatedAdministratorAsActor()
+    {
+        var administratorId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(x => x.Send(It.IsAny<ChangeUserRoleCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<UserDto>.Failure("Expected test response."));
+        var controller = new UserController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(administratorId, UserRole.Administrator)
+                }
+            }
+        };
+
+        await controller.ChangeRole(userId, new ChangeRoleRequest(UserRole.Administrator));
+
+        mediator.Verify(x => x.Send(
+            It.Is<ChangeUserRoleCommand>(command =>
+                command.UserId == userId && command.ActorUserId == administratorId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetUserHistory_ForAnotherCustomer_ReturnsForbiddenWithoutDispatchingQuery()
+    {
+        var mediator = new Mock<ISender>(MockBehavior.Strict);
+        var controller = new UserController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(Guid.NewGuid(), UserRole.Customer)
+                }
+            }
+        };
+
+        var result = await controller.GetHistory(
+            Guid.NewGuid(),
+            new UserAuditSearchRequest(),
+            CancellationToken.None);
+
+        result.Should().BeOfType<ForbidResult>();
+        mediator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task CreateOrder_CustomerCannotSubmitOrderForAnotherCustomer()
     {
         var authenticatedUserId = Guid.NewGuid();

@@ -6,3 +6,9 @@ public sealed record UpdateUserProfileRequest(string? FirstName, string? LastNam
 public sealed record ChangePasswordRequest(string? Password);
 public sealed record ChangeRoleRequest(UserRole Role);
 public sealed record UserResponse(string Id, string FirstName, string LastName, string Email, UserRole Role);
+
+public sealed class UserAuditSearchRequest
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}

@@ -13,6 +13,7 @@ public sealed class ChangeUserRoleHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IUserAuditRepository> _auditRepository = new();
 
     [Fact]
     public async Task Handle_WithExistingUser_ChangesRoleAndCommits()
@@ -26,7 +27,8 @@ public sealed class ChangeUserRoleHandlerTests
             .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var handler = new ChangeUserRoleHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = new ChangeUserRoleHandler(
+            _userRepository.Object, _unitOfWork.Object, _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -35,6 +37,10 @@ public sealed class ChangeUserRoleHandlerTests
         result.Value!.Role.Should().Be(UserRole.Administrator);
         user.Role.Should().Be(UserRole.Administrator);
         _userRepository.Verify(repository => repository.UpdateAsync(user, It.IsAny<CancellationToken>()), Times.Once);
+        _auditRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry =>
+                entry.UserId == user.Id && entry.Action == UserAuditAction.RoleChanged),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -46,7 +52,8 @@ public sealed class ChangeUserRoleHandlerTests
             .Setup(repository => repository.GetByIdAsync(command.UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
-        var handler = new ChangeUserRoleHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = new ChangeUserRoleHandler(
+            _userRepository.Object, _unitOfWork.Object, _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 

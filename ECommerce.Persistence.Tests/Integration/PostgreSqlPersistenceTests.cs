@@ -42,6 +42,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             "users",
             "refresh_tokens",
             "user_action_tokens",
+            "user_audit_entries",
             "products",
             "product_images",
             "categories",
@@ -141,6 +142,44 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             category.Slug == "electronics")).Should().Be(1);
         (await assertionContext.Products.CountAsync(product =>
             product.Name == "Wireless Mouse")).Should().Be(1);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task UserAuditEntry_PersistsJsonbAndActorRelationship()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var administrator = User.Create(
+            "Audit",
+            "Administrator",
+            Email.Create($"audit-admin-{suffix}@example.com").Value!,
+            "hash",
+            UserRole.Administrator).Value!;
+        var customer = User.Create(
+            "Audit",
+            "Customer",
+            Email.Create($"audit-customer-{suffix}@example.com").Value!,
+            "hash").Value!;
+
+        await using (var writeContext = new AppDbContext(options))
+        {
+            writeContext.Users.AddRange(administrator, customer);
+            writeContext.UserAuditEntries.Add(new UserAuditEntry(
+                customer.Id,
+                administrator.Id,
+                UserAuditAction.RoleChanged,
+                "{\"role\":{\"from\":\"Customer\",\"to\":\"Administrator\"}}"));
+            await writeContext.SaveChangesAsync();
+        }
+
+        await using var readContext = new AppDbContext(options);
+        var history = await new UserAuditRepository(readContext)
+            .GetByUserIdAsync(customer.Id, 1, 20);
+
+        history.Items.Should().ContainSingle();
+        history.Items.Single().ActorUserId.Should().Be(administrator.Id);
+        history.Items.Single().ChangesJson.Should().Contain("Administrator");
     }
 
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>

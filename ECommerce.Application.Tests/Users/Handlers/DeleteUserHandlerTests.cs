@@ -2,6 +2,7 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Users;
 using ECommerce.Application.Users.Handlers;
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.Enums;
 using ECommerce.Domain.Tests.Support;
 using FluentAssertions;
 using Moq;
@@ -12,6 +13,7 @@ public sealed class DeleteUserHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IUserAuditRepository> _auditRepository = new();
 
     [Fact]
     public async Task Handle_WithExistingUser_DeactivatesUserAndCommits()
@@ -25,7 +27,8 @@ public sealed class DeleteUserHandlerTests
             .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var handler = new DeleteUserHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = new DeleteUserHandler(
+            _userRepository.Object, _unitOfWork.Object, _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -33,6 +36,10 @@ public sealed class DeleteUserHandlerTests
         user.IsActive.Should().BeFalse();
         user.DeactivatedAt.Should().NotBeNull();
         _userRepository.Verify(repository => repository.UpdateAsync(user, It.IsAny<CancellationToken>()), Times.Once);
+        _auditRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry =>
+                entry.UserId == user.Id && entry.Action == UserAuditAction.Deactivated),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -44,7 +51,8 @@ public sealed class DeleteUserHandlerTests
             .Setup(repository => repository.GetByIdAsync(command.UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
-        var handler = new DeleteUserHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = new DeleteUserHandler(
+            _userRepository.Object, _unitOfWork.Object, _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 

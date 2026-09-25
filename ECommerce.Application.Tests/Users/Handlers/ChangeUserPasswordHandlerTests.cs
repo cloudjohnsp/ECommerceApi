@@ -14,6 +14,7 @@ public sealed class ChangeUserPasswordHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
+    private readonly Mock<IUserAuditRepository> _auditRepository = new();
 
     [Fact]
     public async Task Handle_WithExistingUser_HashesPasswordUpdatesUserAndCommits()
@@ -33,7 +34,8 @@ public sealed class ChangeUserPasswordHandlerTests
         var handler = new ChangeUserPasswordHandler(
             _userRepository.Object,
             _unitOfWork.Object,
-            _passwordHasher.Object);
+            _passwordHasher.Object,
+            _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -42,6 +44,12 @@ public sealed class ChangeUserPasswordHandlerTests
         user.PasswordHash.Should().Be("new-hashed-password");
         _passwordHasher.Verify(hasher => hasher.HashPassword(command.Password!), Times.Once);
         _userRepository.Verify(repository => repository.UpdateAsync(user, It.IsAny<CancellationToken>()), Times.Once);
+        _auditRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserAuditEntry>(entry =>
+                entry.UserId == user.Id &&
+                entry.Action == ECommerce.Domain.Enums.UserAuditAction.PasswordChanged &&
+                !entry.ChangesJson.Contains("NewPassword", StringComparison.Ordinal)),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -56,7 +64,8 @@ public sealed class ChangeUserPasswordHandlerTests
         var handler = new ChangeUserPasswordHandler(
             _userRepository.Object,
             _unitOfWork.Object,
-            _passwordHasher.Object);
+            _passwordHasher.Object,
+            _auditRepository.Object);
 
         var result = await handler.Handle(command, CancellationToken.None);
 

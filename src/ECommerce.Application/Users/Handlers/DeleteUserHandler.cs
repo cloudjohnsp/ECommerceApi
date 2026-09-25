@@ -6,7 +6,8 @@ namespace ECommerce.Application.Users.Handlers;
 
 public sealed class DeleteUserHandler(
     IUserRepository userRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteUserCommand, Result>
+    IUnitOfWork unitOfWork,
+    IUserAuditRepository auditRepository) : IRequestHandler<DeleteUserCommand, Result>
 {
     public async Task<Result> Handle(DeleteUserCommand request, CancellationToken cancellationToken)
     {
@@ -23,6 +24,9 @@ public sealed class DeleteUserHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await auditRepository.AddAsync(
+            UserAuditEntryFactory.Deactivated(user, request.ActorUserId),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
 
         return Result.Success();

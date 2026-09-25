@@ -71,6 +71,13 @@ ser liberado ou retirado sem novo deploy por meio de
 `FeatureFlags:AdminDashboard`; quando desabilitado, a API responde `404` sem
 consultar o banco.
 
+Cada cadastro, alteração de perfil, troca de senha ou role, confirmação de
+e-mail e desativação gera uma entrada de auditoria na mesma transação da
+mutação. O histórico paginado fica disponível ao próprio usuário e a
+administradores em `GET /api/v1/user/{userId}/history`. As diferenças de perfil
+e role são armazenadas como `jsonb`; senhas, hashes e tokens nunca são incluídos
+na trilha.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.
