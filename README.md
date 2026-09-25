@@ -82,9 +82,36 @@ consultar o banco.
 
 ## Executar
 
+Nenhum segredo de execução é versionado em `appsettings.json`. Para executar a
+API diretamente, inicialize o armazenamento local de segredos e informe ao
+menos a conexão do PostgreSQL, a chave JWT, as credenciais do RabbitMQ e o
+segredo compartilhado com o gateway:
+
 ```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>" --project src/ECommerce.Api
+dotnet user-secrets set "Jwt:SecretKey" "<at-least-32-random-characters>" --project src/ECommerce.Api
+dotnet user-secrets set "RabbitMq:UserName" "ecommerce" --project src/ECommerce.Api
+dotnet user-secrets set "RabbitMq:Password" "<password>" --project src/ECommerce.Api
+dotnet user-secrets set "PaymentGateway:WebhookSecret" "<shared-secret>" --project src/ECommerce.Api
 dotnet run --project src/ECommerce.Api
 ```
+
+`UserSecretsId` é usado somente no ambiente `Development`. Em ambientes
+publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre de
+segredos da plataforma; a validação de opções interrompe a inicialização quando
+uma configuração obrigatória estiver ausente.
+
+Para executar todo o ambiente Docker, crie o arquivo local `.env` a partir do
+modelo, substitua os valores e então suba os serviços:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+O arquivo `.env` é ignorado pelo Git. O valor de
+`PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
+`ECommercePayment`.
 
 Por padrão, a execução local não altera o schema automaticamente. Gere e
 aplique migrations de forma explícita durante o desenvolvimento. No Compose,

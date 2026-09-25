@@ -62,11 +62,11 @@ public sealed class ApiProtectionTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
+            builder.UseApiTestConfiguration();
             builder.UseSetting("ApiProtection:AllowedOrigins:0", "https://frontend.example.com");
             builder.UseSetting("ApiProtection:GlobalPermitLimit", globalLimit.ToString());
             builder.UseSetting("ApiProtection:AuthenticationPermitLimit", authenticationLimit.ToString());
             builder.UseSetting("ApiProtection:WindowSeconds", "300");
-            builder.UseSetting("OutboxProcessor:Enabled", "false");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureServices(services =>
             {
