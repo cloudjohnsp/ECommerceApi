@@ -19,6 +19,14 @@ public sealed class CommittedConfigurationTests
         Read(configuration, "RabbitMq", "Password").Should().BeEmpty();
         Read(configuration, "PaymentGateway", "WebhookSecret").Should().BeEmpty();
         Read(configuration, "DatabaseSeed", "AdministratorPassword").Should().BeEmpty();
+
+        using var workerDocument = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(root, "src", "ECommerce.Worker", "appsettings.json")));
+        var workerConfiguration = workerDocument.RootElement;
+        Read(workerConfiguration, "ConnectionStrings", "WorkerDatabase").Should().BeEmpty();
+        Read(workerConfiguration, "RabbitMq", "UserName").Should().BeEmpty();
+        Read(workerConfiguration, "RabbitMq", "Password").Should().BeEmpty();
+        Read(workerConfiguration, "Email", "Password").Should().BeEmpty();
     }
 
     [Fact]
@@ -55,6 +63,9 @@ public sealed class CommittedConfigurationTests
         workflow.Should().Contain("uses: azure/login@v3");
         workflow.Should().Contain("uses: azure/webapps-deploy@v3");
         workflow.Should().Contain("ecommerce-api:sha-${GITHUB_SHA}");
+        workflow.Should().Contain("ecommerce-worker:sha-${GITHUB_SHA}");
+        workflow.Should().Contain("az containerapp update");
+        workflow.Should().Contain("AZURE_WORKER_CONTAINER_APP_NAME");
         workflow.Should().Contain("/api/health/live");
         workflow.Should().NotContain("creds:");
         workflow.Should().NotContain("publish-profile:");

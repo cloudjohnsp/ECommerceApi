@@ -1,22 +1,25 @@
-# Deploy no Azure App Service
+# Deploy da API e do Worker no Azure
 
-O workflow `.github/workflows/release.yml` valida a solução, publica uma imagem
-imutável no Azure Container Registry (ACR), atualiza um Azure App Service Linux
-e confirma o endpoint `/api/health/live`. Ele é executado para tags semânticas
-como `v1.0.0` ou manualmente pelo GitHub Actions.
+O workflow `.github/workflows/release.yml` valida a solução e publica imagens
+imutáveis da API e do Worker no Azure Container Registry (ACR). A API é
+implantada em Azure App Service Linux e validada por `/api/health/live`; o Worker
+é implantado em Azure Container Apps e sua revisão precisa ficar pronta. O fluxo
+é executado para tags semânticas como `v1.0.0` ou manualmente pelo GitHub Actions.
 
 ## Recursos necessários
 
 - Um Azure Container Registry.
 - Um Azure App Service Linux configurado para container único.
+- Um Azure Container App sem ingress para o Worker, com pelo menos uma réplica.
 - PostgreSQL, Redis, RabbitMQ, SMTP e armazenamento de blobs alcançáveis pelo
   App Service.
 - Uma identidade do Microsoft Entra usada pelo GitHub via OIDC.
 
 O App Service deve conseguir baixar imagens privadas do ACR. Prefira habilitar
 sua identidade gerenciada, conceder a ela `AcrPull` no registry e configurar o
-App Service para autenticar no ACR com essa identidade. A identidade federada do
-GitHub precisa de `AcrPush` no registry e permissão para atualizar o App Service.
+App Service para autenticar no ACR com essa identidade. Faça o mesmo com a
+identidade gerenciada do Container App. A identidade federada do GitHub precisa
+de `AcrPush` no registry e permissão para atualizar ambos os serviços.
 Restrinja ambas as atribuições ao menor escopo possível.
 
 ## Ambiente `production` do GitHub
@@ -38,6 +41,7 @@ Cadastre estas variables:
 - `AZURE_CONTAINER_REGISTRY_NAME`: nome do ACR, sem `.azurecr.io`.
 - `AZURE_RESOURCE_GROUP`: resource group do App Service.
 - `AZURE_WEBAPP_NAME`: nome do App Service.
+- `AZURE_WORKER_CONTAINER_APP_NAME`: nome do Container App que executa o Worker.
 
 A credencial federada deve confiar no subject do environment:
 `repo:<organization>/<repository>:environment:production`.
@@ -72,6 +76,16 @@ O workflow não modifica essas configurações: ele apenas implanta a imagem. Is
 evita substituir segredos durante cada release e mantém sua rotação independente
 do ciclo de deploy.
 
+No Container App do Worker, configure via secrets ou referências ao Key Vault:
+
+- `ConnectionStrings__WorkerDatabase`
+- `RabbitMq__HostName`, `RabbitMq__UserName` e `RabbitMq__Password`
+- configurações SMTP sob `Email__*`
+
+Use `DOTNET_ENVIRONMENT=Production` e mantenha o ingress desabilitado. O release
+força `min-replicas=1`, pois o consumidor RabbitMQ precisa permanecer ativo mesmo
+sem requisições HTTP.
+
 ## Publicar
 
 Após o CI de `main` estar verde:
@@ -81,6 +95,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-O deploy sempre referencia a tag imutável `sha-<commit>`, mesmo quando também
-publica a tag amigável da versão. Se a verificação HTTP final falhar, o job
-termina com erro e a imagem anterior permanece disponível no ACR para rollback.
+Os dois deploys sempre referenciam a tag imutável `sha-<commit>`, mesmo quando
+também publicam a tag amigável da versão. Se uma verificação final falhar, o job
+termina com erro e as imagens anteriores permanecem disponíveis no ACR para
+rollback.

@@ -74,6 +74,7 @@ jobs:
           AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          AZURE_WORKER_CONTAINER_APP_NAME: ${{ vars.AZURE_WORKER_CONTAINER_APP_NAME }}
         run: |
           required=(
             AZURE_CLIENT_ID
@@ -82,6 +83,7 @@ jobs:
             AZURE_CONTAINER_REGISTRY_NAME
             AZURE_RESOURCE_GROUP
             AZURE_WEBAPP_NAME
+            AZURE_WORKER_CONTAINER_APP_NAME
           )
           for variable in "${required[@]}"; do
             if [ -z "${!variable}" ]; then
@@ -120,28 +122,52 @@ jobs:
             exit 1
           fi
 
-          image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:${tag}"
-          immutable_image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:sha-${GITHUB_SHA}"
-          echo "image=${image}" >> "${GITHUB_OUTPUT}"
-          echo "immutable_image=${immutable_image}" >> "${GITHUB_OUTPUT}"
+          api_image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:${tag}"
+          api_immutable_image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:sha-${GITHUB_SHA}"
+          worker_image="${REGISTRY_NAME}.azurecr.io/ecommerce-worker:${tag}"
+          worker_immutable_image="${REGISTRY_NAME}.azurecr.io/ecommerce-worker:sha-${GITHUB_SHA}"
+          echo "api_image=${api_image}" >> "${GITHUB_OUTPUT}"
+          echo "api_immutable_image=${api_immutable_image}" >> "${GITHUB_OUTPUT}"
+          echo "worker_image=${worker_image}" >> "${GITHUB_OUTPUT}"
+          echo "worker_immutable_image=${worker_immutable_image}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build and publish image
+      - name: Build and publish images
         shell: bash
         env:
-          IMAGE: ${{ steps.image.outputs.image }}
-          IMMUTABLE_IMAGE: ${{ steps.image.outputs.immutable_image }}
+          API_IMAGE: ${{ steps.image.outputs.api_image }}
+          API_IMMUTABLE_IMAGE: ${{ steps.image.outputs.api_immutable_image }}
+          WORKER_IMAGE: ${{ steps.image.outputs.worker_image }}
+          WORKER_IMMUTABLE_IMAGE: ${{ steps.image.outputs.worker_immutable_image }}
         run: |
-          docker build --pull --tag "${IMAGE}" --tag "${IMMUTABLE_IMAGE}" .
-          docker push "${IMAGE}"
-          if [ "${IMAGE}" != "${IMMUTABLE_IMAGE}" ]; then
-            docker push "${IMMUTABLE_IMAGE}"
+          docker build --pull --tag "${API_IMAGE}" --tag "${API_IMMUTABLE_IMAGE}" .
+          docker build --pull --file Dockerfile.worker --tag "${WORKER_IMAGE}" --tag "${WORKER_IMMUTABLE_IMAGE}" .
+          docker push "${API_IMAGE}"
+          docker push "${WORKER_IMAGE}"
+          if [ "${API_IMAGE}" != "${API_IMMUTABLE_IMAGE}" ]; then
+            docker push "${API_IMMUTABLE_IMAGE}"
+          fi
+          if [ "${WORKER_IMAGE}" != "${WORKER_IMMUTABLE_IMAGE}" ]; then
+            docker push "${WORKER_IMMUTABLE_IMAGE}"
           fi
 
       - name: Deploy image to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
-          images: ${{ steps.image.outputs.immutable_image }}
+          images: ${{ steps.image.outputs.api_immutable_image }}
+
+      - name: Deploy worker image to Azure Container Apps
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          WORKER_CONTAINER_APP_NAME: ${{ vars.AZURE_WORKER_CONTAINER_APP_NAME }}
+          WORKER_IMAGE: ${{ steps.image.outputs.worker_immutable_image }}
+        run: |
+          az containerapp update \
+            --resource-group "${RESOURCE_GROUP}" \
+            --name "${WORKER_CONTAINER_APP_NAME}" \
+            --image "${WORKER_IMAGE}" \
+            --min-replicas 1 \
+            --only-show-errors
 
       - name: Verify live endpoint
         shell: bash
@@ -166,4 +192,33 @@ jobs:
           done
 
           echo "The deployed application did not become live in time." >&2
+          exit 1
+
+      - name: Verify worker revision
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          WORKER_CONTAINER_APP_NAME: ${{ vars.AZURE_WORKER_CONTAINER_APP_NAME }}
+        run: |
+          for attempt in {1..18}; do
+            latest=$(az containerapp show \
+              --resource-group "${RESOURCE_GROUP}" \
+              --name "${WORKER_CONTAINER_APP_NAME}" \
+              --query properties.latestRevisionName \
+              --output tsv)
+            ready=$(az containerapp show \
+              --resource-group "${RESOURCE_GROUP}" \
+              --name "${WORKER_CONTAINER_APP_NAME}" \
+              --query properties.latestReadyRevisionName \
+              --output tsv)
+
+            if [ -n "${latest}" ] && [ "${latest}" = "${ready}" ]; then
+              echo "Worker revision ${ready} is ready."
+              exit 0
+            fi
+            echo "Waiting for Worker revision (${attempt}/18)..."
+            sleep 10
+          done
+
+          echo "The Worker revision did not become ready in time." >&2
           exit 1

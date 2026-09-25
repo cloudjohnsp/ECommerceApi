@@ -171,8 +171,10 @@ essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
 publicá-la.
 
 Tags no formato `v*.*.*` acionam `.github/workflows/release.yml`: o candidato é
-novamente validado, publicado no Azure Container Registry com uma tag imutável
-baseada no commit, implantado no Azure App Service e verificado por health check.
+novamente validado, as imagens da API e do Worker são publicadas no Azure
+Container Registry com tags imutáveis baseadas no commit, a API é implantada no
+Azure App Service e o Worker em Azure Container Apps. Ambos são verificados pelo
+pipeline.
 O login no Azure usa OIDC, sem credencial de longa duração. A preparação dos
 recursos, das permissões e do GitHub Environment `production` está documentada
 em [`docs/azure-deployment.md`](docs/azure-deployment.md).
