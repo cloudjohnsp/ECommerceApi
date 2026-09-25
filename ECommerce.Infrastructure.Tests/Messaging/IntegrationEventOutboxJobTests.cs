@@ -40,7 +40,26 @@ public sealed class IntegrationEventOutboxJobTests
         Assert.Equal([messageId], processor.ProcessedIds);
     }
 
-    private sealed class RecordingOutboxRepository(Guid orderCreatedMessageId) : IOutboxMessageRepository
+    [Fact]
+    public async Task ProcessPendingMessages_WhenPublicationFails_StopsChronologicalBatch()
+    {
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var repository = new RecordingOutboxRepository(firstId, secondId);
+        var processor = new RecordingProcessor { FailingMessageId = firstId };
+        var job = new IntegrationEventOutboxJob(
+            repository,
+            processor,
+            Microsoft.Extensions.Options.Options.Create(
+                new OutboxProcessorOptions { BatchSize = 10 }),
+            NullLogger<IntegrationEventOutboxJob>.Instance);
+
+        await job.ExecuteAsync(CancellationToken.None);
+
+        Assert.Equal([firstId], processor.ProcessedIds);
+    }
+
+    private sealed class RecordingOutboxRepository(params Guid[] pendingMessageIds) : IOutboxMessageRepository
     {
         public List<OutBoxMessageType> RequestedTypes { get; } = [];
 
@@ -50,7 +69,7 @@ public sealed class IntegrationEventOutboxJobTests
             CancellationToken cancellationToken = default)
         {
             RequestedTypes.AddRange(types);
-            return Task.FromResult<IReadOnlyCollection<Guid>>([orderCreatedMessageId]);
+            return Task.FromResult<IReadOnlyCollection<Guid>>(pendingMessageIds);
         }
 
         public Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -67,11 +86,14 @@ public sealed class IntegrationEventOutboxJobTests
     private sealed class RecordingProcessor : IIntegrationEventOutboxProcessor
     {
         public List<Guid> ProcessedIds { get; } = [];
+        public Guid? FailingMessageId { get; init; }
 
         public Task<Result> ProcessAsync(Guid outboxMessageId, CancellationToken cancellationToken = default)
         {
             ProcessedIds.Add(outboxMessageId);
-            return Task.FromResult(Result.Success());
+            return Task.FromResult(outboxMessageId == FailingMessageId
+                ? Result.Failure("Broker unavailable.")
+                : Result.Success());
         }
     }
 }

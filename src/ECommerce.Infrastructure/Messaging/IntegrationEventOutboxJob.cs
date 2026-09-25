@@ -38,10 +38,13 @@ public sealed class IntegrationEventOutboxJob(
         {
             var result = await processor.ProcessAsync(messageId, cancellationToken);
             if (result.IsFailure)
+            {
                 logger.LogWarning(
                     "Integration outbox message {MessageId} remains pending: {Errors}",
                     messageId,
                     string.Join("; ", result.Errors));
+                break;
+            }
         }
     }
 }
