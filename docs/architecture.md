@@ -1,0 +1,111 @@
+# Arquitetura e decisões
+
+## Dependências
+
+```text
+ECommerce.Api
+    ├── ECommerce.Application
+    ├── ECommerce.Infrastructure
+    └── ECommerce.Persistence
+
+ECommerce.Application
+    ├── ECommerce.Domain
+    └── ECommerce.Shared
+
+ECommerce.Infrastructure ──► contratos da Application
+ECommerce.Persistence    ──► contratos da Application
+ECommerce.Worker         ──► ECommerce.Shared
+```
+
+O domínio não referencia ASP.NET Core, EF Core, RabbitMQ, Redis ou serviços
+externos. Application descreve casos de uso e portas; Persistence e
+Infrastructure implementam essas portas. O Worker possui armazenamento próprio
+no schema PostgreSQL `worker` e compartilha somente o contrato serializado dos
+eventos.
+
+## Validação
+
+A validação não é repetida igualmente em todas as camadas:
+
+1. Controllers validam apenas aspectos HTTP, identidade e autorização.
+2. FluentValidation rejeita formatos e campos obrigatórios antes do handler.
+3. Entidades protegem invariantes e transições de estado com `Result`.
+4. Configurações Fluent API definem tipos, relações, índices e constraints de
+   persistência; elas não substituem regras de negócio.
+5. PostgreSQL é a última barreira para unicidade, integridade referencial e
+   concorrência.
+
+Falhas esperadas retornam `Result`; exceções ficam reservadas para condições
+inesperadas e são convertidas em `ProblemDetails` pelo middleware da API.
+
+## Pedidos, estoque e pagamentos
+
+Criar um pedido ou adicionar um item bloqueia os produtos envolvidos, reserva
+estoque e persiste pedido e evento de outbox na mesma transação. Cancelar um
+pedido pendente libera a reserva.
+
+O estoque não é decrementado de forma assíncrona pelo Worker. Essa decisão evita
+venda acima da disponibilidade: aprovação do webhook bloqueia pagamento, pedido
+e produtos e, atomicamente, confirma o pagamento, marca o pedido como pago,
+consome as reservas e grava `order.paid`. Recusa libera as reservas; reembolso
+restaura estoque físico.
+
+O endpoint administrativo de atualização não aprova pagamentos. Ele somente
+reconcilia um pedido pendente quando já existe `PaymentStatus.Paid`, aplicando as
+mesmas alterações de estoque e outbox em uma transação.
+
+## Outbox do gateway
+
+A criação local de `Payment` e a intenção `PaymentCreationRequested` usam o
+mesmo identificador e a mesma transação. A chamada HTTP ao gateway ocorre apenas
+depois do commit. Se ela falhar, a intenção permanece pendente para o Hangfire.
+Se o gateway responder e o processo cair antes do segundo commit, a mesma chave
+de idempotência é reutilizada no retry.
+
+O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
+`Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
+externa.
+
+## Eventos e Worker
+
+Eventos de integração são publicados cronologicamente a partir da outbox. O lote
+para no primeiro erro para preservar causalidade. A publicação é *at least once*:
+uma queda depois do publish e antes de marcar a outbox pode gerar redelivery.
+
+O Worker usa:
+
+- fila quorum durável e ACK manual;
+- atraso antes de retry e limite de entregas;
+- dead-letter exchange e fila para mensagens inválidas ou esgotadas;
+- inbox com `MessageId` único;
+- projeção local do pedido;
+- nota fiscal simulada única por pedido pago;
+- segunda outbox para e-mails, com lease e backoff exponencial.
+
+Inbox, projeção, nota e intenção de notificação são confirmadas antes do ACK. O
+SMTP continua sendo *at least once*: uma falha depois da aceitação pelo servidor
+e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocolo.
+
+## Segurança
+
+- JWT é validado na borda e refresh tokens são armazenados com hash e rotacionados.
+- Reutilizar um refresh token revogado invalida a família ativa do usuário.
+- Clientes recebem escopo pelo claim de identidade; identificadores enviados no
+  corpo não permitem operar em nome de outro usuário.
+- CORS aceita somente origens configuradas e rate limiting protege globalmente e
+  com limite mais restritivo os endpoints de autenticação.
+- A API usa bearer tokens em headers, não cookies de autenticação; portanto CSRF
+  não é aplicável ao modelo atual.
+- EF Core parametriza consultas. SQL explícito usa interpolação parametrizada.
+- Segredos não são versionados e são validados na inicialização.
+
+## Operação
+
+A API e o Worker possuem logs JSON, OpenTelemetry, métricas Prometheus e health
+checks. O Compose sobe PostgreSQL, Redis, RabbitMQ, Azurite, Mailpit, API, Worker,
+Prometheus e Grafana. O release publica imagens imutáveis: API no Azure App
+Service e Worker no Azure Container Apps.
+
+O CI executa restore, formatação, build, testes, integrações PostgreSQL com
+Testcontainers, gate de cobertura superior a 80% para Domain/Application e build
+das duas imagens.
