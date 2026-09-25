@@ -145,17 +145,26 @@ publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre 
 segredos da plataforma; a validação de opções interrompe a inicialização quando
 uma configuração obrigatória estiver ausente.
 
-Para executar todo o ambiente Docker, crie o arquivo local `.env` a partir do
-modelo, substitua os valores e então suba os serviços:
+Para executar todo o ambiente Docker, inicialize o arquivo local `.env` e então
+suba os serviços:
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up --build
+.\scripts\initialize-dev-env.ps1
+docker compose up -d --build
 ```
 
-O arquivo `.env` é ignorado pelo Git. O valor de
+O script preenche somente os segredos obrigatórios que estiverem ausentes ou em
+branco, preserva os valores já configurados e não imprime os segredos. O arquivo
+`.env` é ignorado pelo Git. O valor de
 `PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
 `ECommercePayment`.
+
+Se a política de execução do PowerShell bloquear scripts locais, execute apenas
+para este processo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\initialize-dev-env.ps1
+```
 
 No Compose, o seed idempotente cria três categorias e três produtos de exemplo.
 Para também criar um administrador confirmado, preencha `SEED_ADMIN_EMAIL` e

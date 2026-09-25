@@ -46,6 +46,12 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-unit-coverage.ps1 -Configuration Release
 
+      - name: Validate Docker Compose configuration
+        shell: pwsh
+        run: |
+          ./scripts/initialize-dev-env.ps1
+          docker compose config --quiet
+
   container:
     name: Build container
     runs-on: ubuntu-latest
