@@ -44,6 +44,24 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
         return CreatedAtAction(nameof(GetById), new { orderId = result.Value!.Id }, result.Value);
     }
 
+    [HttpPost("{orderId:guid}/items")]
+    [ProducesResponseType(typeof(OrderDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddItem(
+        Guid orderId,
+        AddOrderItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(
+            new AddOrderItemCommand(orderId, request.ProductId, request.Quantity, customerId),
+            cancellationToken);
+        return result.IsFailure
+            ? result.Errors.Contains("Order not found.") ? NotFound(result.Errors) : BadRequest(result.Errors)
+            : Ok(result.Value);
+    }
+
     [HttpPut("{orderId:guid}")]
     [Authorize(Roles = "Administrator")]
     [ProducesResponseType(typeof(OrderDto), StatusCodes.Status200OK)]

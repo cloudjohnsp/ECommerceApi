@@ -140,6 +140,86 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
+    public async Task AddItem_ToPendingOrder_ReservesStockAndPublishesUpdatedEvent()
+    {
+        var order = OrderFactory.Create();
+        var product = ProductFactory.Create(stock: 10);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        var handler = new AddOrderItemHandler(
+            _orders.Object,
+            _products.Object,
+            _outboxMessages.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new AddOrderItemCommand(order.Id, product.Id, 2, order.CustomerId),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Items.Should().HaveCount(2);
+        product.AvailableStock.Should().Be(8);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderUpdated),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItem_ForAnotherCustomer_ReturnsNotFoundWithoutReservingStock()
+    {
+        var order = OrderFactory.Create();
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        var handler = new AddOrderItemHandler(
+            _orders.Object,
+            _products.Object,
+            _outboxMessages.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new AddOrderItemCommand(order.Id, Guid.NewGuid(), 1, Guid.NewGuid()),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Order not found.");
+        _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItem_WithInsufficientStock_RollsBackWithoutChangingOrder()
+    {
+        var order = OrderFactory.Create();
+        var product = ProductFactory.Create(stock: 1);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        var handler = new AddOrderItemHandler(
+            _orders.Object,
+            _products.Object,
+            _outboxMessages.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new AddOrderItemCommand(order.Id, product.Id, 2, order.CustomerId),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        order.Items.Should().ContainSingle();
+        product.AvailableStock.Should().Be(1);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task UpdateToPaid_WhenFound_MarksOrderPaidAndCommits()
     {
         var order = OrderFactory.Create();

@@ -78,6 +78,11 @@ administradores em `GET /api/v1/user/{userId}/history`. As diferenças de perfil
 e role são armazenadas como `jsonb`; senhas, hashes e tokens nunca são incluídos
 na trilha.
 
+Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
+`POST /api/v1/orders/{orderId}/items`. A operação bloqueia pedido e produto,
+reserva o estoque e grava `order.updated` na outbox na mesma transação. Pedidos
+pagos, cancelados ou reembolsados não aceitam novos itens.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

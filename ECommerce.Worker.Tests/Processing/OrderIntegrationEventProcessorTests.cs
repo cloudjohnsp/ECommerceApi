@@ -75,6 +75,32 @@ public sealed class OrderIntegrationEventProcessorTests
     }
 
     [Fact]
+    public async Task OrderUpdated_AfterOrderCreated_RefreshesProjectionAndQueuesNotification()
+    {
+        await using var context = CreateContext();
+        var processor = new OrderIntegrationEventProcessor(context);
+        var created = CreatePayload("Pending", "customer@example.com");
+        await processor.ProcessAsync(
+            Guid.NewGuid(),
+            "order.created",
+            JsonSerializer.SerializeToUtf8Bytes(created));
+        var updated = created with
+        {
+            CustomerEmail = null,
+            Total = 299.80m,
+            OccurredAt = created.OccurredAt.AddSeconds(1)
+        };
+
+        await processor.ProcessAsync(
+            Guid.NewGuid(),
+            "order.updated",
+            JsonSerializer.SerializeToUtf8Bytes(updated));
+
+        (await context.OrderProjections.SingleAsync()).Total.Should().Be(299.80m);
+        (await context.NotificationOutboxMessages.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
     public async Task LifecycleEventBeforeOrderCreated_IsRetryable()
     {
         await using var context = CreateContext();

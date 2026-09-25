@@ -211,6 +211,31 @@
           ]
         },
         {
+          "name": "Create additional product",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gaming Mouse {{$randomInt}}\",\n  \"description\": \"Wireless gaming mouse\",\n  \"price\": 249.90,\n  \"stock\": 25,\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Additional product created', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.environment.set('additionalProductId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Dashboard",
           "request": {
             "method": "GET",
@@ -263,6 +288,31 @@
                 "exec": [
                   "pm.test('Order created', () => pm.response.to.have.status(201));",
                   "if (pm.response.code === 201) pm.environment.set('orderId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add item to pending order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{additionalProductId}}\",\n  \"quantity\": 1\n}"
+            },
+            "url": "{{baseUrl}}/orders/{{orderId}}/items"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Item added to order', () => pm.response.to.have.status(200));",
+                  "pm.test('Order contains two items', () => pm.expect(pm.response.json().items).to.have.length(2));"
                 ]
               }
             }

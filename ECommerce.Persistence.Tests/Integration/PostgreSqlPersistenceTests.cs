@@ -104,6 +104,76 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task AddOrderItem_PersistsReservationOrderAndUpdatedEventAtomically()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Order",
+            "Customer",
+            Email.Create($"order-items-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var firstProduct = Product.Create($"First {suffix}", "First product", 49.90m, 10).Value!;
+        var secondProduct = Product.Create($"Second {suffix}", "Second product", 25m, 8).Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(customer);
+            await seedContext.Products.AddRangeAsync(firstProduct, secondProduct);
+            await seedContext.SaveChangesAsync();
+        }
+
+        Guid orderId;
+        await using (var createContext = new AppDbContext(options))
+        {
+            var createHandler = new CreateOrderHandler(
+                new OrderRepository(createContext),
+                new UserRepository(createContext),
+                new ProductRepository(createContext),
+                new OutboxMessageRepository(createContext),
+                new UnitOfWork(createContext),
+                new NoOpProductCache());
+            var createResult = await createHandler.Handle(
+                new CreateOrderCommand(customer.Id, [new CreateOrderItem(firstProduct.Id, 1)]),
+                CancellationToken.None);
+            createResult.IsSuccess.Should().BeTrue(string.Join("; ", createResult.Errors));
+            orderId = createResult.Value!.Id;
+        }
+
+        await using (var addContext = new AppDbContext(options))
+        {
+            var addHandler = new AddOrderItemHandler(
+                new OrderRepository(addContext),
+                new ProductRepository(addContext),
+                new OutboxMessageRepository(addContext),
+                new UnitOfWork(addContext),
+                new NoOpProductCache());
+            var addResult = await addHandler.Handle(
+                new AddOrderItemCommand(orderId, secondProduct.Id, 2, customer.Id),
+                CancellationToken.None);
+            addResult.IsSuccess.Should().BeTrue(string.Join("; ", addResult.Errors));
+        }
+
+        await using var assertionContext = new AppDbContext(options);
+        var order = await assertionContext.Orders
+            .Include(item => item.Items)
+            .SingleAsync(item => item.Id == orderId);
+        var product = await assertionContext.Products
+            .Include(item => item.Inventory)
+            .SingleAsync(item => item.Id == secondProduct.Id);
+        var eventTypes = await assertionContext.OutboxMessages
+            .Where(message => message.Payload.Contains(orderId.ToString()))
+            .OrderBy(message => message.CreatedAt)
+            .Select(message => message.Type)
+            .ToArrayAsync();
+
+        order.Items.Should().HaveCount(2);
+        product.AvailableStock.Should().Be(6);
+        eventTypes.Should().Equal(OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated);
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task SaveChanges_DuplicateEmail_IsRejectedByPostgreSqlUniqueIndex()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

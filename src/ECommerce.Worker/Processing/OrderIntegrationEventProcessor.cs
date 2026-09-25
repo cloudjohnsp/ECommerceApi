@@ -14,6 +14,7 @@ public sealed class OrderIntegrationEventProcessor(WorkerDbContext dbContext)
     private static readonly HashSet<string> SupportedEventTypes =
     [
         "order.created",
+        "order.updated",
         "order.paid",
         "payment.failed",
         "order.refunded",
@@ -141,6 +142,9 @@ public sealed class OrderIntegrationEventProcessor(WorkerDbContext dbContext)
             "order.created" => (
                 $"Pedido {payload.OrderId} criado",
                 $"Seu pedido foi criado e aguarda pagamento. Total: {payload.Total:C}."),
+            "order.updated" => (
+                $"Pedido {payload.OrderId} atualizado",
+                $"Um item foi adicionado ao pedido. Novo total: {payload.Total:C}."),
             "order.paid" => (
                 $"Pagamento confirmado para o pedido {payload.OrderId}",
                 "Seu pagamento foi confirmado e a nota fiscal foi gerada."),

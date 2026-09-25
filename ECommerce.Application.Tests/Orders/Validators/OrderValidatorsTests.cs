@@ -35,4 +35,14 @@ public sealed class OrderValidatorsTests
 
         result.IsValid.Should().BeFalse();
     }
+
+    [Fact]
+    public async Task AddItem_WithInvalidIdentifiersAndQuantity_IsInvalid()
+    {
+        var result = await new AddOrderItemValidator()
+            .ValidateAsync(new AddOrderItemCommand(Guid.Empty, Guid.Empty, 0));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().HaveCount(3);
+    }
 }

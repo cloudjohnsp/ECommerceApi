@@ -7,5 +7,10 @@ namespace ECommerce.Application.Orders;
 
 public sealed record CreateOrderItem(Guid ProductId, int Quantity);
 public sealed record CreateOrderCommand(Guid CustomerId, IReadOnlyCollection<CreateOrderItem> Items) : IRequest<Result<OrderDto>>;
+public sealed record AddOrderItemCommand(
+    Guid OrderId,
+    Guid ProductId,
+    int Quantity,
+    Guid? CustomerId = null) : IRequest<Result<OrderDto>>;
 public sealed record UpdateOrderCommand(Guid OrderId, OrderStatus Status) : IRequest<Result<OrderDto>>;
 public sealed record DeleteOrderCommand(Guid OrderId, Guid? CustomerId = null) : IRequest<Result>;

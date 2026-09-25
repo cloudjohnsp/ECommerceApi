@@ -167,6 +167,40 @@ public sealed class AuthorizationControllerTests
     }
 
     [Fact]
+    public async Task AddOrderItem_CustomerScopeComesFromAuthenticatedUser()
+    {
+        var authenticatedUserId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(x => x.Send(It.IsAny<AddOrderItemCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderDto>.Failure("Expected test response."));
+        var controller = new OrdersController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(authenticatedUserId, UserRole.Customer)
+                }
+            }
+        };
+
+        await controller.AddItem(
+            orderId,
+            new AddOrderItemRequest(productId, 2),
+            CancellationToken.None);
+
+        mediator.Verify(x => x.Send(
+            It.Is<AddOrderItemCommand>(command =>
+                command.OrderId == orderId &&
+                command.ProductId == productId &&
+                command.Quantity == 2 &&
+                command.CustomerId == authenticatedUserId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task RefundPayment_CustomerScopeComesFromAuthenticatedUser()
     {
         var authenticatedUserId = Guid.NewGuid();

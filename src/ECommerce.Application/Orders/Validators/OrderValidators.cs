@@ -25,6 +25,16 @@ public sealed class GetOrderByIdValidator : AbstractValidator<GetOrderByIdQuery>
     public GetOrderByIdValidator() => RuleFor(x => x.OrderId).NotEmpty();
 }
 
+public sealed class AddOrderItemValidator : AbstractValidator<AddOrderItemCommand>
+{
+    public AddOrderItemValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.ProductId).NotEmpty();
+        RuleFor(x => x.Quantity).GreaterThan(0);
+    }
+}
+
 public sealed class UpdateOrderValidator : AbstractValidator<UpdateOrderCommand>
 {
     public UpdateOrderValidator()
