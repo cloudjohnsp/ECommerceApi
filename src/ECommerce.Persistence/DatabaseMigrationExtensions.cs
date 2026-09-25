@@ -1,5 +1,6 @@
 using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Options;
+using ECommerce.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,8 @@ public static class DatabaseMigrationExtensions
         CancellationToken cancellationToken = default)
     {
         var options = services.GetRequiredService<IOptions<DatabaseInitializationOptions>>().Value;
-        if (!options.ApplyMigrationsOnStartup)
+        var seedOptions = services.GetRequiredService<IOptions<DatabaseSeedOptions>>().Value;
+        if (!options.ApplyMigrationsOnStartup && !seedOptions.Enabled)
             return;
 
         var logger = services.GetRequiredService<ILoggerFactory>()
@@ -26,11 +28,19 @@ public static class DatabaseMigrationExtensions
             {
                 await using var scope = services.CreateAsyncScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                await dbContext.Database.MigrateAsync(cancellationToken);
-                logger.LogInformation("Database migrations applied successfully.");
+                if (options.ApplyMigrationsOnStartup)
+                    await dbContext.Database.MigrateAsync(cancellationToken);
+
+                if (seedOptions.Enabled)
+                    await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>()
+                        .SeedAsync(cancellationToken);
+
+                logger.LogInformation("Database initialization completed successfully.");
                 return;
             }
-            catch (Exception exception) when (attempt < options.MaxAttempts)
+            catch (Exception exception) when (
+                exception is not DatabaseSeedConflictException &&
+                attempt < options.MaxAttempts)
             {
                 logger.LogWarning(
                     exception,

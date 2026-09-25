@@ -8,6 +8,8 @@ using ECommerce.Domain.ValueObjects;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
+using ECommerce.Persistence.Options;
+using ECommerce.Persistence.Seeding;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -115,10 +117,47 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         await action.Should().ThrowAsync<DbUpdateException>();
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task DatabaseSeeder_IsIdempotentOnPostgreSql()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var seedOptions = new DatabaseSeedOptions
+        {
+            Enabled = true,
+            SeedSampleCatalog = true,
+            AdministratorEmail = $"seed-{Guid.NewGuid():N}@example.com",
+            AdministratorPassword = "StrongPassword1!"
+        };
+
+        await using (var firstContext = new AppDbContext(CreateOptions(connectionString)))
+            await CreateSeeder(firstContext, seedOptions).SeedAsync();
+        await using (var secondContext = new AppDbContext(CreateOptions(connectionString)))
+            await CreateSeeder(secondContext, seedOptions).SeedAsync();
+
+        await using var assertionContext = new AppDbContext(CreateOptions(connectionString));
+        (await assertionContext.Users.CountAsync(user =>
+            user.Email.Value == seedOptions.AdministratorEmail)).Should().Be(1);
+        (await assertionContext.Categories.CountAsync(category =>
+            category.Slug == "electronics")).Should().Be(1);
+        (await assertionContext.Products.CountAsync(product =>
+            product.Name == "Wireless Mouse")).Should().Be(1);
+    }
+
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>
         new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)
             .Options;
+
+    private static DatabaseSeeder CreateSeeder(AppDbContext context, DatabaseSeedOptions options) =>
+        new(context, new TestPasswordHasher(), Microsoft.Extensions.Options.Options.Create(options));
+
+    private sealed class TestPasswordHasher : ECommerce.Application.Abstractions.Security.IPasswordHasher
+    {
+        public string HashPassword(string password) => $"hashed:{password}";
+
+        public bool VerifyPassword(string password, string hashedPassword) =>
+            hashedPassword == HashPassword(password);
+    }
 
     private sealed class NoOpProductCache : IProductCache
     {

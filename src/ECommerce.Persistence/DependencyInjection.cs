@@ -7,6 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ECommerce.Persistence.HealthChecks;
 using ECommerce.Persistence.Options;
+using ECommerce.Persistence.Seeding;
+using ECommerce.Domain.ValueObjects;
 
 namespace ECommerce.Persistence;
 
@@ -24,6 +26,22 @@ public static class DependencyInjection
                 "DatabaseInitialization:MaxAttempts must be greater than zero.")
             .Validate(options => options.RetryDelaySeconds > 0,
                 "DatabaseInitialization:RetryDelaySeconds must be greater than zero.")
+            .ValidateOnStart();
+
+        services.AddOptions<DatabaseSeedOptions>()
+            .Bind(configuration.GetSection(DatabaseSeedOptions.SectionName))
+            .Validate(options =>
+                    string.IsNullOrWhiteSpace(options.AdministratorEmail) ==
+                    string.IsNullOrWhiteSpace(options.AdministratorPassword),
+                "DatabaseSeed administrator e-mail and password must be configured together.")
+            .Validate(options =>
+                    string.IsNullOrWhiteSpace(options.AdministratorPassword) ||
+                    options.AdministratorPassword.Length >= 12,
+                "DatabaseSeed:AdministratorPassword must contain at least 12 characters.")
+            .Validate(options =>
+                    string.IsNullOrWhiteSpace(options.AdministratorEmail) ||
+                    Email.Create(options.AdministratorEmail).IsSuccess,
+                "DatabaseSeed:AdministratorEmail must be a valid e-mail address.")
             .ValidateOnStart();
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
@@ -44,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IAdminReportingRepository, AdminReportingRepository>();
+        services.AddScoped<DatabaseSeeder>();
         return services;
     }
 }

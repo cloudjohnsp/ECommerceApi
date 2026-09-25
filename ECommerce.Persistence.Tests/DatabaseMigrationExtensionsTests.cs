@@ -13,6 +13,8 @@ public sealed class DatabaseMigrationExtensionsTests
         services.AddLogging();
         services.AddOptions<DatabaseInitializationOptions>()
             .Configure(options => { });
+        services.AddOptions<DatabaseSeedOptions>()
+            .Configure(options => { });
         await using var provider = services.BuildServiceProvider();
 
         var action = () => provider.ApplyDatabaseMigrationsAsync();

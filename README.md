@@ -113,11 +113,28 @@ O arquivo `.env` é ignorado pelo Git. O valor de
 `PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
 `ECommercePayment`.
 
+No Compose, o seed idempotente cria três categorias e três produtos de exemplo.
+Para também criar um administrador confirmado, preencha `SEED_ADMIN_EMAIL` e
+`SEED_ADMIN_PASSWORD` no `.env`; a senha deve ter ao menos 12 caracteres e nunca
+é gravada no repositório. O seed usa um advisory lock do PostgreSQL para evitar
+duplicação quando mais de uma instância inicia ao mesmo tempo. Em produção,
+`DatabaseSeed:Enabled` permanece desabilitado por padrão.
+
 Por padrão, a execução local não altera o schema automaticamente. Gere e
 aplique migrations de forma explícita durante o desenvolvimento. No Compose,
 `DatabaseInitialization:ApplyMigrationsOnStartup` é habilitado: a API aguarda os
 health checks de PostgreSQL, RabbitMQ e Redis e aplica migrations pendentes com
 retry limitado antes de começar a atender requisições.
+
+Comandos do EF que apenas trabalham com o modelo usam uma factory de design-time
+e não precisam iniciar a API. Para comandos que conectam ao banco, como
+`database update`, forneça a conexão somente no processo atual:
+
+```powershell
+$env:ECOMMERCE_DESIGN_TIME_CONNECTION_STRING = "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>"
+dotnet ef database update --project src/ECommerce.Persistence --startup-project src/ECommerce.Api
+Remove-Item Env:ECOMMERCE_DESIGN_TIME_CONNECTION_STRING
+```
 
 ## Integração contínua
 

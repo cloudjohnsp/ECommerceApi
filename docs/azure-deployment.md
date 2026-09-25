@@ -62,6 +62,12 @@ Defina também `ASPNETCORE_ENVIRONMENT=Production`,
 `WEBSITES_PORT=8080` no App Service. O segredo do webhook deve ser igual ao
 configurado no gateway de pagamentos.
 
+O seed é destinado a ambientes locais e fica desabilitado em produção. Caso um
+bootstrap controlado seja necessário, configure `DatabaseSeed__Enabled=true` e
+forneça `DatabaseSeed__AdministratorEmail` e
+`DatabaseSeed__AdministratorPassword` por Key Vault; remova essas configurações
+depois da primeira inicialização.
+
 O workflow não modifica essas configurações: ele apenas implanta a imagem. Isso
 evita substituir segredos durante cada release e mantém sua rotação independente
 do ciclo de deploy.

@@ -18,6 +18,7 @@ public sealed class CommittedConfigurationTests
         Read(configuration, "RabbitMq", "UserName").Should().BeEmpty();
         Read(configuration, "RabbitMq", "Password").Should().BeEmpty();
         Read(configuration, "PaymentGateway", "WebhookSecret").Should().BeEmpty();
+        Read(configuration, "DatabaseSeed", "AdministratorPassword").Should().BeEmpty();
     }
 
     [Fact]
@@ -40,6 +41,7 @@ public sealed class CommittedConfigurationTests
         environmentTemplate.Should().Contain("JWT_SECRET_KEY=");
         environmentTemplate.Should().Contain("PAYMENT_GATEWAY_WEBHOOK_SECRET=");
         environmentTemplate.Should().Contain("GRAFANA_ADMIN_PASSWORD=");
+        environmentTemplate.Should().Contain("SEED_ADMIN_PASSWORD=");
     }
 
     [Fact]
