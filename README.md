@@ -83,6 +83,12 @@ Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
 reserva o estoque e grava `order.updated` na outbox na mesma transação. Pedidos
 pagos, cancelados ou reembolsados não aceitam novos itens.
 
+O `PUT /api/v1/orders/{orderId}` é uma operação administrativa de reconciliação,
+não um atalho para aprovar pagamentos. A transição para `Paid` só ocorre quando
+já existe um pagamento aprovado; nesse caso, a reserva é consumida e o evento
+`order.paid` é persistido atomicamente. O fluxo normal continua sendo dirigido
+pelo webhook assinado do gateway.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

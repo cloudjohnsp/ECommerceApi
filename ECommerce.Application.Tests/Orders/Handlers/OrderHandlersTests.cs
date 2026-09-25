@@ -15,6 +15,7 @@ public sealed class OrderHandlersTests
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<IProductRepository> _products = new();
+    private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOutboxMessageRepository> _outboxMessages = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IProductCache> _productCache = new();
@@ -220,12 +221,27 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
-    public async Task UpdateToPaid_WhenFound_MarksOrderPaidAndCommits()
+    public async Task UpdateToPaid_WithApprovedPayment_ConsumesReservationAndCommits()
     {
-        var order = OrderFactory.Create();
-        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(2);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 2);
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.MarkAsPaid("pay_123");
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
         var handler = new UpdateOrderHandler(
-            _orders.Object, _outboxMessages.Object, _unitOfWork.Object);
+            _orders.Object,
+            _payments.Object,
+            _products.Object,
+            _outboxMessages.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
 
         var result = await handler.Handle(new UpdateOrderCommand(order.Id, OrderStatus.Paid), CancellationToken.None);
 
@@ -234,7 +250,37 @@ public sealed class OrderHandlersTests
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderPaid),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        product.ReleaseReservedStock(2).IsFailure.Should().BeTrue();
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateToPaid_WithoutApprovedPayment_RollsBackWithoutChangingOrder()
+    {
+        var order = OrderFactory.Create();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        var handler = new UpdateOrderHandler(
+            _orders.Object,
+            _payments.Object,
+            _products.Object,
+            _outboxMessages.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new UpdateOrderCommand(order.Id, OrderStatus.Paid),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Order can only be reconciled after its payment is approved.");
+        order.Status.Should().Be(OrderStatus.Pending);
+        _products.Verify(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
