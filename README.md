@@ -66,7 +66,10 @@ Docker Compose fornece Azurite para desenvolvimento local, e
 Administradores consultam `GET /api/v1/admin/dashboard` para obter totais de
 usuários e produtos ativos, pedidos e pagamentos por estado e receita de
 pagamentos aprovados. As agregações são executadas diretamente no PostgreSQL e
-o endpoint não fica disponível para usuários da role `Customer`.
+o endpoint não fica disponível para usuários da role `Customer`. O recurso pode
+ser liberado ou retirado sem novo deploy por meio de
+`FeatureFlags:AdminDashboard`; quando desabilitado, a API responde `404` sem
+consultar o banco.
 
 ## Projetos
 

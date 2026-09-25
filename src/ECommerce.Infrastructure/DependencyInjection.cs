@@ -22,6 +22,8 @@ using Azure.Storage.Blobs;
 using ECommerce.Application.Abstractions.Email;
 using ECommerce.Infrastructure.Email;
 using MimeKit;
+using ECommerce.Application.Abstractions.Features;
+using ECommerce.Infrastructure.Features;
 
 namespace ECommerce.Infrastructure;
 
@@ -33,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IUserActionTokenService, UserActionTokenService>();
+        services.AddSingleton<IFeatureFlagService, ConfigurationFeatureFlagService>();
 
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);

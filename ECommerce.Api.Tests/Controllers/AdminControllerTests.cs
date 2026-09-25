@@ -39,4 +39,17 @@ public sealed class AdminControllerTests
         attribute.Should().NotBeNull();
         attribute!.Roles.Should().Be("Administrator");
     }
+
+    [Fact]
+    public async Task GetDashboard_WhenFeatureIsDisabled_ReturnsNotFound()
+    {
+        var mediator = new Mock<ISender>();
+        mediator.Setup(item => item.Send(It.IsAny<GetAdminDashboardQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AdminDashboardDto>.Failure("Admin dashboard is disabled."));
+        var controller = new AdminController(mediator.Object);
+
+        var response = await controller.GetDashboard(CancellationToken.None);
+
+        response.Should().BeOfType<NotFoundObjectResult>();
+    }
 }
