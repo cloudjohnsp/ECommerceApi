@@ -6,6 +6,7 @@
     <Project Path="src/ECommerce.Infrastructure/ECommerce.Infrastructure.csproj" />
     <Project Path="src/ECommerce.Persistence/ECommerce.Persistence.csproj" />
     <Project Path="src/ECommerce.Shared/ECommerce.Shared.csproj" />
+    <Project Path="src/ECommerce.Worker/ECommerce.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="ECommerce.Api.Tests/ECommerce.Api.Tests.csproj" />
@@ -13,5 +14,6 @@
     <Project Path="ECommerce.Domain.Tests/ECommerce.Domain.Tests.csproj" Id="7fba934c-52fc-474f-bb05-959351400d4c" />
     <Project Path="ECommerce.Infrastructure.Tests/ECommerce.Infrastructure.Tests.csproj" />
     <Project Path="ECommerce.Persistence.Tests/ECommerce.Persistence.Tests.csproj" Id="c3397dbe-cebb-4332-bb3d-952091c4430f" />
+    <Project Path="ECommerce.Worker.Tests/ECommerce.Worker.Tests.csproj" />
   </Folder>
 </Solution>

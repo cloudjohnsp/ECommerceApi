@@ -60,7 +60,8 @@ public sealed class CreateOrderHandler(
             var orderDto = order.ToDto();
             var outboxMessage = OrderIntegrationEventFactory.Create(
                 order,
-                OutBoxMessageType.OrderCreated);
+                OutBoxMessageType.OrderCreated,
+                customer.Email.Value);
 
             await orderRepository.AddAsync(order, cancellationToken);
             await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);

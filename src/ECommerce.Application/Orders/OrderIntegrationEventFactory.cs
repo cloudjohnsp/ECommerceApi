@@ -7,11 +7,15 @@ namespace ECommerce.Application.Orders;
 
 internal static class OrderIntegrationEventFactory
 {
-    public static OutboxMessage Create(Order order, OutBoxMessageType messageType)
+    public static OutboxMessage Create(
+        Order order,
+        OutBoxMessageType messageType,
+        string? customerEmail = null)
     {
         var payload = new OrderIntegrationEventPayload(
             order.Id,
             order.CustomerId,
+            customerEmail,
             order.Status.ToString(),
             order.Total,
             DateTimeOffset.UtcNow,

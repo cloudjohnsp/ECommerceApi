@@ -10,6 +10,7 @@ public sealed record OrderIntegrationEventItem(
 public sealed record OrderIntegrationEventPayload(
     Guid OrderId,
     Guid CustomerId,
+    string? CustomerEmail,
     string Status,
     decimal Total,
     DateTimeOffset OccurredAt,
