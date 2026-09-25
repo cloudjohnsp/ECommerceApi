@@ -5,12 +5,11 @@ using ECommerce.Domain.Enums;
 using ECommerce.Infrastructure.Email;
 using ECommerce.Infrastructure.Options;
 using ECommerce.Shared.Results;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ECommerce.Infrastructure.Tests.Email;
 
-public sealed class UserEmailOutboxWorkerTests
+public sealed class UserEmailOutboxJobTests
 {
     [Fact]
     public async Task ProcessPendingMessages_PollsBothEmailTypesAndProcessesMessages()
@@ -19,17 +18,14 @@ public sealed class UserEmailOutboxWorkerTests
         var resetId = Guid.NewGuid();
         var repository = new RecordingOutboxRepository(confirmationId, resetId);
         var processor = new RecordingProcessor();
-        var services = new ServiceCollection()
-            .AddSingleton<IOutboxMessageRepository>(repository)
-            .AddSingleton<IUserEmailOutboxProcessor>(processor)
-            .BuildServiceProvider();
-        var worker = new UserEmailOutboxWorker(
-            services.GetRequiredService<IServiceScopeFactory>(),
+        var job = new UserEmailOutboxJob(
+            repository,
+            processor,
             Microsoft.Extensions.Options.Options.Create(
-                new OutboxProcessorOptions { BatchSize = 10, PollingIntervalSeconds = 5 }),
-            NullLogger<UserEmailOutboxWorker>.Instance);
+                new OutboxProcessorOptions { BatchSize = 10 }),
+            NullLogger<UserEmailOutboxJob>.Instance);
 
-        await worker.ProcessPendingMessagesAsync(CancellationToken.None);
+        await job.ExecuteAsync(CancellationToken.None);
 
         Assert.Equal(
             [OutBoxMessageType.EmailConfirmationRequested, OutBoxMessageType.PasswordResetRequested],

@@ -4,6 +4,8 @@ public sealed class OutboxProcessorOptions
 {
     public const string SectionName = "OutboxProcessor";
 
-    public int PollingIntervalSeconds { get; init; } = 5;
+    public bool Enabled { get; init; } = true;
+    public string CronExpression { get; init; } = "* * * * *";
     public int BatchSize { get; init; } = 20;
+    public int WorkerCount { get; init; } = 3;
 }

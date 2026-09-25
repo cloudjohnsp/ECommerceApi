@@ -1,14 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
-using ECommerce.Infrastructure.Messaging;
-using ECommerce.Infrastructure.Payments;
-using ECommerce.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 
@@ -70,24 +66,12 @@ public sealed class ApiProtectionTests
             builder.UseSetting("ApiProtection:GlobalPermitLimit", globalLimit.ToString());
             builder.UseSetting("ApiProtection:AuthenticationPermitLimit", authenticationLimit.ToString());
             builder.UseSetting("ApiProtection:WindowSeconds", "300");
+            builder.UseSetting("OutboxProcessor:Enabled", "false");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureServices(services =>
             {
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
-                RemoveHostedService<PaymentOutboxWorker>(services);
-                RemoveHostedService<IntegrationEventOutboxWorker>(services);
-                RemoveHostedService<UserEmailOutboxWorker>(services);
             });
-        }
-
-        private static void RemoveHostedService<TService>(IServiceCollection services)
-            where TService : class, IHostedService
-        {
-            var descriptor = services.FirstOrDefault(service =>
-                service.ServiceType == typeof(IHostedService) &&
-                service.ImplementationType == typeof(TService));
-            if (descriptor is not null)
-                services.Remove(descriptor);
         }
     }
 }

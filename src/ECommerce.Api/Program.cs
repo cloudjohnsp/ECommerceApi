@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using Serilog;
 using Serilog.Formatting.Json;
+using ECommerce.Infrastructure.BackgroundJobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,7 @@ builder.Services.AddApi(builder.Configuration);
 var app = builder.Build();
 
 await app.Services.ApplyDatabaseMigrationsAsync();
+app.Services.ScheduleOutboxJobs();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>

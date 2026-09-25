@@ -24,6 +24,8 @@ using ECommerce.Infrastructure.Email;
 using MimeKit;
 using ECommerce.Application.Abstractions.Features;
 using ECommerce.Infrastructure.Features;
+using Hangfire;
+using Hangfire.PostgreSql;
 
 namespace ECommerce.Infrastructure;
 
@@ -43,7 +45,7 @@ public static class DependencyInjection
         services.AddProductImageStorage(configuration);
         services.AddEmailDelivery(configuration);
         services.AddPaymentGateway(configuration);
-        services.AddPaymentOutboxProcessor(configuration);
+        services.AddOutboxProcessing(configuration);
 
         return services;
     }
@@ -79,7 +81,6 @@ public static class DependencyInjection
         }
         else
             services.AddSingleton<IUserEmailSender, DisabledUserEmailSender>();
-        services.AddHostedService<UserEmailOutboxWorker>();
         return services;
     }
 
@@ -155,19 +156,45 @@ public static class DependencyInjection
         return services;
     }
 
-    private static IServiceCollection AddPaymentOutboxProcessor(
+    private static IServiceCollection AddOutboxProcessing(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         services.AddOptions<OutboxProcessorOptions>()
             .Bind(configuration.GetSection(OutboxProcessorOptions.SectionName))
-            .Validate(options => options.PollingIntervalSeconds > 0,
-                "OutboxProcessor:PollingIntervalSeconds must be greater than zero.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.CronExpression),
+                "OutboxProcessor:CronExpression is required.")
             .Validate(options => options.BatchSize > 0,
                 "OutboxProcessor:BatchSize must be greater than zero.")
+            .Validate(options => options.WorkerCount > 0,
+                "OutboxProcessor:WorkerCount must be greater than zero.")
             .ValidateOnStart();
 
-        services.AddHostedService<PaymentOutboxWorker>();
+        services.AddScoped<PaymentOutboxJob>();
+        services.AddScoped<UserEmailOutboxJob>();
+        services.AddScoped<IntegrationEventOutboxJob>();
+
+        var options = configuration.GetSection(OutboxProcessorOptions.SectionName)
+            .Get<OutboxProcessorOptions>() ?? new OutboxProcessorOptions();
+        if (!options.Enabled)
+            return services;
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required for Hangfire.");
+
+        services.AddHangfire(hangfire => hangfire
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(
+                storage => storage.UseNpgsqlConnection(connectionString),
+                new PostgreSqlStorageOptions
+                {
+                    SchemaName = "hangfire",
+                    PrepareSchemaIfNecessary = true
+                }));
+        services.AddHangfireServer(server => server.WorkerCount = options.WorkerCount);
         return services;
     }
 
@@ -238,7 +265,6 @@ public static class DependencyInjection
             TopologyRecoveryEnabled = true
         });
         services.AddSingleton<IIntegrationEventPublisher, RabbitMqEventPublisher>();
-        services.AddHostedService<IntegrationEventOutboxWorker>();
         services.AddHealthChecks()
             .AddCheck<RabbitMqHealthCheck>(
                 "rabbitmq",

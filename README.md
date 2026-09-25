@@ -163,8 +163,14 @@ Ao iniciar um pagamento, a API salva o pagamento e uma intenção
 `PaymentCreationRequested` na outbox dentro da mesma transação. A tentativa é
 executada imediatamente e um serviço em segundo plano reprocessa intenções que
 continuarem pendentes, usando o `Payment.Id` como chave de idempotência no
-gateway. O intervalo e o tamanho do lote são configurados em
-`OutboxProcessor` no `appsettings.json`.
+gateway.
+
+Os processadores de pagamentos, e-mails e eventos de integração são jobs
+recorrentes do Hangfire. O agendamento, o tamanho do lote e a quantidade de
+workers são configurados em `OutboxProcessor`; o estado do scheduler fica no
+schema `hangfire` do PostgreSQL. Cada job impede execuções concorrentes da mesma
+tarefa, e falhas não tratadas ficam sob a política de retry durável do Hangfire.
+O dashboard técnico do Hangfire não é exposto pela API.
 
 Eventos de pedido armazenados na outbox são publicados no exchange durável
 `ecommerce.events` do RabbitMQ com uma routing key como `order.created`. A

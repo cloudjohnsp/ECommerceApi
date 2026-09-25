@@ -1,14 +1,10 @@
 using System.Net;
 using ECommerce.Api.Middlewares;
-using ECommerce.Infrastructure.Messaging;
-using ECommerce.Infrastructure.Payments;
-using ECommerce.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ECommerce.Api.Tests.Integration;
@@ -118,24 +114,12 @@ public sealed class ObservabilityTests
             builder.UseSetting("ApiProtection:AuthenticationPermitLimit", "10");
             builder.UseSetting("ApiProtection:WindowSeconds", "300");
             builder.UseSetting("Observability:EnablePrometheus", "true");
+            builder.UseSetting("OutboxProcessor:Enabled", "false");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureServices(services =>
             {
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
-                RemoveHostedService<PaymentOutboxWorker>(services);
-                RemoveHostedService<IntegrationEventOutboxWorker>(services);
-                RemoveHostedService<UserEmailOutboxWorker>(services);
             });
-        }
-
-        private static void RemoveHostedService<TService>(IServiceCollection services)
-            where TService : class, IHostedService
-        {
-            var descriptor = services.FirstOrDefault(service =>
-                service.ServiceType == typeof(IHostedService) &&
-                service.ImplementationType == typeof(TService));
-            if (descriptor is not null)
-                services.Remove(descriptor);
         }
     }
 }

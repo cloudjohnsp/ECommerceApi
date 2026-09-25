@@ -5,13 +5,12 @@ using ECommerce.Domain.Enums;
 using ECommerce.Infrastructure.Options;
 using ECommerce.Infrastructure.Payments;
 using ECommerce.Shared.Results;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace ECommerce.Infrastructure.Tests.Payments;
 
-public sealed class PaymentOutboxWorkerTests
+public sealed class PaymentOutboxJobTests
 {
     [Fact]
     public async Task ProcessPendingMessages_ProcessesEveryPaymentCreationIntention()
@@ -20,33 +19,49 @@ public sealed class PaymentOutboxWorkerTests
         var secondId = Guid.NewGuid();
         var repository = new StubOutboxRepository([firstId, secondId]);
         var processor = new RecordingPaymentProcessor();
-        var services = new ServiceCollection()
-            .AddSingleton<IOutboxMessageRepository>(repository)
-            .AddSingleton<IPaymentCreationProcessor>(processor)
-            .BuildServiceProvider();
-        var worker = new PaymentOutboxWorker(
-            services.GetRequiredService<IServiceScopeFactory>(),
+        var job = new PaymentOutboxJob(
+            repository,
+            processor,
             Microsoft.Extensions.Options.Options.Create(
-                new OutboxProcessorOptions { BatchSize = 10, PollingIntervalSeconds = 5 }),
-            NullLogger<PaymentOutboxWorker>.Instance);
+                new OutboxProcessorOptions { BatchSize = 10 }),
+            NullLogger<PaymentOutboxJob>.Instance);
 
-        await worker.ProcessPendingMessagesAsync(CancellationToken.None);
+        await job.ExecuteAsync(CancellationToken.None);
 
         Assert.Equal([firstId, secondId], processor.ProcessedIds);
         Assert.Equal(OutBoxMessageType.PaymentCreationRequested, repository.RequestedType);
         Assert.Equal(10, repository.RequestedBatchSize);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WhenRepositoryFails_PropagatesExceptionForHangfireRetry()
+    {
+        var repository = new StubOutboxRepository([]) { Exception = new TimeoutException("Database timeout.") };
+        var job = new PaymentOutboxJob(
+            repository,
+            new RecordingPaymentProcessor(),
+            Microsoft.Extensions.Options.Options.Create(new OutboxProcessorOptions()),
+            NullLogger<PaymentOutboxJob>.Instance);
+
+        var action = () => job.ExecuteAsync(CancellationToken.None);
+
+        await Assert.ThrowsAsync<TimeoutException>(action);
+    }
+
     private sealed class StubOutboxRepository(IReadOnlyCollection<Guid> pendingIds) : IOutboxMessageRepository
     {
         public OutBoxMessageType RequestedType { get; private set; }
         public int RequestedBatchSize { get; private set; }
+        public Exception? Exception { get; init; }
 
         public Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
             OutBoxMessageType type,
             int take,
             CancellationToken cancellationToken = default)
         {
+            if (Exception is not null)
+                return Task.FromException<IReadOnlyCollection<Guid>>(Exception);
+
             RequestedType = type;
             RequestedBatchSize = take;
             return Task.FromResult(pendingIds);

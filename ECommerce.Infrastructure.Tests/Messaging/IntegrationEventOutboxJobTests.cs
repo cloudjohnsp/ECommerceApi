@@ -5,12 +5,11 @@ using ECommerce.Domain.Enums;
 using ECommerce.Infrastructure.Messaging;
 using ECommerce.Infrastructure.Options;
 using ECommerce.Shared.Results;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ECommerce.Infrastructure.Tests.Messaging;
 
-public sealed class IntegrationEventOutboxWorkerTests
+public sealed class IntegrationEventOutboxJobTests
 {
     [Fact]
     public async Task ProcessPendingMessages_PollsIntegrationEventTypesAndProcessesTheirMessages()
@@ -18,17 +17,14 @@ public sealed class IntegrationEventOutboxWorkerTests
         var messageId = Guid.NewGuid();
         var repository = new RecordingOutboxRepository(messageId);
         var processor = new RecordingProcessor();
-        var services = new ServiceCollection()
-            .AddSingleton<IOutboxMessageRepository>(repository)
-            .AddSingleton<IIntegrationEventOutboxProcessor>(processor)
-            .BuildServiceProvider();
-        var worker = new IntegrationEventOutboxWorker(
-            services.GetRequiredService<IServiceScopeFactory>(),
+        var job = new IntegrationEventOutboxJob(
+            repository,
+            processor,
             Microsoft.Extensions.Options.Options.Create(
-                new OutboxProcessorOptions { BatchSize = 10, PollingIntervalSeconds = 5 }),
-            NullLogger<IntegrationEventOutboxWorker>.Instance);
+                new OutboxProcessorOptions { BatchSize = 10 }),
+            NullLogger<IntegrationEventOutboxJob>.Instance);
 
-        await worker.ProcessPendingMessagesAsync(CancellationToken.None);
+        await job.ExecuteAsync(CancellationToken.None);
 
         Assert.Equal(
             [OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated, OutBoxMessageType.OrderDeleted],
