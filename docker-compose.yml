@@ -141,6 +141,9 @@ services:
       Email__Host: mailpit
       Email__Port: 1025
       Email__UseSsl: "false"
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "8082:8080"
     depends_on:
       postgres-db:
         condition: service_healthy

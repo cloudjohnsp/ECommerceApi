@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using ECommerce.Worker.Observability;
 using ECommerce.Worker.Options;
 using ECommerce.Worker.Processing;
 using Microsoft.Extensions.Options;
@@ -72,6 +74,14 @@ public sealed class RabbitMqOrderConsumer(
         BasicDeliverEventArgs delivery,
         CancellationToken stoppingToken)
     {
+        using var activity = WorkerTelemetry.ActivitySource.StartActivity(
+            "rabbitmq.consume",
+            ActivityKind.Consumer);
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.destination.name", _options.QueueName);
+        activity?.SetTag("messaging.message.id", delivery.BasicProperties.MessageId);
+        activity?.SetTag("messaging.event.type", delivery.BasicProperties.Type);
+
         try
         {
             if (!Guid.TryParse(delivery.BasicProperties.MessageId, out var messageId))
@@ -81,15 +91,26 @@ public sealed class RabbitMqOrderConsumer(
 
             using var scope = scopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<OrderIntegrationEventProcessor>();
-            await processor.ProcessAsync(
+            var result = await processor.ProcessAsync(
                 messageId,
                 delivery.BasicProperties.Type,
                 delivery.Body,
                 stoppingToken);
+            var eventTypeTag = new KeyValuePair<string, object?>(
+                "messaging.event.type",
+                delivery.BasicProperties.Type);
+            if (result == IntegrationEventProcessingResult.AlreadyProcessed)
+                WorkerTelemetry.DuplicateEvents.Add(1, eventTypeTag);
+            else
+                WorkerTelemetry.ConsumedEvents.Add(1, eventTypeTag);
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, stoppingToken);
         }
         catch (InvalidIntegrationEventException exception)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+            WorkerTelemetry.FailedEvents.Add(
+                1,
+                new KeyValuePair<string, object?>("failure.kind", "invalid"));
             logger.LogWarning(
                 exception,
                 "Rejecting invalid integration event {MessageId}.",
@@ -103,6 +124,10 @@ public sealed class RabbitMqOrderConsumer(
         }
         catch (Exception exception)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+            WorkerTelemetry.FailedEvents.Add(
+                1,
+                new KeyValuePair<string, object?>("failure.kind", "transient"));
             logger.LogWarning(
                 exception,
                 "Integration event {MessageId} failed and will be retried.",

@@ -85,6 +85,8 @@ No Container App do Worker, configure via secrets ou referências ao Key Vault:
 Use `DOTNET_ENVIRONMENT=Production` e mantenha o ingress desabilitado. O release
 força `min-replicas=1`, pois o consumidor RabbitMQ precisa permanecer ativo mesmo
 sem requisições HTTP.
+Configure probes HTTP internas na porta `8080`: `/health/live` para liveness e
+startup, e `/health/ready` para readiness. A exposição pública não é necessária.
 
 ## Publicar
 

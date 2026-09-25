@@ -1,12 +1,27 @@
+using ECommerce.Worker.HealthChecks;
 using ECommerce.Worker.Messaging;
 using ECommerce.Worker.Notifications;
+using ECommerce.Worker.Observability;
 using ECommerce.Worker.Options;
 using ECommerce.Worker.Persistence;
 using ECommerce.Worker.Processing;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using RabbitMQ.Client;
+using Serilog;
+using Serilog.Formatting.Json;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new JsonFormatter(renderMessage: true)));
 
 var connectionString = builder.Configuration.GetConnectionString("WorkerDatabase");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -45,6 +60,14 @@ builder.Services.AddOptions<NotificationProcessorOptions>()
     .Validate(options => options.LockSeconds > 0, "NotificationProcessor:LockSeconds must be positive.")
     .Validate(options => options.MaximumAttempts > 0, "NotificationProcessor:MaximumAttempts must be positive.")
     .ValidateOnStart();
+builder.Services.AddOptions<WorkerObservabilityOptions>()
+    .Bind(builder.Configuration.GetSection(WorkerObservabilityOptions.SectionName))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.ServiceName),
+        "Observability:ServiceName is required.")
+    .Validate(options => string.IsNullOrWhiteSpace(options.OtlpEndpoint) ||
+            Uri.TryCreate(options.OtlpEndpoint, UriKind.Absolute, out _),
+        "Observability:OtlpEndpoint must be an absolute URI when configured.")
+    .ValidateOnStart();
 
 var rabbitMqOptions = builder.Configuration
     .GetSection(WorkerRabbitMqOptions.SectionName)
@@ -60,6 +83,45 @@ builder.Services.AddSingleton(_ => new ConnectionFactory
     AutomaticRecoveryEnabled = false,
     ConsumerDispatchConcurrency = 1
 });
+builder.Services.AddHealthChecks()
+    .AddCheck<WorkerPostgresHealthCheck>(
+        "postgres",
+        tags: ["ready"],
+        timeout: TimeSpan.FromSeconds(5))
+    .AddCheck<WorkerRabbitMqHealthCheck>(
+        "rabbitmq",
+        tags: ["ready"],
+        timeout: TimeSpan.FromSeconds(5));
+
+var observabilityOptions = builder.Configuration
+    .GetSection(WorkerObservabilityOptions.SectionName)
+    .Get<WorkerObservabilityOptions>() ?? new WorkerObservabilityOptions();
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(observabilityOptions.ServiceName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddSource(WorkerTelemetry.InstrumentationName)
+            .AddAspNetCoreInstrumentation(instrumentation =>
+            {
+                instrumentation.Filter = context =>
+                    !context.Request.Path.StartsWithSegments("/metrics") &&
+                    !context.Request.Path.StartsWithSegments("/health");
+            });
+        if (TryGetOtlpEndpoint(observabilityOptions, out var endpoint))
+            tracing.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddMeter(WorkerTelemetry.InstrumentationName)
+            .AddAspNetCoreInstrumentation()
+            .AddRuntimeInstrumentation();
+        if (observabilityOptions.EnablePrometheus)
+            metrics.AddPrometheusExporter();
+        if (TryGetOtlpEndpoint(observabilityOptions, out var endpoint))
+            metrics.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
+    });
 
 var emailOptions = builder.Configuration
     .GetSection(WorkerEmailOptions.SectionName)
@@ -72,6 +134,19 @@ else
 builder.Services.AddHostedService<RabbitMqOrderConsumer>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 
-var host = builder.Build();
-await host.Services.InitializeWorkerDatabaseAsync();
-await host.RunAsync();
+var app = builder.Build();
+await app.Services.InitializeWorkerDatabaseAsync();
+
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
+if (app.Services.GetRequiredService<IOptions<WorkerObservabilityOptions>>().Value.EnablePrometheus)
+    app.MapPrometheusScrapingEndpoint("/metrics");
+
+await app.RunAsync();
+
+static bool TryGetOtlpEndpoint(WorkerObservabilityOptions options, out Uri endpoint) =>
+    Uri.TryCreate(options.OtlpEndpoint, UriKind.Absolute, out endpoint!);

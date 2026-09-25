@@ -1,4 +1,5 @@
 using ECommerce.Worker.Options;
+using ECommerce.Worker.Observability;
 using ECommerce.Worker.Persistence;
 using ECommerce.Worker.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ public sealed class NotificationOutboxProcessor(
                     message.Body,
                     cancellationToken);
                 message.MarkSent(DateTimeOffset.UtcNow);
+                WorkerTelemetry.SentNotifications.Add(1);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -37,6 +39,7 @@ public sealed class NotificationOutboxProcessor(
                 var retryDelay = TimeSpan.FromSeconds(
                     Math.Min(Math.Pow(2, message.Attempts + 1) * 5, 3600));
                 message.MarkFailed(exception.Message, DateTimeOffset.UtcNow.Add(retryDelay));
+                WorkerTelemetry.FailedNotifications.Add(1);
                 logger.LogWarning(
                     exception,
                     "Notification {NotificationId} delivery failed on attempt {Attempt}.",

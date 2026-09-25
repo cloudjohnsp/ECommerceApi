@@ -122,6 +122,9 @@ projeção, nota fiscal e notificação são persistidas atomicamente antes do A
 Falhas transitórias são reenfileiradas e, após o limite da fila quorum, seguem
 para `ecommerce.worker.orders.dead`. E-mails usam uma segunda outbox com lease e
 backoff exponencial, visível no Mailpit durante o desenvolvimento.
+O processo também expõe `/health/live`, `/health/ready` e `/metrics` na porta
+`8082` do host quando executado pelo Compose. O Prometheus coleta métricas de
+eventos consumidos, duplicados, falhos e notificações enviadas ou reprocessadas.
 
 `UserSecretsId` é usado somente no ambiente `Development`. Em ambientes
 publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre de
@@ -227,6 +230,10 @@ O `docker-compose.yml` também inicia Prometheus em
 dashboard **ECommerce API** são provisionados automaticamente. As credenciais
 iniciais do Grafana são `admin`/`admin` e podem ser substituídas pelas variáveis
 `GRAFANA_ADMIN_USER` e `GRAFANA_ADMIN_PASSWORD`.
+
+O Prometheus também coleta o Worker em `ecommerce-worker:8080`; traces e métricas
+dos dois processos podem ser enviados ao mesmo collector configurando
+`Observability:OtlpEndpoint`.
 
 ## Gateway de pagamento
 
