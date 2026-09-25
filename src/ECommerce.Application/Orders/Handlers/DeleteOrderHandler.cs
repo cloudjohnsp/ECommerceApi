@@ -2,12 +2,14 @@ using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Domain.Enums;
 
 namespace ECommerce.Application.Orders.Handlers;
 
 public sealed class DeleteOrderHandler(
     IOrderRepository orderRepository,
     IProductRepository productRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<DeleteOrderCommand, Result>
 {
@@ -37,6 +39,9 @@ public sealed class DeleteOrderHandler(
             }
 
             orderRepository.Update(order);
+            await outboxMessageRepository.AddAsync(
+                OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderCancelled),
+                cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(order.Items.Select(item =>

@@ -144,12 +144,16 @@ public sealed class OrderHandlersTests
     {
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        var handler = new UpdateOrderHandler(_orders.Object, _unitOfWork.Object);
+        var handler = new UpdateOrderHandler(
+            _orders.Object, _outboxMessages.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(new UpdateOrderCommand(order.Id, OrderStatus.Paid), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         order.Status.Should().Be(OrderStatus.Paid);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderPaid),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -164,13 +168,17 @@ public sealed class OrderHandlersTests
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _unitOfWork.Object, _productCache.Object);
+            _orders.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         order.Status.Should().Be(OrderStatus.Cancelled);
         product.AvailableStock.Should().Be(10);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderCancelled),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
@@ -182,7 +190,8 @@ public sealed class OrderHandlersTests
         order.MarkAsPaid();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _unitOfWork.Object, _productCache.Object);
+            _orders.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
 
@@ -197,7 +206,8 @@ public sealed class OrderHandlersTests
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _unitOfWork.Object, _productCache.Object);
+            _orders.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
             new DeleteOrderCommand(order.Id, Guid.NewGuid()), CancellationToken.None);
@@ -215,7 +225,8 @@ public sealed class OrderHandlersTests
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _unitOfWork.Object, _productCache.Object);
+            _orders.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
 

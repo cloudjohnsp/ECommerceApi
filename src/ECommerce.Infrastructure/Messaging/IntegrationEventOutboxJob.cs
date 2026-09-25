@@ -18,7 +18,11 @@ public sealed class IntegrationEventOutboxJob(
     [
         OutBoxMessageType.OrderCreated,
         OutBoxMessageType.OrderUpdated,
-        OutBoxMessageType.OrderDeleted
+        OutBoxMessageType.OrderDeleted,
+        OutBoxMessageType.OrderPaid,
+        OutBoxMessageType.PaymentFailed,
+        OutBoxMessageType.OrderRefunded,
+        OutBoxMessageType.OrderCancelled
     ];
 
     private readonly OutboxProcessorOptions _options = options.Value;

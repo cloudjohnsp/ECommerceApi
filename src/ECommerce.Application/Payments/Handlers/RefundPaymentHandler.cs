@@ -6,6 +6,7 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Orders;
 
 namespace ECommerce.Application.Payments.Handlers;
 
@@ -13,6 +14,7 @@ public sealed class RefundPaymentHandler(
     IOrderRepository orderRepository,
     IPaymentRepository paymentRepository,
     IProductRepository productRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IPaymentGateway paymentGateway,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<RefundPaymentCommand, Result<PaymentDto>>
@@ -88,6 +90,9 @@ public sealed class RefundPaymentHandler(
 
             paymentRepository.Update(payment);
             orderRepository.Update(order);
+            await outboxMessageRepository.AddAsync(
+                OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderRefunded),
+                cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
         }

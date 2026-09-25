@@ -6,7 +6,10 @@ using MediatR;
 
 namespace ECommerce.Application.Orders.Handlers;
 
-public sealed class UpdateOrderHandler(IOrderRepository repository, IUnitOfWork unitOfWork)
+public sealed class UpdateOrderHandler(
+    IOrderRepository repository,
+    IOutboxMessageRepository outboxMessageRepository,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<UpdateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(UpdateOrderCommand request, CancellationToken cancellationToken)
@@ -20,6 +23,9 @@ public sealed class UpdateOrderHandler(IOrderRepository repository, IUnitOfWork 
         if (result.IsFailure) return Result<OrderDto>.Failure([.. result.Errors]);
 
         repository.Update(order);
+        await outboxMessageRepository.AddAsync(
+            OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderPaid),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
         return Result<OrderDto>.Success(order.ToDto());
     }

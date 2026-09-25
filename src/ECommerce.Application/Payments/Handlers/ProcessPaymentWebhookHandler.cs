@@ -1,10 +1,12 @@
 using System.Text.Json;
+using System.Diagnostics;
 using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Orders;
 
 namespace ECommerce.Application.Payments.Handlers;
 
@@ -13,6 +15,7 @@ public sealed class ProcessPaymentWebhookHandler(
     IPaymentRepository paymentRepository,
     IOrderRepository orderRepository,
     IProductRepository productRepository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<ProcessPaymentWebhookCommand, Result>
 {
@@ -126,6 +129,16 @@ public sealed class ProcessPaymentWebhookHandler(
 
             paymentRepository.Update(payment);
             orderRepository.Update(order);
+            var messageType = webhook.Event switch
+            {
+                "payment.approved" => OutBoxMessageType.OrderPaid,
+                "payment.declined" => OutBoxMessageType.PaymentFailed,
+                "payment.refunded" => OutBoxMessageType.OrderRefunded,
+                _ => throw new UnreachableException()
+            };
+            await outboxMessageRepository.AddAsync(
+                OrderIntegrationEventFactory.Create(order, messageType),
+                cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(order.Items.Select(item =>

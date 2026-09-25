@@ -5,7 +5,6 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
-using System.Text.Json;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -59,10 +58,9 @@ public sealed class CreateOrderHandler(
             }
 
             var orderDto = order.ToDto();
-            var outboxMessage = new OutboxMessage(
-                OutBoxMessageType.OrderCreated,
-                JsonSerializer.Serialize(orderDto)
-            );
+            var outboxMessage = OrderIntegrationEventFactory.Create(
+                order,
+                OutBoxMessageType.OrderCreated);
 
             await orderRepository.AddAsync(order, cancellationToken);
             await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);

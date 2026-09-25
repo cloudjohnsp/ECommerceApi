@@ -27,7 +27,15 @@ public sealed class IntegrationEventOutboxJobTests
         await job.ExecuteAsync(CancellationToken.None);
 
         Assert.Equal(
-            [OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated, OutBoxMessageType.OrderDeleted],
+            [
+                OutBoxMessageType.OrderCreated,
+                OutBoxMessageType.OrderUpdated,
+                OutBoxMessageType.OrderDeleted,
+                OutBoxMessageType.OrderPaid,
+                OutBoxMessageType.PaymentFailed,
+                OutBoxMessageType.OrderRefunded,
+                OutBoxMessageType.OrderCancelled
+            ],
             repository.RequestedTypes);
         Assert.Equal([messageId], processor.ProcessedIds);
     }

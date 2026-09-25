@@ -54,6 +54,32 @@ public sealed class IntegrationEventOutboxProcessorTests
         _unitOfWork.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(OutBoxMessageType.OrderPaid, "order.paid")]
+    [InlineData(OutBoxMessageType.PaymentFailed, "payment.failed")]
+    [InlineData(OutBoxMessageType.OrderRefunded, "order.refunded")]
+    [InlineData(OutBoxMessageType.OrderCancelled, "order.cancelled")]
+    public async Task Process_OrderLifecycleMessage_UsesExpectedRoutingKey(
+        OutBoxMessageType messageType,
+        string expectedRoutingKey)
+    {
+        var message = new OutboxMessage(messageType, "{}");
+        _outbox.Setup(x => x.GetByIdAsync(message.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(message);
+        _publisher.Setup(x => x.PublishAsync(
+                It.IsAny<IntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success());
+        var processor = CreateProcessor();
+
+        var result = await processor.ProcessAsync(message.Id);
+
+        result.IsSuccess.Should().BeTrue();
+        _publisher.Verify(x => x.PublishAsync(
+            It.Is<IntegrationEvent>(integrationEvent =>
+                integrationEvent.Type == expectedRoutingKey),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task Process_PaymentCreationIntention_DoesNotPublishAsIntegrationEvent()
     {
