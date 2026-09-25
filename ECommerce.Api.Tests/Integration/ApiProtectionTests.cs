@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using ECommerce.Infrastructure.Messaging;
 using ECommerce.Infrastructure.Payments;
+using ECommerce.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -75,6 +76,7 @@ public sealed class ApiProtectionTests
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
                 RemoveHostedService<PaymentOutboxWorker>(services);
                 RemoveHostedService<IntegrationEventOutboxWorker>(services);
+                RemoveHostedService<UserEmailOutboxWorker>(services);
             });
         }
 

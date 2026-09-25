@@ -19,6 +19,9 @@ using ECommerce.Infrastructure.Caching;
 using ECommerce.Application.Abstractions.Storage;
 using ECommerce.Infrastructure.Storage;
 using Azure.Storage.Blobs;
+using ECommerce.Application.Abstractions.Email;
+using ECommerce.Infrastructure.Email;
+using MimeKit;
 
 namespace ECommerce.Infrastructure;
 
@@ -29,14 +32,51 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<IUserActionTokenService, UserActionTokenService>();
 
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);
         services.AddRedisCache(configuration);
         services.AddProductImageStorage(configuration);
+        services.AddEmailDelivery(configuration);
         services.AddPaymentGateway(configuration);
         services.AddPaymentOutboxProcessor(configuration);
 
+        return services;
+    }
+
+    private static IServiceCollection AddEmailDelivery(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Host),
+                "Email:Host is required when e-mail delivery is enabled.")
+            .Validate(options => !options.Enabled || options.Port is > 0 and <= 65535,
+                "Email:Port must be between 1 and 65535.")
+            .Validate(options => !options.Enabled ||
+                    MailboxAddress.TryParse(options.FromAddress, out _),
+                "Email:FromAddress must be a valid e-mail address.")
+            .Validate(options => !options.Enabled ||
+                    Uri.TryCreate(options.PublicAppBaseUrl, UriKind.Absolute, out _),
+                "Email:PublicAppBaseUrl must be an absolute URL.")
+            .ValidateOnStart();
+
+        var options = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()
+            ?? new EmailOptions();
+        if (options.Enabled)
+        {
+            services.AddScoped<IUserEmailSender, SmtpUserEmailSender>();
+            services.AddHealthChecks()
+                .AddCheck<SmtpHealthCheck>(
+                    "smtp",
+                    tags: ["ready"],
+                    timeout: TimeSpan.FromSeconds(5));
+        }
+        else
+            services.AddSingleton<IUserEmailSender, DisabledUserEmailSender>();
+        services.AddHostedService<UserEmailOutboxWorker>();
         return services;
     }
 

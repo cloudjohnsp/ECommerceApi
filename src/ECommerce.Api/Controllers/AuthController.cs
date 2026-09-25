@@ -94,4 +94,39 @@ public sealed class AuthController(ISender mediator) : BaseApiController
         await mediator.Send(new LogoutCommand(request.RefreshToken));
         return NoContent();
     }
+
+    [HttpPost("confirm-email")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmEmail(
+        [FromBody] ConfirmEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new ConfirmEmailCommand(request.Token), cancellationToken);
+        return result.IsFailure ? BadRequest(result.Errors) : NoContent();
+    }
+
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new ForgotPasswordCommand(request.Email), cancellationToken);
+        return result.IsFailure ? BadRequest(result.Errors) : Accepted();
+    }
+
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new ResetPasswordCommand(request.Token, request.NewPassword),
+            cancellationToken);
+        return result.IsFailure ? BadRequest(result.Errors) : NoContent();
+    }
 }

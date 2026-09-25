@@ -14,6 +14,16 @@ public sealed class CreateUserHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
+    private readonly Mock<IUserActionTokenRepository> _tokenRepository = new();
+    private readonly Mock<IOutboxMessageRepository> _outboxRepository = new();
+    private readonly Mock<IUserActionTokenService> _tokenService = new();
+
+    public CreateUserHandlerTests()
+    {
+        _tokenService.Setup(service => service.Issue()).Returns(new IssuedUserActionToken(
+            "raw-token",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    }
 
     [Fact]
     public async Task Handle_WithValidCommand_CreatesUserAndCommits()
@@ -35,7 +45,7 @@ public sealed class CreateUserHandlerTests
             .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var handler = new CreateUserHandler(_userRepository.Object, _unitOfWork.Object, _passwordHasher.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -51,6 +61,12 @@ public sealed class CreateUserHandlerTests
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Once);
+        _tokenRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserActionToken>(token => token.Type == UserActionTokenType.EmailConfirmation),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outboxRepository.Verify(repository => repository.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.EmailConfirmationRequested),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -58,7 +74,7 @@ public sealed class CreateUserHandlerTests
     public async Task Handle_WithInvalidEmail_ReturnsFailureWithoutPersisting()
     {
         var command = new CreateUserCommand("Jane", "Doe", "invalid-email", "Password1!");
-        var handler = new CreateUserHandler(_userRepository.Object, _unitOfWork.Object, _passwordHasher.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -83,7 +99,7 @@ public sealed class CreateUserHandlerTests
             .Setup(repository => repository.ExistsByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var handler = new CreateUserHandler(_userRepository.Object, _unitOfWork.Object, _passwordHasher.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -95,4 +111,12 @@ public sealed class CreateUserHandlerTests
             It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    private CreateUserHandler CreateHandler() => new(
+        _userRepository.Object,
+        _unitOfWork.Object,
+        _passwordHasher.Object,
+        _tokenRepository.Object,
+        _outboxRepository.Object,
+        _tokenService.Object);
 }

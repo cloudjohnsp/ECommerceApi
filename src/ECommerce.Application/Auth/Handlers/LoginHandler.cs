@@ -27,6 +27,10 @@ public sealed class LoginHandler(
         {
             return Result<AuthTokensDto>.Failure(InvalidCredentialsMessage);
         }
+        if (!user.IsEmailConfirmed)
+        {
+            return Result<AuthTokensDto>.Failure("E-mail is not confirmed.");
+        }
 
         var (Dto, RefreshTokenEntity) = AuthTokenFactory.Issue(user, jwtTokenService);
         await refreshTokenRepository.AddAsync(RefreshTokenEntity, cancellationToken);

@@ -2,6 +2,7 @@ using System.Net;
 using ECommerce.Api.Middlewares;
 using ECommerce.Infrastructure.Messaging;
 using ECommerce.Infrastructure.Payments;
+using ECommerce.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -96,6 +97,9 @@ public sealed class ObservabilityTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         body.Should().Contain("/api/v{version}/products/{productId}/images");
         body.Should().Contain("multipart/form-data");
+        body.Should().Contain("/api/v{version}/auth/confirm-email");
+        body.Should().Contain("/api/v{version}/auth/forgot-password");
+        body.Should().Contain("/api/v{version}/auth/reset-password");
     }
 
     private static WebApplicationFactoryClientOptions CreateClientOptions() => new()
@@ -120,6 +124,7 @@ public sealed class ObservabilityTests
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
                 RemoveHostedService<PaymentOutboxWorker>(services);
                 RemoveHostedService<IntegrationEventOutboxWorker>(services);
+                RemoveHostedService<UserEmailOutboxWorker>(services);
             });
         }
 

@@ -10,6 +10,8 @@ using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Payments;
 using ECommerce.Application.Abstractions.Messaging;
 using ECommerce.Application.Messaging;
+using ECommerce.Application.Abstractions.Email;
+using ECommerce.Application.Email;
 
 namespace ECommerce.Application;
 
@@ -26,6 +28,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly(), ServiceLifetime.Transient);
         services.AddScoped<IPaymentCreationProcessor, PaymentCreationProcessor>();
         services.AddScoped<IIntegrationEventOutboxProcessor, IntegrationEventOutboxProcessor>();
+        services.AddScoped<IUserEmailOutboxProcessor, UserEmailOutboxProcessor>();
         services.RegisterMapsterConfiguration();
         return services;
     }

@@ -65,6 +65,19 @@ services:
       timeout: 3s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:v1.31.1
+    container_name: mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8025/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   ecommerce-api:  
     build:
       context: .
@@ -82,6 +95,9 @@ services:
       Redis__Configuration: redis:6379,abortConnect=false,connectTimeout=1000
       ProductImageStorage__ConnectionString: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       ProductImageStorage__PublicBaseUrl: http://localhost:10000/devstoreaccount1/product-images
+      Email__Host: mailpit
+      Email__Port: 1025
+      Email__PublicAppBaseUrl: ${FRONTEND_ORIGIN:-http://localhost:3000}
       PaymentGateway__BaseUrl: http://host.docker.internal:5002
       PaymentGateway__CallbackUrl: http://host.docker.internal:8080/api/webhooks/payments
       PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:-development-secret}
@@ -98,6 +114,8 @@ services:
       redis:
         condition: service_healthy
       azurite:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     restart: unless-stopped
 

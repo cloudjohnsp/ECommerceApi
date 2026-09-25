@@ -5,5 +5,7 @@ public enum OutBoxMessageType
     OrderCreated = 1,
     OrderUpdated = 2,
     OrderDeleted = 3,
-    PaymentCreationRequested = 4
+    PaymentCreationRequested = 4,
+    EmailConfirmationRequested = 5,
+    PasswordResetRequested = 6
 }

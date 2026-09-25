@@ -10,15 +10,24 @@ using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ECommerce.Application.Auth;
+using ECommerce.Domain.Enums;
+using EmailValue = ECommerce.Domain.ValueObjects.Email;
 
 namespace ECommerce.Application.Users.Handlers;
 
-public sealed class CreateUserHandler(IUserRepository _userRepository, IUnitOfWork _unitOfWork, IPasswordHasher _passwordHasher)
+public sealed class CreateUserHandler(
+    IUserRepository _userRepository,
+    IUnitOfWork _unitOfWork,
+    IPasswordHasher _passwordHasher,
+    IUserActionTokenRepository userActionTokenRepository,
+    IOutboxMessageRepository outboxMessageRepository,
+    IUserActionTokenService userActionTokenService)
     : IRequestHandler<CreateUserCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(CreateUserCommand command, CancellationToken cancellationToken)
     {
-        Result<Email> emailResult = Email.Create(command.Email);
+        Result<EmailValue> emailResult = EmailValue.Create(command.Email);
         if (emailResult.IsFailure) return Result<UserDto>.Failure([.. emailResult.Errors]);
 
         if (await _userRepository.ExistsByEmailAsync(emailResult.Value!.Value, cancellationToken: cancellationToken))
@@ -36,7 +45,16 @@ public sealed class CreateUserHandler(IUserRepository _userRepository, IUnitOfWo
 
         if (userResult.IsFailure) return Result<UserDto>.Failure([.. userResult.Errors]);
 
+        var pendingTokenResult = UserActionTokenFactory.Create(
+            userResult.Value!,
+            UserActionTokenType.EmailConfirmation,
+            userActionTokenService);
+        if (pendingTokenResult.IsFailure)
+            return Result<UserDto>.Failure([.. pendingTokenResult.Errors]);
+
         await _userRepository.AddAsync(userResult.Value!, cancellationToken);
+        await userActionTokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
+        await outboxMessageRepository.AddAsync(pendingTokenResult.Value.OutboxMessage, cancellationToken);
         await _unitOfWork.Commit(cancellationToken);
 
         UserDto userDto = userResult.Value!.Adapt<UserDto>();

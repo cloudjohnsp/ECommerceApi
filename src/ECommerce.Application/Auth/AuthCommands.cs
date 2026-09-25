@@ -13,3 +13,9 @@ public sealed record LogoutCommand(string RefreshToken) : IRequest<Result>;
 
 public sealed record RefreshTokenCommand(string RefreshToken) : IRequest<Result<AuthTokensDto>>;
 
+public sealed record ConfirmEmailCommand(string Token) : IRequest<Result>;
+
+public sealed record ForgotPasswordCommand(string Email) : IRequest<Result>;
+
+public sealed record ResetPasswordCommand(string Token, string NewPassword) : IRequest<Result>;
+

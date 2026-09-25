@@ -15,7 +15,16 @@ global dos pedidos.
 A borda HTTP aplica CORS somente às origens configuradas em
 `ApiProtection:AllowedOrigins` e rate limiting por cliente. Há um limite global
 e outro mais restritivo para `/api/auth/login`, `/api/auth/register`,
-`/api/auth/refresh` e `/api/auth/logout`.
+`/api/auth/refresh`, `/api/auth/logout`, confirmação de e-mail e recuperação de
+senha.
+
+Novos cadastros precisam confirmar o e-mail antes de autenticar. O registro e
+as solicitações de recuperação gravam o token com hash e a entrega de e-mail na
+mesma transação via Outbox; o worker SMTP remove o token em texto claro do
+payload depois do envio. Os endpoints públicos são `confirm-email`,
+`forgot-password` e `reset-password` sob `/api/v1/auth` (com rotas legadas em
+`/api/auth`). Em desenvolvimento, o Docker Compose expõe a caixa do Mailpit em
+`http://localhost:8025`.
 
 O catálogo é paginado e aceita busca textual, faixa de preço e ordenação:
 
@@ -86,7 +95,8 @@ registry e do ambiente de destino.
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
-- `/api/health/ready`: verifica PostgreSQL, Redis, RabbitMQ e o gateway de pagamento;
+- `/api/health/ready`: verifica PostgreSQL, Redis, RabbitMQ, gateway de pagamento,
+  Azure Blob Storage e SMTP;
 - `/api/health`: executa todas as verificações registradas.
 
 ## Observabilidade

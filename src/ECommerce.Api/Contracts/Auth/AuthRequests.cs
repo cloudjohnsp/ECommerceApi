@@ -14,6 +14,12 @@ public sealed record RefreshTokenRequest(string RefreshToken);
 
 public sealed record LogoutRequest(string RefreshToken);
 
+public sealed record ConfirmEmailRequest(string Token);
+
+public sealed record ForgotPasswordRequest(string Email);
+
+public sealed record ResetPasswordRequest(string Token, string NewPassword);
+
 public sealed record AuthResponse(
     string AccessToken,
     string RefreshToken,

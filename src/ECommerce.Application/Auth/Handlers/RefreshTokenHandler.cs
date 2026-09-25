@@ -36,7 +36,7 @@ public sealed class RefreshTokenHandler(
         }
 
         var user = await userRepository.GetByIdAsync(storedToken.UserId, cancellationToken);
-        if (user is null || !user.IsActive)
+        if (user is null || !user.IsActive || !user.IsEmailConfirmed)
         {
             return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
         }

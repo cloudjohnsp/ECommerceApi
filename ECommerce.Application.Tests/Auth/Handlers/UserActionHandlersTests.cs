@@ -1,0 +1,144 @@
+using ECommerce.Application.Abstractions.Persistence;
+using ECommerce.Application.Abstractions.Security;
+using ECommerce.Application.Auth;
+using ECommerce.Application.Auth.Handlers;
+using ECommerce.Domain.Entities;
+using ECommerce.Domain.Enums;
+using ECommerce.Domain.Tests.Support;
+using FluentAssertions;
+using Moq;
+
+namespace ECommerce.Application.Tests.Auth.Handlers;
+
+public sealed class UserActionHandlersTests
+{
+    private const string TokenHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    private readonly Mock<IUserActionTokenRepository> _tokens = new();
+    private readonly Mock<IUserRepository> _users = new();
+    private readonly Mock<IOutboxMessageRepository> _outbox = new();
+    private readonly Mock<IRefreshTokenRepository> _refreshTokens = new();
+    private readonly Mock<IUserActionTokenService> _tokenService = new();
+    private readonly Mock<IPasswordHasher> _passwordHasher = new();
+    private readonly Mock<IUnitOfWork> _unitOfWork = new();
+
+    public UserActionHandlersTests()
+    {
+        _tokenService.Setup(service => service.Hash("raw-token")).Returns(TokenHash);
+        _tokenService.Setup(service => service.Issue())
+            .Returns(new IssuedUserActionToken("raw-token", TokenHash));
+    }
+
+    [Fact]
+    public async Task ConfirmEmail_WithValidToken_ConfirmsUserAndConsumesTokens()
+    {
+        var user = UserFactory.Create();
+        var token = CreateToken(user.Id, UserActionTokenType.EmailConfirmation);
+        _tokens.Setup(repository => repository.GetByHashAsync(
+                TokenHash, UserActionTokenType.EmailConfirmation, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
+        _users.Setup(repository => repository.GetByIdAsync(
+                user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        var handler = new ConfirmEmailHandler(
+            _tokens.Object, _users.Object, _tokenService.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(new ConfirmEmailCommand("raw-token"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        user.IsEmailConfirmed.Should().BeTrue();
+        _tokens.Verify(repository => repository.ConsumeActiveForUserAsync(
+            user.Id,
+            UserActionTokenType.EmailConfirmation,
+            It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithUnknownEmail_ReturnsSuccessWithoutPersisting()
+    {
+        var handler = new ForgotPasswordHandler(
+            _users.Object,
+            _tokens.Object,
+            _outbox.Object,
+            _tokenService.Object,
+            _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new ForgotPasswordCommand("unknown@example.com"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        _tokens.Verify(repository => repository.AddAsync(
+            It.IsAny<UserActionToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithConfirmedUser_CreatesTokenAndOutboxMessage()
+    {
+        var user = UserFactory.Create();
+        user.ConfirmEmail();
+        _users.Setup(repository => repository.GetByEmailAsync(
+                user.Email.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        var handler = new ForgotPasswordHandler(
+            _users.Object,
+            _tokens.Object,
+            _outbox.Object,
+            _tokenService.Object,
+            _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new ForgotPasswordCommand(user.Email.Value),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        _tokens.Verify(repository => repository.AddAsync(
+            It.Is<UserActionToken>(token => token.Type == UserActionTokenType.PasswordReset),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outbox.Verify(repository => repository.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.PasswordResetRequested),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithValidToken_ChangesPasswordAndRevokesSessions()
+    {
+        var user = UserFactory.Create();
+        var token = CreateToken(user.Id, UserActionTokenType.PasswordReset);
+        _tokens.Setup(repository => repository.GetByHashAsync(
+                TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
+        _users.Setup(repository => repository.GetByIdAsync(
+                user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _passwordHasher.Setup(hasher => hasher.HashPassword("NewPassword1!"))
+            .Returns("new-password-hash");
+        var handler = new ResetPasswordHandler(
+            _tokens.Object,
+            _users.Object,
+            _refreshTokens.Object,
+            _tokenService.Object,
+            _passwordHasher.Object,
+            _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new ResetPasswordCommand("raw-token", "NewPassword1!"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        user.PasswordHash.Should().Be("new-password-hash");
+        _refreshTokens.Verify(repository => repository.RevokeAllForUserAsync(
+            user.Id, It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    private static UserActionToken CreateToken(Guid userId, UserActionTokenType type) =>
+        UserActionToken.Create(
+            userId,
+            TokenHash,
+            type,
+            DateTimeOffset.UtcNow.AddHours(1)).Value!;
+}

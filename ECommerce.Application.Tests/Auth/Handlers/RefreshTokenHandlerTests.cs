@@ -110,6 +110,7 @@ public sealed class RefreshTokenHandlerTests
     public async Task Handle_WithValidToken_RotatesTokenAndCommits()
     {
         var user = UserFactory.Create();
+        user.ConfirmEmail();
         var token = RefreshToken.Create(user.Id, "valid-hash", DateTimeOffset.UtcNow.AddMinutes(10));
         var command = new RefreshTokenCommand("refresh-token");
         SetupTokenLookup(command, token);
@@ -149,6 +150,25 @@ public sealed class RefreshTokenHandlerTests
             It.Is<RefreshToken>(refreshToken => refreshToken.UserId == user.Id),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithUnconfirmedEmail_ReturnsFailureWithoutRotatingToken()
+    {
+        var user = UserFactory.Create();
+        var token = RefreshToken.Create(user.Id, "valid-hash", DateTimeOffset.UtcNow.AddMinutes(10));
+        var command = new RefreshTokenCommand("refresh-token");
+        SetupTokenLookup(command, token);
+        _userRepository.Setup(repository => repository.GetByIdAsync(
+                user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        var handler = CreateHandler();
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        _refreshTokenRepository.Verify(repository => repository.AddAsync(
+            It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private RefreshTokenHandler CreateHandler()

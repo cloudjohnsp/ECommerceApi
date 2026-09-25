@@ -5,6 +5,8 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Tests.Support;
 using FluentAssertions;
 using Moq;
+using ECommerce.Application.Abstractions.Security;
+using ECommerce.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -15,6 +17,16 @@ public sealed class UpdateUserProfileHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IUserActionTokenRepository> _tokenRepository = new();
+    private readonly Mock<IOutboxMessageRepository> _outboxRepository = new();
+    private readonly Mock<IUserActionTokenService> _tokenService = new();
+
+    public UpdateUserProfileHandlerTests()
+    {
+        _tokenService.Setup(service => service.Issue()).Returns(new IssuedUserActionToken(
+            "raw-token",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    }
 
     [Fact]
     public async Task Handle_WithValidRequest_UpdatesUserProfile()
@@ -27,7 +39,7 @@ public sealed class UpdateUserProfileHandlerTests
         _unitOfWork.Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
 
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
@@ -39,6 +51,12 @@ public sealed class UpdateUserProfileHandlerTests
         result.Value.LastName.Should().Be("Doe");
         result.Value.Email.Should().Be("john.doe@example.com");
         _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
+        _tokenRepository.Verify(repository => repository.AddAsync(
+            It.Is<UserActionToken>(token => token.Type == UserActionTokenType.EmailConfirmation),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outboxRepository.Verify(repository => repository.AddAsync(
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.EmailConfirmationRequested),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -50,7 +68,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(user.Id, "John", "Doe", "invalid-email");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -66,7 +84,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(Guid.NewGuid(), "John", "Doe", "john.doe@example.com");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -83,7 +101,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(user.Id, "", "Doe", "john.doe@example.com");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -100,7 +118,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(user.Id, "J@hn", "Doe", "john.doe@example.com");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -117,7 +135,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(user.Id, "John", "D0e", "john.doe@example.com");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -134,7 +152,7 @@ public sealed class UpdateUserProfileHandlerTests
         var request = new UpdateUserProfileCommand(user.Id, "John", "", "john.doe@example.com");
         _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        var handler = new UpdateUserProfileHandler(_userRepository.Object, _unitOfWork.Object);
+        var handler = CreateHandler();
         // Act
         var result = await handler.Handle(request, CancellationToken.None);
         // Assert
@@ -142,4 +160,11 @@ public sealed class UpdateUserProfileHandlerTests
         result.Errors.Should().Contain("Last name must contain between 1 and 100 characters.");
         _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    private UpdateUserProfileHandler CreateHandler() => new(
+        _userRepository.Object,
+        _unitOfWork.Object,
+        _tokenRepository.Object,
+        _outboxRepository.Object,
+        _tokenService.Object);
 }

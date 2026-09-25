@@ -28,9 +28,11 @@ public sealed class OutboxMessage
         Status = OutBoxMessageStatus.Pending;
     }
 
-    public void MarkProcessed()
+    public void MarkProcessed(bool clearPayload = false)
     {
         Status = OutBoxMessageStatus.Processed;
+        if (clearPayload)
+            Payload = "{}";
         UpdatedAt = DateTime.UtcNow;
     }
 }
