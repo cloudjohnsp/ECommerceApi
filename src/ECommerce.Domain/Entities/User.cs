@@ -13,6 +13,8 @@ public sealed class User : Entity
     public string PasswordHash { get; private set; } = string.Empty;
     public UserRole Role { get; private set; }
     public bool IsActive { get; private set; }
+    public bool IsEmailConfirmed { get; private set; }
+    public DateTimeOffset? EmailConfirmedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? DeactivatedAt { get; private set; }
@@ -37,6 +39,7 @@ public sealed class User : Entity
         PasswordHash = passwordHash;
         Role = role;
         IsActive = true;
+        IsEmailConfirmed = false;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
@@ -56,9 +59,15 @@ public sealed class User : Entity
             return validation;
         }
 
+        var emailChanged = Email.Value != email.Value;
         FirstName = firstName.Trim();
         LastName = lastName.Trim();
         Email = email;
+        if (emailChanged)
+        {
+            IsEmailConfirmed = false;
+            EmailConfirmedAt = null;
+        }
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }
@@ -79,6 +88,17 @@ public sealed class User : Entity
     {
         Role = role;
         UpdatedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
+
+    public Result ConfirmEmail()
+    {
+        if (IsEmailConfirmed)
+            return Result.Success();
+
+        IsEmailConfirmed = true;
+        EmailConfirmedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = EmailConfirmedAt;
         return Result.Success();
     }
 

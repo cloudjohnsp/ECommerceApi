@@ -51,6 +51,13 @@ namespace ECommerce.Persistence.Configurations
                 .HasColumnName("is_active")
                 .IsRequired();
 
+            builder.Property(x => x.IsEmailConfirmed)
+                .HasColumnName("is_email_confirmed")
+                .IsRequired();
+
+            builder.Property(x => x.EmailConfirmedAt)
+                .HasColumnName("email_confirmed_at");
+
             builder.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
                 .IsRequired();

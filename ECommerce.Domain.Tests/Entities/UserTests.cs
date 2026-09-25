@@ -23,6 +23,8 @@ public class UserTests
         user.PasswordHash.Should().Be("hashed-password");
         user.Role.Should().Be(UserRole.Customer);
         user.IsActive.Should().BeTrue();
+        user.IsEmailConfirmed.Should().BeFalse();
+        user.EmailConfirmedAt.Should().BeNull();
         user.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
         user.UpdatedAt.Should().BeNull();
         user.DeactivatedAt.Should().BeNull();
@@ -139,6 +141,36 @@ public class UserTests
         user.LastName.Should().Be("Smith");
         user.Email.Should().Be(newEmail);
         user.UpdatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        user.IsEmailConfirmed.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UpdateProfile_WhenEmailChanges_RequiresConfirmationAgain()
+    {
+        var user = UserFactory.Create();
+        user.ConfirmEmail();
+
+        var result = user.UpdateProfile(
+            "Jane",
+            "Doe",
+            UserFactory.CreateEmail("new@example.com"));
+
+        result.IsSuccess.Should().BeTrue();
+        user.IsEmailConfirmed.Should().BeFalse();
+        user.EmailConfirmedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void ConfirmEmail_MarksEmailAsConfirmed()
+    {
+        var user = UserFactory.Create();
+
+        var result = user.ConfirmEmail();
+
+        result.IsSuccess.Should().BeTrue();
+        user.IsEmailConfirmed.Should().BeTrue();
+        user.EmailConfirmedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        user.UpdatedAt.Should().Be(user.EmailConfirmedAt);
     }
 
     [Fact]

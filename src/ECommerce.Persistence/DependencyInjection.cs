@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IUserActionTokenRepository, UserActionTokenRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IProductImageRepository, ProductImageRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
