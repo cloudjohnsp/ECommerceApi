@@ -47,6 +47,13 @@ categorias ativas e existentes; a relação é protegida por chave estrangeira e
 se uma categoria for removida fisicamente em manutenção, o PostgreSQL define o
 vínculo do produto como nulo.
 
+Imagens de produto são enviadas por administradores em
+`POST /api/v1/products/{productId}/images` como `multipart/form-data`. A API
+aceita JPEG, PNG e WebP de até 5 MB, confere a assinatura do arquivo e persiste
+somente os metadados no PostgreSQL; o binário fica no Azure Blob Storage. O
+Docker Compose fornece Azurite para desenvolvimento local, e
+`GET /api/v1/products/{productId}/images` expõe a lista pública.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.

@@ -84,6 +84,20 @@ public sealed class ObservabilityTests
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task OpenApi_DescribesMultipartProductImageUpload()
+    {
+        await using var factory = new ObservableApiFactory();
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var response = await client.GetAsync("/openapi/v1.json");
+        var body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().Contain("/api/v{version}/products/{productId}/images");
+        body.Should().Contain("multipart/form-data");
+    }
+
     private static WebApplicationFactoryClientOptions CreateClientOptions() => new()
     {
         BaseAddress = new Uri("https://localhost"),

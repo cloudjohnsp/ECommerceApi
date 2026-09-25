@@ -16,6 +16,9 @@ using RabbitMQ.Client;
 using ECommerce.Infrastructure.HealthChecks;
 using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Infrastructure.Caching;
+using ECommerce.Application.Abstractions.Storage;
+using ECommerce.Infrastructure.Storage;
+using Azure.Storage.Blobs;
 
 namespace ECommerce.Infrastructure;
 
@@ -30,9 +33,43 @@ public static class DependencyInjection
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration);
         services.AddRedisCache(configuration);
+        services.AddProductImageStorage(configuration);
         services.AddPaymentGateway(configuration);
         services.AddPaymentOutboxProcessor(configuration);
 
+        return services;
+    }
+
+    private static IServiceCollection AddProductImageStorage(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<ProductImageStorageOptions>()
+            .Bind(configuration.GetSection(ProductImageStorageOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ConnectionString),
+                "ProductImageStorage:ConnectionString is required when storage is enabled.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ContainerName),
+                "ProductImageStorage:ContainerName is required when storage is enabled.")
+            .Validate(options => string.IsNullOrWhiteSpace(options.PublicBaseUrl) ||
+                    Uri.TryCreate(options.PublicBaseUrl, UriKind.Absolute, out _),
+                "ProductImageStorage:PublicBaseUrl must be an absolute URL.")
+            .ValidateOnStart();
+
+        var options = configuration.GetSection(ProductImageStorageOptions.SectionName)
+            .Get<ProductImageStorageOptions>() ?? new ProductImageStorageOptions();
+        if (!options.Enabled)
+        {
+            services.AddSingleton<IProductImageStorage, DisabledProductImageStorage>();
+            return services;
+        }
+
+        services.AddSingleton(new BlobServiceClient(options.ConnectionString));
+        services.AddScoped<IProductImageStorage, AzureBlobProductImageStorage>();
+        services.AddHealthChecks()
+            .AddCheck<AzureBlobStorageHealthCheck>(
+                "product-image-storage",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(5));
         return services;
     }
 

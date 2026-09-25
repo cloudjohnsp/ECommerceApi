@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ECommerce.Shared.Pagination;
+using ECommerce.Domain.Entities;
 
 namespace ECommerce.Api.Controllers;
 
@@ -37,6 +38,51 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
     {
         var result = await mediator.Send(new GetProductByIdQuery(productId), cancellationToken);
         return result.IsFailure ? NotFound(result.Errors) : Ok(result.Value);
+    }
+
+    [HttpGet("{productId:guid}/images")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyCollection<ProductImageDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetImages(Guid productId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetProductImagesQuery(productId), cancellationToken);
+        return result.IsFailure ? NotFound(result.Errors) : Ok(result.Value);
+    }
+
+    [HttpPost("{productId:guid}/images")]
+    [Authorize(Roles = "Administrator")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(ProductImage.MaximumSizeBytes + 64 * 1024)]
+    [ProducesResponseType(typeof(ProductImageDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> UploadImage(
+        Guid productId,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        await using var content = file.OpenReadStream();
+        var result = await mediator.Send(
+            new UploadProductImageCommand(
+                productId,
+                content,
+                file.FileName,
+                file.ContentType,
+                file.Length),
+            cancellationToken);
+        if (result.IsSuccess)
+            return CreatedAtAction(nameof(GetImages), new { productId }, result.Value);
+        if (result.Errors.Contains("Product not found."))
+            return NotFound(result.Errors);
+        if (result.Errors.Contains("Product image storage is unavailable.") ||
+            result.Errors.Contains("Product image storage is disabled."))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, result.Errors);
+        }
+
+        return BadRequest(result.Errors);
     }
 
     [HttpPost]
