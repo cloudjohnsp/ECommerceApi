@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Container image tag (defaults to the commit SHA)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore ECommerceApi.slnx
+
+      - name: Verify formatting
+        run: dotnet format ECommerceApi.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build ECommerceApi.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ECommerceApi.slnx --configuration Release --no-build --no-restore
+        env:
+          RUN_POSTGRES_INTEGRATION_TESTS: true
+
+      - name: Enforce unit test coverage
+        shell: pwsh
+        run: ./scripts/verify-unit-coverage.ps1 -Configuration Release
+
+  publish-and-deploy:
+    name: Publish image and deploy
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+        run: |
+          required=(
+            AZURE_CLIENT_ID
+            AZURE_TENANT_ID
+            AZURE_SUBSCRIPTION_ID
+            AZURE_CONTAINER_REGISTRY_NAME
+            AZURE_RESOURCE_GROUP
+            AZURE_WEBAPP_NAME
+          )
+          for variable in "${required[@]}"; do
+            if [ -z "${!variable}" ]; then
+              echo "Missing GitHub production environment value: ${variable}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to Azure Container Registry
+        run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}"
+
+      - name: Resolve image coordinates
+        id: image
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.image_tag }}
+          REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+        run: |
+          if [ -n "${REQUESTED_TAG}" ]; then
+            tag="${REQUESTED_TAG}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="sha-${GITHUB_SHA}"
+          fi
+
+          if [[ ! "${tag}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "Invalid container image tag: ${tag}" >&2
+            exit 1
+          fi
+
+          image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:${tag}"
+          immutable_image="${REGISTRY_NAME}.azurecr.io/ecommerce-api:sha-${GITHUB_SHA}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          echo "immutable_image=${immutable_image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and publish image
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          IMMUTABLE_IMAGE: ${{ steps.image.outputs.immutable_image }}
+        run: |
+          docker build --pull --tag "${IMAGE}" --tag "${IMMUTABLE_IMAGE}" .
+          docker push "${IMAGE}"
+          if [ "${IMAGE}" != "${IMMUTABLE_IMAGE}" ]; then
+            docker push "${IMMUTABLE_IMAGE}"
+          fi
+
+      - name: Deploy image to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          images: ${{ steps.image.outputs.immutable_image }}
+
+      - name: Verify live endpoint
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+        run: |
+          host=$(az webapp show \
+            --resource-group "${RESOURCE_GROUP}" \
+            --name "${WEBAPP_NAME}" \
+            --query defaultHostName \
+            --output tsv)
+
+          for attempt in {1..18}; do
+            if curl --fail --silent --show-error \
+              --max-time 10 "https://${host}/api/health/live" > /dev/null; then
+              echo "Deployment is live at https://${host}"
+              exit 0
+            fi
+            echo "Waiting for App Service startup (${attempt}/18)..."
+            sleep 10
+          done
+
+          echo "The deployed application did not become live in time." >&2
+          exit 1

@@ -42,6 +42,22 @@ public sealed class CommittedConfigurationTests
         environmentTemplate.Should().Contain("GRAFANA_ADMIN_PASSWORD=");
     }
 
+    [Fact]
+    public void ReleaseWorkflow_UsesOidcAndImmutableContainerImage()
+    {
+        var workflow = File.ReadAllText(Path.Combine(
+            FindSolutionRoot(), ".github", "workflows", "release.yml"));
+
+        workflow.Should().Contain("environment: production");
+        workflow.Should().Contain("id-token: write");
+        workflow.Should().Contain("uses: azure/login@v3");
+        workflow.Should().Contain("uses: azure/webapps-deploy@v3");
+        workflow.Should().Contain("ecommerce-api:sha-${GITHUB_SHA}");
+        workflow.Should().Contain("/api/health/live");
+        workflow.Should().NotContain("creds:");
+        workflow.Should().NotContain("publish-profile:");
+    }
+
     private static string Read(JsonElement root, string section, string key) =>
         root.GetProperty(section).GetProperty(key).GetString() ?? string.Empty;
 

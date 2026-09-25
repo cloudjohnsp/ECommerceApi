@@ -124,8 +124,14 @@ retry limitado antes de começar a atender requisições.
 O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,
 build e os testes da solução em cada pull request e push para `main`. Depois que
 essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
-publicá-la; publicação e deploy permanecem separados porque exigem a escolha do
-registry e do ambiente de destino.
+publicá-la.
+
+Tags no formato `v*.*.*` acionam `.github/workflows/release.yml`: o candidato é
+novamente validado, publicado no Azure Container Registry com uma tag imutável
+baseada no commit, implantado no Azure App Service e verificado por health check.
+O login no Azure usa OIDC, sem credencial de longa duração. A preparação dos
+recursos, das permissões e do GitHub Environment `production` está documentada
+em [`docs/azure-deployment.md`](docs/azure-deployment.md).
 
 Os testes de persistência incluem cenários de integração com PostgreSQL real via
 Testcontainers. Eles aplicam todas as migrations e verificam constraints,
