@@ -39,6 +39,8 @@ jobs:
 
       - name: Test
         run: dotnet test ECommerceApi.slnx --configuration Release --no-build --no-restore
+        env:
+          RUN_POSTGRES_INTEGRATION_TESTS: true
 
   container:
     name: Build container

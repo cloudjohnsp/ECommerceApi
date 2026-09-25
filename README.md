@@ -92,6 +92,13 @@ essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
 publicá-la; publicação e deploy permanecem separados porque exigem a escolha do
 registry e do ambiente de destino.
 
+Os testes de persistência incluem cenários de integração com PostgreSQL real via
+Testcontainers. Eles aplicam todas as migrations e verificam constraints,
+transações e consultas específicas do provedor. É necessário que o Docker esteja
+disponível e executar os testes com `RUN_POSTGRES_INTEGRATION_TESTS=true`; sem
+essa opção, somente esses cenários são reportados como ignorados. O workflow de
+CI habilita a opção e executa os testes contra um container efêmero.
+
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
