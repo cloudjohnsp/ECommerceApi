@@ -63,6 +63,11 @@ somente os metadados no PostgreSQL; o binário fica no Azure Blob Storage. O
 Docker Compose fornece Azurite para desenvolvimento local, e
 `GET /api/v1/products/{productId}/images` expõe a lista pública.
 
+Administradores consultam `GET /api/v1/admin/dashboard` para obter totais de
+usuários e produtos ativos, pedidos e pagamentos por estado e receita de
+pagamentos aprovados. As agregações são executadas diretamente no PostgreSQL e
+o endpoint não fica disponível para usuários da role `Customer`.
+
 ## Projetos
 
 - `ECommerce.Api`: endpoints HTTP e composição da aplicação.
