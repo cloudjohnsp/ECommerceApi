@@ -13,6 +13,7 @@ public sealed class Payment : Entity
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? PaidAt { get; private set; }
     public DateTimeOffset? FailedAt { get; private set; }
+    public DateTimeOffset? RefundedAt { get; private set; }
 
     private Payment()
     {
@@ -76,13 +77,25 @@ public sealed class Payment : Entity
 
     public Result MarkAsFailed()
     {
-        if (Status == PaymentStatus.Paid)
-            return Result.Failure("A paid payment cannot be marked as failed.");
         if (Status == PaymentStatus.Failed)
             return Result.Success();
+        if (Status != PaymentStatus.Pending)
+            return Result.Failure("Only a pending payment can be marked as failed.");
 
         Status = PaymentStatus.Failed;
         FailedAt = DateTimeOffset.UtcNow;
+        return Result.Success();
+    }
+
+    public Result MarkAsRefunded()
+    {
+        if (Status == PaymentStatus.Refunded)
+            return Result.Success();
+        if (Status != PaymentStatus.Paid)
+            return Result.Failure("Only a paid payment can be refunded.");
+
+        Status = PaymentStatus.Refunded;
+        RefundedAt = DateTimeOffset.UtcNow;
         return Result.Success();
     }
 }

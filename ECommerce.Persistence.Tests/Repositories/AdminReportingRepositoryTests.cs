@@ -27,16 +27,22 @@ public sealed class AdminReportingRepositoryTests
         paidOrder.MarkAsPaid();
         var cancelledOrder = CreateOrder(activeUser.Id, activeProduct);
         cancelledOrder.Cancel();
+        var refundedOrder = CreateOrder(activeUser.Id, activeProduct);
+        refundedOrder.MarkAsPaid();
+        refundedOrder.MarkAsRefunded();
         var pendingPayment = Payment.Create(pendingOrder.Id, pendingOrder.Total, "test").Value!;
         var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "test").Value!;
         paidPayment.MarkAsPaid("pay_paid");
         var failedPayment = Payment.Create(cancelledOrder.Id, cancelledOrder.Total, "test").Value!;
         failedPayment.MarkAsFailed();
+        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "test").Value!;
+        refundedPayment.MarkAsPaid("pay_refunded");
+        refundedPayment.MarkAsRefunded();
 
         await context.AddRangeAsync(
             activeUser, inactiveUser, activeProduct, inactiveProduct,
-            pendingOrder, paidOrder, cancelledOrder,
-            pendingPayment, paidPayment, failedPayment);
+            pendingOrder, paidOrder, cancelledOrder, refundedOrder,
+            pendingPayment, paidPayment, failedPayment, refundedPayment);
         await context.SaveChangesAsync();
         var repository = new AdminReportingRepository(context);
 
@@ -48,9 +54,12 @@ public sealed class AdminReportingRepositoryTests
             PendingOrders: 1,
             PaidOrders: 1,
             CancelledOrders: 1,
+            RefundedOrders: 1,
             PendingPayments: 1,
             FailedPayments: 1,
-            PaidRevenue: 100m));
+            RefundedPayments: 1,
+            PaidRevenue: 100m,
+            RefundedAmount: 100m));
     }
 
     private static Order CreateOrder(Guid customerId, Product product)

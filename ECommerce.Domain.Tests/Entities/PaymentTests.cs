@@ -77,4 +77,29 @@ public sealed class PaymentTests
         result.IsFailure.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.Paid);
     }
+
+    [Fact]
+    public void MarkAsRefunded_AfterPaymentWasPaid_ChangesStatusIdempotently()
+    {
+        var payment = Payment.Create(Guid.NewGuid(), 100m, "Stripe").Value!;
+        payment.MarkAsPaid("pay_123");
+
+        var first = payment.MarkAsRefunded();
+        var second = payment.MarkAsRefunded();
+
+        first.IsSuccess.Should().BeTrue();
+        second.IsSuccess.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Refunded);
+        payment.RefundedAt.Should().NotBeNull();
+        payment.MarkAsFailed().IsFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkAsRefunded_WhenPaymentIsPending_ReturnsFailure()
+    {
+        var payment = Payment.Create(Guid.NewGuid(), 100m, "Stripe").Value!;
+
+        payment.MarkAsRefunded().IsFailure.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Pending);
+    }
 }

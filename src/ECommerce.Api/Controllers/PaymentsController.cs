@@ -45,4 +45,30 @@ public sealed class PaymentsController(ISender mediator) : BaseApiController
 
         return BadRequest(result.Errors);
     }
+
+    [HttpPost("{orderId:guid}/refund")]
+    [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> Refund(
+        Guid orderId,
+        RefundPaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var result = await mediator.Send(
+            new RefundPaymentCommand(orderId, request.Reason, customerId),
+            cancellationToken);
+        if (result.IsSuccess) return Ok(result.Value);
+
+        if (result.Errors.Contains("Payment not found.")) return NotFound(result.Errors);
+        if (result.Errors.Any(error => error.StartsWith("Only a paid", StringComparison.Ordinal)))
+            return Conflict(result.Errors);
+        if (result.Errors.Any(error => error.StartsWith("Payment gateway", StringComparison.Ordinal)))
+            return StatusCode(StatusCodes.Status502BadGateway, result.Errors);
+
+        return BadRequest(result.Errors);
+    }
 }

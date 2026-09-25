@@ -6,7 +6,10 @@ public sealed record AdminDashboardDto(
     int PendingOrders,
     int PaidOrders,
     int CancelledOrders,
+    int RefundedOrders,
     int PendingPayments,
     int FailedPayments,
+    int RefundedPayments,
     decimal PaidRevenue,
+    decimal RefundedAmount,
     DateTimeOffset GeneratedAtUtc);

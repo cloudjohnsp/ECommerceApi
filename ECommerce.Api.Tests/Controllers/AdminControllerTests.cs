@@ -17,7 +17,8 @@ public sealed class AdminControllerTests
     public async Task GetDashboard_DispatchesQueryAndReturnsDashboard()
     {
         var mediator = new Mock<ISender>();
-        var dashboard = new AdminDashboardDto(1, 2, 3, 4, 5, 6, 7, 800m, DateTimeOffset.UtcNow);
+        var dashboard = new AdminDashboardDto(
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 800m, 125m, DateTimeOffset.UtcNow);
         mediator.Setup(item => item.Send(It.IsAny<GetAdminDashboardQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<AdminDashboardDto>.Success(dashboard));
         var controller = new AdminController(mediator.Object);

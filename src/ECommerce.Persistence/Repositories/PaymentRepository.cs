@@ -13,6 +13,13 @@ public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentReposito
     public Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default) =>
         dbContext.Payments.FirstOrDefaultAsync(payment => payment.OrderId == orderId, cancellationToken);
 
+    public Task<Payment?> GetByOrderIdForUpdateAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Payments
+            .FromSqlInterpolated($"SELECT * FROM payments WHERE order_id = {orderId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
     public Task<Payment?> GetByExternalIdForUpdateAsync(
         string externalPaymentId,
         CancellationToken cancellationToken = default) =>

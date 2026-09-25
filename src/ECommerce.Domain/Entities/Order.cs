@@ -14,6 +14,7 @@ public sealed class Order : Entity
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? CancelledAt { get; private set; }
+    public DateTimeOffset? RefundedAt { get; private set; }
 
     private Order() { }
 
@@ -49,8 +50,8 @@ public sealed class Order : Entity
 
     public Result MarkAsPaid()
     {
-        if (Status == OrderStatus.Cancelled) return Result.Failure("A cancelled order cannot be paid.");
         if (Status == OrderStatus.Paid) return Result.Success();
+        if (Status != OrderStatus.Pending) return Result.Failure("Only a pending order can be paid.");
         if (_items.Count == 0) return Result.Failure("An empty order cannot be paid.");
 
         Status = OrderStatus.Paid;
@@ -60,12 +61,25 @@ public sealed class Order : Entity
 
     public Result Cancel()
     {
-        if (Status == OrderStatus.Paid) return Result.Failure("A paid order cannot be cancelled.");
         if (Status == OrderStatus.Cancelled) return Result.Success();
+        if (Status != OrderStatus.Pending) return Result.Failure("Only a pending order can be cancelled.");
 
         Status = OrderStatus.Cancelled;
         CancelledAt = DateTimeOffset.UtcNow;
         UpdatedAt = CancelledAt;
+        return Result.Success();
+    }
+
+    public Result MarkAsRefunded()
+    {
+        if (Status == OrderStatus.Refunded)
+            return Result.Success();
+        if (Status != OrderStatus.Paid)
+            return Result.Failure("Only a paid order can be refunded.");
+
+        Status = OrderStatus.Refunded;
+        RefundedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = RefundedAt;
         return Result.Success();
     }
 }

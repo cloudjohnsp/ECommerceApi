@@ -20,12 +20,19 @@ public sealed class AdminReportingRepository(AppDbContext dbContext) : IAdminRep
             .CountAsync(order => order.Status == OrderStatus.Paid, cancellationToken);
         var cancelledOrders = await dbContext.Orders.AsNoTracking()
             .CountAsync(order => order.Status == OrderStatus.Cancelled, cancellationToken);
+        var refundedOrders = await dbContext.Orders.AsNoTracking()
+            .CountAsync(order => order.Status == OrderStatus.Refunded, cancellationToken);
         var pendingPayments = await dbContext.Payments.AsNoTracking()
             .CountAsync(payment => payment.Status == PaymentStatus.Pending, cancellationToken);
         var failedPayments = await dbContext.Payments.AsNoTracking()
             .CountAsync(payment => payment.Status == PaymentStatus.Failed, cancellationToken);
+        var refundedPayments = await dbContext.Payments.AsNoTracking()
+            .CountAsync(payment => payment.Status == PaymentStatus.Refunded, cancellationToken);
         var paidRevenue = await dbContext.Payments.AsNoTracking()
             .Where(payment => payment.Status == PaymentStatus.Paid)
+            .SumAsync(payment => payment.Amount, cancellationToken);
+        var refundedAmount = await dbContext.Payments.AsNoTracking()
+            .Where(payment => payment.Status == PaymentStatus.Refunded)
             .SumAsync(payment => payment.Amount, cancellationToken);
 
         return new AdminDashboardSnapshot(
@@ -34,8 +41,11 @@ public sealed class AdminReportingRepository(AppDbContext dbContext) : IAdminRep
             pendingOrders,
             paidOrders,
             cancelledOrders,
+            refundedOrders,
             pendingPayments,
             failedPayments,
-            paidRevenue);
+            refundedPayments,
+            paidRevenue,
+            refundedAmount);
     }
 }

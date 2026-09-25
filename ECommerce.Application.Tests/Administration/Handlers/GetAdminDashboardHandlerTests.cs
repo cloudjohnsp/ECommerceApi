@@ -13,7 +13,7 @@ public sealed class GetAdminDashboardHandlerTests
     public async Task Handle_ReturnsRepositorySnapshotWithGenerationTimestamp()
     {
         var repository = new Mock<IAdminReportingRepository>();
-        var snapshot = new AdminDashboardSnapshot(4, 8, 2, 3, 1, 2, 1, 749.50m);
+        var snapshot = new AdminDashboardSnapshot(4, 8, 2, 3, 1, 1, 2, 1, 1, 749.50m, 99.90m);
         repository.Setup(item => item.GetDashboardAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(snapshot);
         var featureFlags = new Mock<IFeatureFlagService>();

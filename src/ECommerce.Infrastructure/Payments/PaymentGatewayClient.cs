@@ -28,6 +28,28 @@ public sealed class PaymentGatewayClient(
         };
         request.Headers.Add("Idempotency-Key", payment.PaymentId.ToString());
 
+        return await SendAsync(request, cancellationToken);
+    }
+
+    public async Task<Result<GatewayPayment>> RefundAsync(
+        RefundGatewayPayment payment,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"payments/{Uri.EscapeDataString(payment.ExternalPaymentId)}/refund")
+        {
+            Content = JsonContent.Create(new { reason = payment.Reason })
+        };
+        request.Headers.Add("Idempotency-Key", $"{payment.PaymentId}:refund");
+
+        return await SendAsync(request, cancellationToken);
+    }
+
+    private async Task<Result<GatewayPayment>> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var response = await httpClient.SendAsync(request, cancellationToken);

@@ -19,6 +19,7 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(payment => payment.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(payment => payment.PaidAt).HasColumnName("paid_at");
         builder.Property(payment => payment.FailedAt).HasColumnName("failed_at");
+        builder.Property(payment => payment.RefundedAt).HasColumnName("refunded_at");
 
         builder.HasOne<Order>()
             .WithOne()

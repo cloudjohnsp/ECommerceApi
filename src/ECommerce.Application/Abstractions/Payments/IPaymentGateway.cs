@@ -10,9 +10,18 @@ public sealed record CreateGatewayPayment(
 
 public sealed record GatewayPayment(string ExternalPaymentId, string Status);
 
+public sealed record RefundGatewayPayment(
+    Guid PaymentId,
+    string ExternalPaymentId,
+    string? Reason);
+
 public interface IPaymentGateway
 {
     Task<Result<GatewayPayment>> CreateAsync(
         CreateGatewayPayment payment,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<GatewayPayment>> RefundAsync(
+        RefundGatewayPayment payment,
         CancellationToken cancellationToken = default);
 }

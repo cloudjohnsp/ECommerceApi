@@ -16,6 +16,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(order => order.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(order => order.UpdatedAt).HasColumnName("updated_at");
         builder.Property(order => order.CancelledAt).HasColumnName("cancelled_at");
+        builder.Property(order => order.RefundedAt).HasColumnName("refunded_at");
         builder.Ignore(order => order.Total);
 
         builder.HasOne<User>()

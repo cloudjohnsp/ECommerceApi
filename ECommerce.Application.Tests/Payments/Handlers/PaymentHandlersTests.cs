@@ -165,6 +165,82 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Refund_PaidPayment_RefundsOrderAndRestoresStock()
+    {
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(3);
+        product.ReduceStock(3);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 3);
+        order.MarkAsPaid();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.MarkAsPaid("pay_123");
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        var gateway = new Mock<IPaymentGateway>();
+        gateway.Setup(x => x.RefundAsync(It.IsAny<RefundGatewayPayment>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GatewayPayment>.Success(new GatewayPayment("pay_123", "refunded")));
+        var handler = new RefundPaymentHandler(
+            _orders.Object,
+            _payments.Object,
+            _products.Object,
+            gateway.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new RefundPaymentCommand(order.Id, "customer_request", order.CustomerId),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be(PaymentStatus.Refunded);
+        payment.Status.Should().Be(PaymentStatus.Refunded);
+        order.Status.Should().Be(OrderStatus.Refunded);
+        product.AvailableStock.Should().Be(10);
+        gateway.Verify(x => x.RefundAsync(
+            It.Is<RefundGatewayPayment>(request =>
+                request.ExternalPaymentId == "pay_123" &&
+                request.Reason == "customer_request"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task Refund_WhenAlreadyRefunded_ReturnsSuccessWithoutCallingGatewayAgain()
+    {
+        var order = OrderFactory.Create();
+        order.MarkAsPaid();
+        order.MarkAsRefunded();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.MarkAsPaid("pay_123");
+        payment.MarkAsRefunded();
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+        var gateway = new Mock<IPaymentGateway>(MockBehavior.Strict);
+        var handler = new RefundPaymentHandler(
+            _orders.Object,
+            _payments.Object,
+            _products.Object,
+            gateway.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new RefundPaymentCommand(order.Id, null, order.CustomerId),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        gateway.VerifyNoOtherCalls();
+        _unitOfWork.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Webhook_Approved_MarksPaymentAndOrderAsPaid()
     {
         var product = ProductFactory.Create(stock: 10);
@@ -213,6 +289,35 @@ public sealed class PaymentHandlersTests
         result.IsSuccess.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.Failed);
         order.Status.Should().Be(OrderStatus.Cancelled);
+        product.AvailableStock.Should().Be(10);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task Webhook_Refunded_RefundsPaymentAndOrderAndRestoresStock()
+    {
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(3);
+        product.ReduceStock(3);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 3);
+        order.MarkAsPaid();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.MarkAsPaid("pay_123");
+        SetupWebhook(payment, order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                "{\"event\":\"payment.refunded\",\"data\":{\"id\":\"pay_123\",\"status\":\"refunded\"}}",
+                "valid"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Refunded);
+        order.Status.Should().Be(OrderStatus.Refunded);
         product.AvailableStock.Should().Be(10);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }

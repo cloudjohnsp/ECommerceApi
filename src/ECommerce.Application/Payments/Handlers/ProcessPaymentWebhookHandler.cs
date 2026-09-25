@@ -51,6 +51,8 @@ public sealed class ProcessPaymentWebhookHandler(
                 return Result.Success();
             if (webhook.Event == "payment.declined" && payment.Status == PaymentStatus.Failed)
                 return Result.Success();
+            if (webhook.Event == "payment.refunded" && payment.Status == PaymentStatus.Refunded)
+                return Result.Success();
 
             var order = await orderRepository.GetByIdForUpdateAsync(payment.OrderId, cancellationToken);
             if (order is null) return Result.Failure("Order not found.");
@@ -94,6 +96,27 @@ public sealed class ProcessPaymentWebhookHandler(
                             if (releaseResult.IsFailure) return releaseResult;
                             productRepository.Update(product);
                         }
+                    }
+                    break;
+
+                case "payment.refunded":
+                    transitionResult = payment.MarkAsRefunded();
+                    if (transitionResult.IsFailure) return transitionResult;
+
+                    transitionResult = order.MarkAsRefunded();
+                    if (transitionResult.IsFailure) return transitionResult;
+                    foreach (var item in order.Items.OrderBy(item => item.ProductId))
+                    {
+                        var product = await productRepository.GetByIdForUpdateAsync(
+                            item.ProductId,
+                            cancellationToken);
+                        if (product is null)
+                            return Result.Failure(
+                                $"Product '{item.ProductId}' not found while restoring stock.");
+
+                        var restoreResult = product.RestoreStock(item.Quantity);
+                        if (restoreResult.IsFailure) return restoreResult;
+                        productRepository.Update(product);
                     }
                     break;
 

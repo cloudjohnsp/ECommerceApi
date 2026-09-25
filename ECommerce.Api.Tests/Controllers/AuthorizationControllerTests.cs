@@ -7,6 +7,8 @@ using ECommerce.Application.Users.Dtos;
 using ECommerce.Api.Contracts.Orders;
 using ECommerce.Application.Orders;
 using ECommerce.Application.Orders.Dtos;
+using ECommerce.Application.Payments;
+using ECommerce.Application.Payments.Dtos;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using FluentAssertions;
@@ -110,6 +112,36 @@ public sealed class AuthorizationControllerTests
 
         mediator.Verify(x => x.Send(
             It.Is<CreateOrderCommand>(command => command.CustomerId == authenticatedUserId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefundPayment_CustomerScopeComesFromAuthenticatedUser()
+    {
+        var authenticatedUserId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(x => x.Send(It.IsAny<RefundPaymentCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PaymentDto>.Failure("Expected test response."));
+        var controller = new PaymentsController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(authenticatedUserId, UserRole.Customer)
+                }
+            }
+        };
+
+        await controller.Refund(
+            orderId,
+            new ECommerce.Api.Contracts.Payments.RefundPaymentRequest("customer_request"),
+            CancellationToken.None);
+
+        mediator.Verify(x => x.Send(
+            It.Is<RefundPaymentCommand>(command =>
+                command.OrderId == orderId && command.CustomerId == authenticatedUserId),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

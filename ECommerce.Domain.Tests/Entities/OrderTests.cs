@@ -92,4 +92,30 @@ public sealed class OrderTests
         order.Cancel().IsFailure.Should().BeTrue();
         order.Status.Should().Be(OrderStatus.Paid);
     }
+
+    [Fact]
+    public void MarkAsRefunded_WhenPaid_ChangesStatusIdempotently()
+    {
+        var order = OrderFactory.Create();
+        order.MarkAsPaid();
+
+        var first = order.MarkAsRefunded();
+        var second = order.MarkAsRefunded();
+
+        first.IsSuccess.Should().BeTrue();
+        second.IsSuccess.Should().BeTrue();
+        order.Status.Should().Be(OrderStatus.Refunded);
+        order.RefundedAt.Should().NotBeNull();
+        order.Cancel().IsFailure.Should().BeTrue();
+        order.MarkAsPaid().IsFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkAsRefunded_WhenPending_ReturnsFailure()
+    {
+        var order = OrderFactory.Create();
+
+        order.MarkAsRefunded().IsFailure.Should().BeTrue();
+        order.Status.Should().Be(OrderStatus.Pending);
+    }
 }

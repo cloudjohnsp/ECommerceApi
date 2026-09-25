@@ -6,9 +6,12 @@ public sealed record AdminDashboardSnapshot(
     int PendingOrders,
     int PaidOrders,
     int CancelledOrders,
+    int RefundedOrders,
     int PendingPayments,
     int FailedPayments,
-    decimal PaidRevenue);
+    int RefundedPayments,
+    decimal PaidRevenue,
+    decimal RefundedAmount);
 
 public interface IAdminReportingRepository
 {

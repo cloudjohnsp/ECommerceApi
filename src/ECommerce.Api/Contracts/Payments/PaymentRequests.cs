@@ -1,3 +1,4 @@
 namespace ECommerce.Api.Contracts.Payments;
 
 public sealed record CreatePaymentRequest(Guid OrderId, string Currency = "BRL");
+public sealed record RefundPaymentRequest(string? Reason = null);

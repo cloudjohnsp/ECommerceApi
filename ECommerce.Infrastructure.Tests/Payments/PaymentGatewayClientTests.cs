@@ -53,6 +53,39 @@ public sealed class PaymentGatewayClientTests
         result.Errors.Should().Contain("Payment gateway is unavailable.");
     }
 
+    [Fact]
+    public async Task RefundAsync_SendsIdempotentRefundRequest()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
+        var handler = new StubHttpMessageHandler(async request =>
+        {
+            capturedRequest = request;
+            capturedBody = await request.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"id\":\"pay_123\",\"status\":\"refunded\"}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        });
+        var sut = new PaymentGatewayClient(
+            new HttpClient(handler) { BaseAddress = new Uri("http://gateway/") },
+            CreateOptions());
+        var paymentId = Guid.NewGuid();
+
+        var result = await sut.RefundAsync(
+            new RefundGatewayPayment(paymentId, "pay_123", "customer_request"));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be("refunded");
+        capturedRequest!.RequestUri!.ToString().Should().Be("http://gateway/payments/pay_123/refund");
+        capturedRequest.Headers.GetValues("Idempotency-Key")
+            .Should().ContainSingle($"{paymentId}:refund");
+        capturedBody.Should().Contain("\"reason\":\"customer_request\"");
+    }
+
     private static IOptions<PaymentGatewayOptions> CreateOptions() =>
         Microsoft.Extensions.Options.Options.Create(new PaymentGatewayOptions
         {

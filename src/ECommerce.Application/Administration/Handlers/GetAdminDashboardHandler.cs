@@ -25,9 +25,12 @@ public sealed class GetAdminDashboardHandler(
             snapshot.PendingOrders,
             snapshot.PaidOrders,
             snapshot.CancelledOrders,
+            snapshot.RefundedOrders,
             snapshot.PendingPayments,
             snapshot.FailedPayments,
+            snapshot.RefundedPayments,
             snapshot.PaidRevenue,
+            snapshot.RefundedAmount,
             DateTimeOffset.UtcNow);
 
         return Result<AdminDashboardDto>.Success(dashboard);

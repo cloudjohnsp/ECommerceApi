@@ -12,7 +12,8 @@ public sealed record PaymentDto(
     string? ExternalPaymentId,
     DateTimeOffset CreatedAt,
     DateTimeOffset? PaidAt,
-    DateTimeOffset? FailedAt);
+    DateTimeOffset? FailedAt,
+    DateTimeOffset? RefundedAt);
 
 internal static class PaymentMapping
 {
@@ -25,5 +26,6 @@ internal static class PaymentMapping
         payment.ExternalPaymentId,
         payment.CreatedAt,
         payment.PaidAt,
-        payment.FailedAt);
+        payment.FailedAt,
+        payment.RefundedAt);
 }

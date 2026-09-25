@@ -16,6 +16,15 @@ public sealed class GetPaymentByOrderIdValidator : AbstractValidator<GetPaymentB
     public GetPaymentByOrderIdValidator() => RuleFor(x => x.OrderId).NotEmpty();
 }
 
+public sealed class RefundPaymentValidator : AbstractValidator<RefundPaymentCommand>
+{
+    public RefundPaymentValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.Reason).MaximumLength(500);
+    }
+}
+
 public sealed class ProcessPaymentWebhookValidator : AbstractValidator<ProcessPaymentWebhookCommand>
 {
     public ProcessPaymentWebhookValidator()

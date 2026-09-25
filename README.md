@@ -159,6 +159,21 @@ simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segred
 `PaymentGateway:WebhookSecret` deve ser igual ao `WEBHOOK_SECRET` configurado no
 gateway.
 
+Um cliente pode solicitar o reembolso integral do próprio pedido pago, e um
+administrador pode reembolsar qualquer pedido, por meio de:
+
+```http
+POST /api/v1/payments/{orderId}/refund
+Content-Type: application/json
+
+{"reason": "customer_request"}
+```
+
+A API usa uma chave idempotente ao chamar o gateway. Após a confirmação, pedido
+e pagamento passam para `Refunded` e o estoque dos itens é restaurado na mesma
+transação local. O webhook `payment.refunded` aplica a mesma transição quando o
+reembolso é iniciado diretamente no gateway.
+
 Ao iniciar um pagamento, a API salva o pagamento e uma intenção
 `PaymentCreationRequested` na outbox dentro da mesma transação. A tentativa é
 executada imediatamente e um serviço em segundo plano reprocessa intenções que
