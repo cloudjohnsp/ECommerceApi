@@ -6,6 +6,7 @@ namespace ECommerce.Application.Users.Handlers;
 
 public sealed class DeleteUserHandler(
     IUserRepository userRepository,
+    IRefreshTokenRepository refreshTokenRepository,
     IUnitOfWork unitOfWork,
     IUserAuditRepository auditRepository) : IRequestHandler<DeleteUserCommand, Result>
 {
@@ -24,6 +25,7 @@ public sealed class DeleteUserHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
         await auditRepository.AddAsync(
             UserAuditEntryFactory.Deactivated(user, request.ActorUserId),
             cancellationToken);

@@ -9,6 +9,7 @@ namespace ECommerce.Application.Users.Handlers;
 
 public sealed class ChangeUserPasswordHandler(
     IUserRepository userRepository,
+    IRefreshTokenRepository refreshTokenRepository,
     IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
     IUserAuditRepository auditRepository) : IRequestHandler<ChangeUserPasswordCommand, Result<UserDto>>
@@ -28,6 +29,7 @@ public sealed class ChangeUserPasswordHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
         await auditRepository.AddAsync(
             UserAuditEntryFactory.PasswordChanged(user, request.ActorUserId),
             cancellationToken);

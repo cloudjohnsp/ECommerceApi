@@ -8,6 +8,7 @@ namespace ECommerce.Application.Users.Handlers;
 
 public sealed class ChangeUserRoleHandler(
     IUserRepository userRepository,
+    IRefreshTokenRepository refreshTokenRepository,
     IUnitOfWork unitOfWork,
     IUserAuditRepository auditRepository) : IRequestHandler<ChangeUserRoleCommand, Result<UserDto>>
 {
@@ -27,6 +28,7 @@ public sealed class ChangeUserRoleHandler(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
+        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
         await auditRepository.AddAsync(
             UserAuditEntryFactory.RoleChanged(user, request.ActorUserId, previousRole),
             cancellationToken);

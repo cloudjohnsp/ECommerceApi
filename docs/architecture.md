@@ -115,6 +115,8 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   inclusive um token emitido por uma rotação concorrente que terminou primeiro.
 - Logout bloqueia o token apresentado e revoga todos os refresh tokens ativos do
   usuário; assim, logout concorrente com rotação não deixa uma sessão residual.
+- Troca ou redefinição de senha, alteração de role e desativação também revogam
+  todos os refresh tokens na mesma unidade de trabalho da mutação e auditoria.
 - Confirmação de e-mail e redefinição de senha bloqueiam o token de uso único com
   `FOR UPDATE`; somente uma requisição concorrente pode consumi-lo.
 - A solicitação de redefinição bloqueia o usuário por e-mail antes de invalidar o

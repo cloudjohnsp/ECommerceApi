@@ -12,6 +12,7 @@ namespace ECommerce.Application.Tests.Users.Handlers;
 public sealed class ChangeUserPasswordHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
+    private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IUserAuditRepository> _auditRepository = new();
@@ -33,6 +34,7 @@ public sealed class ChangeUserPasswordHandlerTests
 
         var handler = new ChangeUserPasswordHandler(
             _userRepository.Object,
+            _refreshTokenRepository.Object,
             _unitOfWork.Object,
             _passwordHasher.Object,
             _auditRepository.Object);
@@ -44,6 +46,9 @@ public sealed class ChangeUserPasswordHandlerTests
         user.PasswordHash.Should().Be("new-hashed-password");
         _passwordHasher.Verify(hasher => hasher.HashPassword(command.Password!), Times.Once);
         _userRepository.Verify(repository => repository.UpdateAsync(user, It.IsAny<CancellationToken>()), Times.Once);
+        _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
+            user.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
         _auditRepository.Verify(repository => repository.AddAsync(
             It.Is<UserAuditEntry>(entry =>
                 entry.UserId == user.Id &&
@@ -63,6 +68,7 @@ public sealed class ChangeUserPasswordHandlerTests
 
         var handler = new ChangeUserPasswordHandler(
             _userRepository.Object,
+            _refreshTokenRepository.Object,
             _unitOfWork.Object,
             _passwordHasher.Object,
             _auditRepository.Object);
@@ -73,6 +79,9 @@ public sealed class ChangeUserPasswordHandlerTests
         result.Errors.Should().Contain("User not found.");
         _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
         _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+        _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
