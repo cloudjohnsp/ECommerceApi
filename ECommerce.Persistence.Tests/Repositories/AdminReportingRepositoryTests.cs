@@ -62,6 +62,49 @@ public sealed class AdminReportingRepositoryTests
             RefundedAmount: 100m));
     }
 
+    [Fact]
+    public async Task GetSalesReportAsync_AggregatesPeriodDailySalesAndTopProducts()
+    {
+        await using var context = CreateContext();
+        var customer = User.Create(
+            "Customer", "One", Email.Create("sales@example.com").Value!, "hash").Value!;
+        var keyboard = Product.Create("Keyboard", "", 100m, 10).Value!;
+        var mouse = Product.Create("Mouse", "", 50m, 10).Value!;
+        var paidOrder = Order.Create(customer.Id).Value!;
+        paidOrder.AddItem(keyboard.Id, keyboard.Name, keyboard.Price, 2);
+        paidOrder.AddItem(mouse.Id, mouse.Name, mouse.Price, 1);
+        paidOrder.MarkAsPaid();
+        var refundedOrder = Order.Create(customer.Id).Value!;
+        refundedOrder.AddItem(mouse.Id, mouse.Name, mouse.Price, 1);
+        refundedOrder.MarkAsPaid();
+        refundedOrder.MarkAsRefunded();
+        var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "test").Value!;
+        paidPayment.MarkAsPaid("pay_report_paid");
+        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "test").Value!;
+        refundedPayment.MarkAsPaid("pay_report_refunded");
+        refundedPayment.MarkAsRefunded();
+        await context.AddRangeAsync(
+            customer, keyboard, mouse, paidOrder, refundedOrder, paidPayment, refundedPayment);
+        await context.SaveChangesAsync();
+        var repository = new AdminReportingRepository(context);
+        var fromUtc = DateTimeOffset.UtcNow.AddHours(-1);
+        var toUtc = DateTimeOffset.UtcNow.AddHours(1);
+
+        var result = await repository.GetSalesReportAsync(fromUtc, toUtc, 1);
+
+        result.OrdersCreated.Should().Be(2);
+        result.PaidOrders.Should().Be(2);
+        result.RefundedOrders.Should().Be(1);
+        result.SuccessfulPayments.Should().Be(2);
+        result.RefundedPayments.Should().Be(1);
+        result.GrossRevenue.Should().Be(300m);
+        result.RefundedAmount.Should().Be(50m);
+        result.DailySales.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new DailySalesSnapshot(DateOnly.FromDateTime(DateTime.UtcNow), 2, 1, 300m, 50m));
+        result.TopProducts.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new TopSellingProductSnapshot(keyboard.Id, "Keyboard", 2, 200m));
+    }
+
     private static Order CreateOrder(Guid customerId, Product product)
     {
         var order = Order.Create(customerId).Value!;

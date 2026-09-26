@@ -1,5 +1,6 @@
 using System.Reflection;
 using ECommerce.Api.Controllers;
+using ECommerce.Api.Contracts.Administration;
 using ECommerce.Application.Administration;
 using ECommerce.Application.Administration.Dtos;
 using ECommerce.Shared.Results;
@@ -52,5 +53,27 @@ public sealed class AdminControllerTests
         var response = await controller.GetDashboard(CancellationToken.None);
 
         response.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetSalesReport_DispatchesPeriodAndReturnsReport()
+    {
+        var fromUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var toUtc = fromUtc.AddDays(30);
+        var report = new AdminSalesReportDto(
+            fromUtc, toUtc, 4, 3, 1, 3, 1, 450m, 75m, 375m, [], [], DateTimeOffset.UtcNow);
+        var mediator = new Mock<ISender>();
+        mediator.Setup(item => item.Send(
+                new GetAdminSalesReportQuery(fromUtc, toUtc, 7),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AdminSalesReportDto>.Success(report));
+        var controller = new AdminController(mediator.Object);
+
+        var response = await controller.GetSalesReport(
+            new SalesReportRequest(fromUtc, toUtc, 7),
+            CancellationToken.None);
+
+        response.Should().BeOfType<OkObjectResult>().Which.Value.Should().Be(report);
+        mediator.VerifyAll();
     }
 }

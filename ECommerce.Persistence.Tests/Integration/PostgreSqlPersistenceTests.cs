@@ -252,6 +252,43 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         history.Items.Single().ChangesJson.Should().Contain("Administrator");
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task SalesReport_AggregationsAreTranslatedByPostgreSql()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Report",
+            "Customer",
+            Email.Create($"report-{suffix}@example.com").Value!,
+            "hash").Value!;
+        var product = Product.Create($"Report product {suffix}", "", 3.25m, 200).Value!;
+        var order = Order.Create(customer.Id).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 123);
+        order.MarkAsPaid();
+        var payment = Payment.Create(order.Id, order.Total, "integration").Value!;
+        payment.MarkAsPaid($"pay_{suffix}");
+
+        await using (var writeContext = new AppDbContext(options))
+        {
+            await writeContext.AddRangeAsync(customer, product, order, payment);
+            await writeContext.SaveChangesAsync();
+        }
+
+        await using var reportContext = new AppDbContext(options);
+        var report = await new AdminReportingRepository(reportContext).GetSalesReportAsync(
+            DateTimeOffset.UtcNow.AddHours(-1),
+            DateTimeOffset.UtcNow.AddHours(1),
+            50);
+
+        report.TopProducts.Should().Contain(item =>
+            item.ProductId == product.Id &&
+            item.Quantity == 123 &&
+            item.GrossRevenue == 399.75m);
+        report.DailySales.Should().Contain(item => item.SuccessfulPayments > 0);
+    }
+
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>
         new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)

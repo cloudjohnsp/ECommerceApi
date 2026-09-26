@@ -241,6 +241,24 @@
             "method": "GET",
             "url": "{{baseUrl}}/admin/dashboard"
           }
+        },
+        {
+          "name": "Sales report (last 30 days)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.variables.set('reportToUtc', new Date().toISOString());",
+                  "pm.variables.set('reportFromUtc', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/reports/sales?fromUtc={{reportFromUtc}}&toUtc={{reportToUtc}}&topProducts=10"
+          }
         }
       ]
     },

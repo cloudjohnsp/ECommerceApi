@@ -74,6 +74,14 @@ ser liberado ou retirado sem novo deploy por meio de
 `FeatureFlags:AdminDashboard`; quando desabilitado, a API responde `404` sem
 consultar o banco.
 
+O relatório de vendas por período fica em
+`GET /api/v1/admin/reports/sales?fromUtc=2026-01-01T00:00:00Z&toUtc=2026-02-01T00:00:00Z&topProducts=10`.
+Ele retorna receita bruta, reembolsos, receita líquida, pedidos e pagamentos por
+estado, série diária e os produtos mais vendidos. O intervalo usa limite inicial
+inclusivo e final exclusivo, aceita no máximo 366 dias e permite de 1 a 50
+produtos no ranking. As agregações e a limitação do ranking são executadas no
+PostgreSQL; somente a combinação das séries diárias ocorre na aplicação.
+
 Cada cadastro, alteração de perfil, troca de senha ou role, confirmação de
 e-mail e desativação gera uma entrada de auditoria na mesma transação da
 mutação. O histórico paginado fica disponível ao próprio usuário e a
