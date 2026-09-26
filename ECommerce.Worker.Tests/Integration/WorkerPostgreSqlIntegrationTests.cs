@@ -50,17 +50,29 @@ public sealed class WorkerPostgreSqlIntegrationTests
                 Status = "Paid",
                 OccurredAt = payload.OccurredAt.AddSeconds(1)
             }));
+        var stockPayload = new StockUpdatedIntegrationEventPayload(
+            payload.Items.First().ProductId,
+            9,
+            payload.OrderId,
+            StockUpdateReasons.Reserved,
+            payload.OccurredAt.AddSeconds(2));
+        var stockProcessor = new StockIntegrationEventProcessor(context);
+        await stockProcessor.ProcessAsync(
+            Guid.NewGuid(),
+            StockIntegrationEventProcessor.EventType,
+            JsonSerializer.SerializeToUtf8Bytes(stockPayload));
 
-        (await context.ConsumedIntegrationEvents.CountAsync()).Should().Be(2);
+        (await context.ConsumedIntegrationEvents.CountAsync()).Should().Be(3);
         (await context.NotificationOutboxMessages.CountAsync()).Should().Be(2);
         (await context.Invoices.CountAsync()).Should().Be(1);
+        (await context.InventoryProjections.SingleAsync()).AvailableStock.Should().Be(9);
 
         await using var connection = new NpgsqlConnection(container.GetConnectionString());
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'worker';",
             connection);
-        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().BeGreaterThanOrEqualTo(5);
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().BeGreaterThanOrEqualTo(6);
     }
 }
 

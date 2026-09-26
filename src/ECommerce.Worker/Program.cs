@@ -31,6 +31,8 @@ builder.Services.AddDbContext<WorkerDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql =>
         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", WorkerDbContext.SchemaName)));
 builder.Services.AddScoped<OrderIntegrationEventProcessor>();
+builder.Services.AddScoped<StockIntegrationEventProcessor>();
+builder.Services.AddScoped<IntegrationEventProcessor>();
 builder.Services.AddScoped<NotificationOutboxProcessor>();
 
 builder.Services.AddOptions<WorkerRabbitMqOptions>()

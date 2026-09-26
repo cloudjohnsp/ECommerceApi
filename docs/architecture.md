@@ -86,10 +86,11 @@ O Worker usa:
 - dead-letter exchange e fila para mensagens inválidas ou esgotadas;
 - inbox com `MessageId` único;
 - projeção local do pedido;
+- projeção local de `AvailableStock` alimentada por `stock.updated`;
 - nota fiscal simulada única por pedido pago;
 - segunda outbox para e-mails, com lease e backoff exponencial.
 
-Inbox, projeção, nota e intenção de notificação são confirmadas antes do ACK. O
+Inbox, projeções, nota e intenção de notificação são confirmadas antes do ACK. O
 SMTP continua sendo *at least once*: uma falha depois da aceitação pelo servidor
 e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocolo.
 

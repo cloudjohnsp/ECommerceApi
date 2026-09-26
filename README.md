@@ -155,9 +155,11 @@ dotnet user-secrets set "RabbitMq:Password" "<password>" --project src/ECommerce
 dotnet run --project src/ECommerce.Worker
 ```
 
-O consumidor recebe `order.created`, `order.paid`, `payment.failed`,
-`order.refunded` e `order.cancelled`. A tabela de inbox impede efeitos duplicados;
-projeção, nota fiscal e notificação são persistidas atomicamente antes do ACK.
+O consumidor recebe `order.created`, `order.updated`, `order.paid`,
+`payment.failed`, `order.refunded`, `order.cancelled` e `stock.updated`. A tabela
+de inbox impede efeitos duplicados; projeções de pedido e disponibilidade, nota
+fiscal e notificação são persistidas atomicamente antes do ACK. Eventos de
+estoque atrasados são registrados na inbox sem regredir a projeção mais recente.
 Falhas transitórias são reenfileiradas e, após o limite da fila quorum, seguem
 para `ecommerce.worker.orders.dead`. E-mails usam uma segunda outbox com lease e
 backoff exponencial, visível no Mailpit durante o desenvolvimento.

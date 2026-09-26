@@ -90,7 +90,7 @@ public sealed class RabbitMqOrderConsumer(
                 throw new InvalidIntegrationEventException("RabbitMQ event type is required.");
 
             using var scope = scopeFactory.CreateScope();
-            var processor = scope.ServiceProvider.GetRequiredService<OrderIntegrationEventProcessor>();
+            var processor = scope.ServiceProvider.GetRequiredService<IntegrationEventProcessor>();
             var result = await processor.ProcessAsync(
                 messageId,
                 delivery.BasicProperties.Type,
@@ -191,6 +191,11 @@ public sealed class RabbitMqOrderConsumer(
             _options.QueueName,
             _options.ExchangeName,
             "payment.failed",
+            cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(
+            _options.QueueName,
+            _options.ExchangeName,
+            StockIntegrationEventProcessor.EventType,
             cancellationToken: cancellationToken);
     }
 }
