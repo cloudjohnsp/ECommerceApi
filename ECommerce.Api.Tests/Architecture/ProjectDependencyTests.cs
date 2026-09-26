@@ -81,6 +81,33 @@ public sealed class ProjectDependencyTests
             "source-level dependencies must be explicit in the project file");
     }
 
+    [Theory]
+    [MemberData(nameof(ProductionProjects))]
+    public void ProductionSource_DeclaresNamespaceOwnedByItsProject(
+        string projectPath,
+        string projectName)
+    {
+        var root = FindSolutionRoot();
+        var projectDirectory = Path.GetDirectoryName(Path.Combine(root, projectPath))!;
+        var invalidFiles = Directory
+            .EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsGeneratedPath(path))
+            .Select(path => new
+            {
+                Path = path,
+                Namespace = File.ReadLines(path)
+                    .Select(line => line.TrimStart())
+                    .FirstOrDefault(line => line.StartsWith("namespace ", StringComparison.Ordinal))
+            })
+            .Where(source => source.Namespace is not null &&
+                !source.Namespace.StartsWith($"namespace {projectName}", StringComparison.Ordinal))
+            .Select(source => Path.GetRelativePath(root, source.Path))
+            .ToArray();
+
+        invalidFiles.Should().BeEmpty(
+            $"source files in {projectName} must declare a namespace owned by that project");
+    }
+
     public static TheoryData<string, string[]> ProjectReferences() => new()
     {
         {
