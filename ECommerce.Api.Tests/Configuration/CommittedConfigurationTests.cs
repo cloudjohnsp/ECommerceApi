@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace ECommerce.Api.Tests.Configuration;
@@ -115,14 +116,110 @@ public sealed class CommittedConfigurationTests
                 item => item.GetProperty("value").GetString() ?? string.Empty);
 
         variables["password"].Should().BeEmpty();
+        variables["newPassword"].Should().BeEmpty();
         variables["accessToken"].Should().BeEmpty();
         variables["refreshToken"].Should().BeEmpty();
         variables["confirmationToken"].Should().BeEmpty();
+        variables["resetToken"].Should().BeEmpty();
+        variables["productImagePath"].Should().BeEmpty();
         variables["baseUrl"].Should().Be("http://localhost:5000/api/v1");
+    }
+
+    [Fact]
+    public void PostmanCollection_CoversPublicApiOperations()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            FindSolutionRoot(), "postman", "ECommerceApi.postman_collection.json")));
+        var operations = ReadPostmanOperations(document.RootElement.GetProperty("item"))
+            .ToHashSet(StringComparer.Ordinal);
+        string[] expectedOperations =
+        [
+            "GET {{hostUrl}}/api/health/live",
+            "POST {{baseUrl}}/auth/register",
+            "POST {{baseUrl}}/auth/confirm-email",
+            "POST {{baseUrl}}/auth/login",
+            "POST {{baseUrl}}/auth/refresh",
+            "POST {{baseUrl}}/auth/logout",
+            "POST {{baseUrl}}/auth/forgot-password",
+            "POST {{baseUrl}}/auth/reset-password",
+            "GET {{baseUrl}}/categories",
+            "GET {{baseUrl}}/categories/{{categoryId}}",
+            "POST {{baseUrl}}/categories",
+            "PUT {{baseUrl}}/categories/{{categoryId}}",
+            "DELETE {{baseUrl}}/categories/{{categoryId}}",
+            "GET {{baseUrl}}/products",
+            "GET {{baseUrl}}/products/{{productId}}",
+            "GET {{baseUrl}}/products/{{productId}}/images",
+            "POST {{baseUrl}}/products/{{productId}}/images",
+            "POST {{baseUrl}}/products",
+            "PUT {{baseUrl}}/products/{{productId}}",
+            "DELETE {{baseUrl}}/products/{{productId}}",
+            "GET {{baseUrl}}/admin/dashboard",
+            "GET {{baseUrl}}/admin/reports/sales",
+            "GET {{baseUrl}}/orders",
+            "GET {{baseUrl}}/orders/search",
+            "GET {{baseUrl}}/orders/{{orderId}}",
+            "POST {{baseUrl}}/orders",
+            "POST {{baseUrl}}/orders/{{orderId}}/items",
+            "PUT {{baseUrl}}/orders/{{orderId}}",
+            "DELETE {{baseUrl}}/orders/{{cancelOrderId}}",
+            "GET {{baseUrl}}/payments/{{orderId}}",
+            "POST {{baseUrl}}/payments",
+            "POST {{baseUrl}}/payments/{{orderId}}/refund",
+            "GET {{baseUrl}}/user/{{userId}}",
+            "GET {{baseUrl}}/user/{{userId}}/history",
+            "PUT {{baseUrl}}/user/{{userId}}/profile",
+            "PUT {{baseUrl}}/user/{{userId}}/password",
+            "PUT {{baseUrl}}/user/{{userId}}/role",
+            "DELETE {{baseUrl}}/user/{{userId}}"
+        ];
+
+        operations.Should().Contain(expectedOperations);
+    }
+
+    [Fact]
+    public void PostmanCollection_ReferencesOnlyDeclaredOrGeneratedVariables()
+    {
+        var root = FindSolutionRoot();
+        var collectionJson = File.ReadAllText(Path.Combine(
+            root, "postman", "ECommerceApi.postman_collection.json"));
+        using var environmentDocument = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            root, "postman", "Local.postman_environment.json")));
+        var declaredVariables = environmentDocument.RootElement.GetProperty("values")
+            .EnumerateArray()
+            .Select(item => item.GetProperty("key").GetString()!)
+            .ToHashSet(StringComparer.Ordinal);
+        declaredVariables.UnionWith(["$randomInt", "reportFromUtc", "reportToUtc"]);
+
+        var referencedVariables = Regex.Matches(collectionJson, "\\{\\{([^{}]+)\\}\\}")
+            .Select(match => match.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        referencedVariables.Should().BeSubsetOf(declaredVariables);
+        collectionJson.Should().Contain("pm.response.json().userId");
     }
 
     private static string Read(JsonElement root, string section, string key) =>
         root.GetProperty(section).GetProperty(key).GetString() ?? string.Empty;
+
+    private static IEnumerable<string> ReadPostmanOperations(JsonElement items)
+    {
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.TryGetProperty("item", out var children))
+            {
+                foreach (var operation in ReadPostmanOperations(children))
+                    yield return operation;
+                continue;
+            }
+
+            var request = item.GetProperty("request");
+            var method = request.GetProperty("method").GetString();
+            var rawUrl = request.GetProperty("url").GetString()!;
+            var path = rawUrl.Split('?', 2)[0];
+            yield return $"{method} {path}";
+        }
+    }
 
     private static string FindSolutionRoot()
     {

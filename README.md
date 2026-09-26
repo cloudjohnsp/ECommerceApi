@@ -270,8 +270,17 @@ Importe `postman/ECommerceApi.postman_collection.json` e
 ambiente local do Postman. A requisição de login salva automaticamente access e
 refresh tokens, enquanto criação de categoria, produto e pedido atualiza os IDs
 usados nas requisições seguintes. Após cadastrar um cliente, copie do Mailpit o
-token para `confirmationToken` e execute a confirmação antes do login. A coleção
-não contém credenciais versionadas.
+token para `confirmationToken` e execute a confirmação antes do login. O fluxo
+de recuperação usa `resetToken` copiado do Mailpit e `newPassword`; quando a
+troca é concluída, o ambiente atualiza `password` automaticamente. Para testar
+upload, informe em `productImagePath` um JPEG, PNG ou WebP local de até 5 MB.
+
+Operações administrativas exigem login com o administrador criado pelo seed;
+as demais podem ser exercitadas com o cliente cadastrado. A coleção cobre todos
+os endpoints públicos de negócio e mantém desativações e logout no grupo
+`Cleanup`, para não invalidar recursos no meio do fluxo. O webhook de pagamento
+não aparece como chamada manual porque pertence ao simulador e exige assinatura
+HMAC. Nenhuma credencial, token ou caminho de arquivo é versionado no ambiente.
 
 ## Observabilidade
 

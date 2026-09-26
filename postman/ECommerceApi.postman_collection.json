@@ -73,7 +73,7 @@
               "script": {
                 "exec": [
                   "pm.test('Customer created', () => pm.response.to.have.status(201));",
-                  "if (pm.response.code === 201) pm.environment.set('userId', pm.response.json().id);"
+                  "if (pm.response.code === 201) pm.environment.set('userId', pm.response.json().userId);"
                 ]
               }
             }
@@ -150,6 +150,59 @@
                   "  pm.environment.set('accessToken', body.accessToken);",
                   "  pm.environment.set('refreshToken', body.refreshToken);",
                   "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request password reset",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "description": "Solicita a entrega de um token de redefinição no Mailpit.",
+            "url": "{{baseUrl}}/auth/forgot-password"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reset request accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
+            },
+            "description": "Copie resetToken do Mailpit e informe newPassword no ambiente antes de executar.",
+            "url": "{{baseUrl}}/auth/reset-password"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Password reset', () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) pm.environment.set('password', pm.environment.get('newPassword'));"
                 ]
               }
             }
@@ -236,6 +289,63 @@
           ]
         },
         {
+          "name": "Update category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Peripherals {{$randomInt}}\"\n}"
+            },
+            "url": "{{baseUrl}}/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "Update product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Mechanical Keyboard {{$randomInt}}\",\n  \"description\": \"Updated hot-swappable mechanical keyboard\",\n  \"price\": 429.90,\n  \"stock\": 30,\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        },
+        {
+          "name": "Upload product image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{productImagePath}}"
+                }
+              ]
+            },
+            "description": "Informe productImagePath com um JPEG, PNG ou WebP de até 5 MB.",
+            "url": "{{baseUrl}}/products/{{productId}}/images"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Image uploaded', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Dashboard",
           "request": {
             "method": "GET",
@@ -280,12 +390,43 @@
             "method": "GET",
             "url": "{{baseUrl}}/categories"
           }
+        },
+        {
+          "name": "Get category",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "Get product",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        },
+        {
+          "name": "List product images",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}/images"
+          }
         }
       ]
     },
     {
       "name": "Orders and payments",
       "item": [
+        {
+          "name": "List orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders"
+          }
+        },
         {
           "name": "Search orders",
           "request": {
@@ -344,6 +485,13 @@
           ]
         },
         {
+          "name": "Get order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders/{{orderId}}"
+          }
+        },
+        {
           "name": "Create payment",
           "request": {
             "method": "POST",
@@ -375,7 +523,56 @@
               "mode": "raw",
               "raw": "{\n  \"reason\": \"customer_request\"\n}"
             },
+            "description": "Aprove o pagamento no simulador antes de solicitar o reembolso.",
             "url": "{{baseUrl}}/payments/{{orderId}}/refund"
+          }
+        },
+        {
+          "name": "Reconcile order status (administrator)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": 2\n}"
+            },
+            "description": "Reconciliação administrativa: só aceita Paid quando o pagamento local já estiver aprovado.",
+            "url": "{{baseUrl}}/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "Create cancellable order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Cancellable order created', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.environment.set('cancelOrderId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel pending order",
+          "request": {
+            "method": "DELETE",
+            "description": "Cancela logicamente o pedido pendente e libera a reserva de estoque.",
+            "url": "{{baseUrl}}/orders/{{cancelOrderId}}"
           }
         }
       ]
@@ -396,6 +593,124 @@
             "method": "GET",
             "url": "{{baseUrl}}/user/{{userId}}/history?page=1&pageSize=20"
           }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane Updated\",\n  \"lastName\": \"Doe\",\n  \"email\": null\n}"
+            },
+            "url": "{{baseUrl}}/user/{{userId}}/profile"
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{newPassword}}\"\n}"
+            },
+            "description": "Informe newPassword no ambiente. Em caso de sucesso, password é atualizado automaticamente.",
+            "url": "{{baseUrl}}/user/{{userId}}/password"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Password changed', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.environment.set('password', pm.environment.get('newPassword'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change role (administrator)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": 1\n}"
+            },
+            "description": "Exige token de Administrator. O valor 1 corresponde à role Customer.",
+            "url": "{{baseUrl}}/user/{{userId}}/role"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Deactivate product (administrator)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        },
+        {
+          "name": "Deactivate additional product (administrator)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/products/{{additionalProductId}}"
+          }
+        },
+        {
+          "name": "Deactivate category (administrator)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "Deactivate user",
+          "request": {
+            "method": "DELETE",
+            "description": "Desativa logicamente o usuário. Execute somente ao final do fluxo.",
+            "url": "{{baseUrl}}/user/{{userId}}"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "description": "Revoga a família de refresh tokens. Execute ao encerrar a sessão.",
+            "url": "{{baseUrl}}/auth/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Logged out', () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) {",
+                  "  pm.environment.unset('accessToken');",
+                  "  pm.environment.unset('refreshToken');",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
