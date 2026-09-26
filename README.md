@@ -33,6 +33,8 @@ Refresh tokens são persistidos somente como hash e rotacionados sob transação
 com bloqueio pessimista no PostgreSQL. Se um token já revogado for reutilizado,
 todos os tokens ainda ativos do usuário são revogados para interromper a cadeia
 potencialmente comprometida.
+O logout usa o mesmo bloqueio transacional e encerra todas as sessões do usuário,
+inclusive quando concorre com uma solicitação de rotação.
 
 O catálogo é paginado e aceita busca textual, faixa de preço e ordenação:
 

@@ -93,6 +93,8 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   modo que duas requisições concorrentes não possam criar duas cadeias válidas.
 - Reutilizar um refresh token revogado invalida a família ativa do usuário,
   inclusive um token emitido por uma rotação concorrente que terminou primeiro.
+- Logout bloqueia o token apresentado e revoga todos os refresh tokens ativos do
+  usuário; assim, logout concorrente com rotação não deixa uma sessão residual.
 - Clientes recebem escopo pelo claim de identidade; identificadores enviados no
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e

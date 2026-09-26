@@ -13,13 +13,28 @@ public sealed class LogoutHandler(
     public async Task<Result> Handle(LogoutCommand request, CancellationToken cancellationToken)
     {
         string tokenHash = jwtTokenService.HashRefreshToken(request.RefreshToken);
-        var storedToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
-        if (storedToken is not null && storedToken.IsUsable())
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            storedToken.Revoke();
-            await unitOfWork.Commit(cancellationToken);
-        }
+            var storedToken = await refreshTokenRepository.GetByTokenHashForUpdateAsync(
+                tokenHash,
+                cancellationToken);
+            if (storedToken is null)
+                return Result.Success();
 
-        return Result.Success();
+            await refreshTokenRepository.RevokeAllForUserAsync(
+                storedToken.UserId,
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+
+            return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
