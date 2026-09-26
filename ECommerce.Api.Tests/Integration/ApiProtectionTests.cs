@@ -46,6 +46,17 @@ public sealed class ApiProtectionTests
     }
 
     [Fact]
+    public async Task ProductCatalog_WithInvalidPageSize_ReturnsBadRequest()
+    {
+        await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var response = await client.GetAsync("/api/products?pageSize=101");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task CorsPreflight_ForConfiguredOrigin_ReturnsAllowOriginHeader()
     {
         await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);

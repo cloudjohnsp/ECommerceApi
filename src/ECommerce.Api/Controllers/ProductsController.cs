@@ -27,7 +27,7 @@ public sealed class ProductsController(ISender mediator) : BaseApiController
             request.Page,
             request.PageSize,
             request.CategoryId), cancellationToken);
-        return Ok(result.Value);
+        return result.IsFailure ? BadRequest(result.Errors) : Ok(result.Value);
     }
 
     [HttpGet("{productId:guid}")]
