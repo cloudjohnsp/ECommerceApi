@@ -74,6 +74,36 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
+    public async Task Create_WithAdministratorAsCustomer_ReturnsFailureWithoutLoadingProducts()
+    {
+        var administrator = UserFactory.Create(role: UserRole.Administrator);
+        _users.Setup(x => x.GetByIdAsync(
+                administrator.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(administrator);
+        var handler = new CreateOrderHandler(
+            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
+
+        var result = await handler.Handle(
+            new CreateOrderCommand(
+                administrator.Id,
+                [new CreateOrderItem(Guid.NewGuid(), 1)]),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Customer not found or inactive.");
+        _products.Verify(
+            repository => repository.GetByIdForUpdateAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            unit => unit.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Create_WithInsufficientStock_ReturnsFailureWithoutDecreasingStock()
     {
         var customer = UserFactory.Create();

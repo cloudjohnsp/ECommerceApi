@@ -26,8 +26,12 @@ public sealed class CreateOrderHandler(
         try
         {
             var customer = await userRepository.GetByIdAsync(request.CustomerId, cancellationToken);
-            if (customer is null || !customer.IsActive)
+            if (customer is null ||
+                !customer.IsActive ||
+                customer.Role != UserRole.Customer)
+            {
                 return Result<OrderDto>.Failure("Customer not found or inactive.");
+            }
 
             var requestedItems = request.Items
                 .GroupBy(item => item.ProductId)
