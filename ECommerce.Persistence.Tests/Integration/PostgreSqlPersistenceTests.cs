@@ -100,6 +100,51 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task OrderItemConstraint_RejectsDuplicateProductWithinOrder()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Constraint",
+            "Customer",
+            Email.Create($"order-item-{suffix}@example.com").Value!,
+            "hash").Value!;
+        var product = Product.Create($"Order item {suffix}", "", 10m, 5).Value!;
+        var order = Order.Create(customer.Id).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 1).IsSuccess.Should().BeTrue();
+
+        await using (var context = new AppDbContext(options))
+        {
+            await context.AddRangeAsync(customer, product, order);
+            await context.SaveChangesAsync();
+        }
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO order_items
+                (id, order_id, product_id, product_name, unit_price, quantity)
+            VALUES
+                (@id, @orderId, @productId, @productName, @unitPrice, @quantity);
+            """,
+            connection);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("orderId", order.Id);
+        command.Parameters.AddWithValue("productId", product.Id);
+        command.Parameters.AddWithValue("productName", product.Name);
+        command.Parameters.AddWithValue("unitPrice", product.Price);
+        command.Parameters.AddWithValue("quantity", 1);
+
+        var action = async () => await command.ExecuteNonQueryAsync();
+
+        var exception = await action.Should().ThrowAsync<PostgresException>();
+        exception.Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+        exception.Which.ConstraintName.Should().Be("ux_order_items_order_id_product_id");
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task UserEmailDelivery_PersistsSanitizedEmailSentEventAtomically()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

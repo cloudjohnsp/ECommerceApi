@@ -33,6 +33,21 @@ public sealed class RelationalConstraintTests
             constraint.Name == constraintName && constraint.Sql == expectedSql);
     }
 
+    [Fact]
+    public void OrderItem_ModelPreventsDuplicateProductWithinOrder()
+    {
+        using var context = CreateContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+        var metadata = model.FindEntityType(typeof(OrderItem));
+
+        metadata.Should().NotBeNull();
+        metadata!.GetIndexes().Should().ContainSingle(index =>
+            index.IsUnique &&
+            index.GetDatabaseName() == "ux_order_items_order_id_product_id" &&
+            index.Properties.Select(property => property.Name)
+                .SequenceEqual(new[] { nameof(OrderItem.OrderId), nameof(OrderItem.ProductId) }));
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

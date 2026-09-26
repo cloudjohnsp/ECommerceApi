@@ -61,7 +61,9 @@ public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .WithMany()
             .HasForeignKey(item => item.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(item => item.OrderId);
+        builder.HasIndex(item => new { item.OrderId, item.ProductId })
+            .IsUnique()
+            .HasDatabaseName("ux_order_items_order_id_product_id");
         builder.HasIndex(item => item.ProductId);
     }
 }

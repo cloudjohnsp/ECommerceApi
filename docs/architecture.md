@@ -37,7 +37,8 @@ A validação não é repetida igualmente em todas as camadas:
 5. PostgreSQL é a última barreira para unicidade, integridade referencial e
    concorrência. Check constraints também impedem estoque ou reserva negativos,
    reserva acima do estoque físico, valores monetários não positivos, quantidades
-   inválidas e estados desconhecidos.
+   inválidas e estados desconhecidos. Um índice único em `(order_id, product_id)`
+   replica no banco a regra de que um produto aparece no máximo uma vez por pedido.
 
 Falhas esperadas retornam `Result`; exceções ficam reservadas para condições
 inesperadas e são convertidas em `ProblemDetails` sanitizado pelo middleware da
