@@ -41,6 +41,8 @@ public sealed class CommittedConfigurationTests
         compose.Should().Contain("${JWT_SECRET_KEY:?");
         compose.Should().Contain("${PAYMENT_GATEWAY_WEBHOOK_SECRET:?");
         compose.Should().Contain("${GRAFANA_ADMIN_PASSWORD:?");
+        compose.Should().Contain("ApiProtection__UseHttpsRedirection: \"false\"");
+        compose.Should().NotContain("\"8081:8081\"");
         compose.Should().NotContain("Password=postgres");
         compose.Should().NotContain("RabbitMq__Password: guest");
         compose.Should().NotContain(":-development-secret");
@@ -50,6 +52,20 @@ public sealed class CommittedConfigurationTests
         environmentTemplate.Should().Contain("PAYMENT_GATEWAY_WEBHOOK_SECRET=");
         environmentTemplate.Should().Contain("GRAFANA_ADMIN_PASSWORD=");
         environmentTemplate.Should().Contain("SEED_ADMIN_PASSWORD=");
+    }
+
+    [Fact]
+    public void LaunchProfiles_EnableRedirectionOnlyWhenHttpsEndpointIsAvailable()
+    {
+        var root = FindSolutionRoot();
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            root, "src", "ECommerce.Api", "Properties", "launchSettings.json")));
+        var profiles = document.RootElement.GetProperty("profiles");
+        var httpEnvironment = profiles.GetProperty("http").GetProperty("environmentVariables");
+        var httpsEnvironment = profiles.GetProperty("https").GetProperty("environmentVariables");
+
+        httpEnvironment.TryGetProperty("ApiProtection__UseHttpsRedirection", out _).Should().BeFalse();
+        httpsEnvironment.GetProperty("ApiProtection__UseHttpsRedirection").GetString().Should().Be("true");
     }
 
     [Fact]

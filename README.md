@@ -174,6 +174,12 @@ branco, preserva os valores já configurados e não imprime os segredos. O arqui
 `PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
 `ECommercePayment`.
 
+O Compose publica somente HTTP em `http://localhost:8080` e desabilita o
+middleware de redirecionamento HTTPS, evitando redirecionamentos para uma porta
+inexistente. TLS deve ser terminado pelo ingress ou reverse proxy nos ambientes
+publicados. O perfil local `https` do `launchSettings.json` habilita o
+redirecionamento porque também inicia `https://localhost:5001`.
+
 Se a política de execução do PowerShell bloquear scripts locais, execute apenas
 para este processo:
 

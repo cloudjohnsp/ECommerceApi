@@ -8,4 +8,5 @@ public sealed class ApiProtectionOptions
     public int GlobalPermitLimit { get; init; } = 100;
     public int AuthenticationPermitLimit { get; init; } = 10;
     public int WindowSeconds { get; init; } = 60;
+    public bool UseHttpsRedirection { get; init; }
 }

@@ -36,7 +36,8 @@ app.UseSerilogRequestLogging(options =>
 });
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-app.UseHttpsRedirection();
+if (app.Services.GetRequiredService<IOptions<ApiProtectionOptions>>().Value.UseHttpsRedirection)
+    app.UseHttpsRedirection();
 app.UseCors(ApiCorsPolicy.Name);
 app.MapOpenApi();
 app.UseSwaggerUI(opt => { opt.SwaggerEndpoint("/openapi/v1.json", "v1"); });

@@ -108,9 +108,9 @@ services:
       PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:?Create .env from .env.example and set PAYMENT_GATEWAY_WEBHOOK_SECRET}
       PaymentGateway__TimeoutSeconds: 10
       ApiProtection__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      ApiProtection__UseHttpsRedirection: "false"
     ports:
       - "8080:8080"
-      - "8081:8081" 
     depends_on:
       postgres-db:
         condition: service_healthy

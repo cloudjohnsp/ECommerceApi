@@ -66,6 +66,10 @@ Defina também `ASPNETCORE_ENVIRONMENT=Production`,
 `WEBSITES_PORT=8080` no App Service. O segredo do webhook deve ser igual ao
 configurado no gateway de pagamentos.
 
+Defina `ApiProtection__UseHttpsRedirection=false`: o App Service termina TLS no
+front-end e encaminha HTTP para o contêiner. A exigência de HTTPS deve permanecer
+habilitada na configuração **HTTPS Only** do próprio App Service.
+
 O seed é destinado a ambientes locais e fica desabilitado em produção. Caso um
 bootstrap controlado seja necessário, configure `DatabaseSeed__Enabled=true` e
 forneça `DatabaseSeed__AdministratorEmail` e

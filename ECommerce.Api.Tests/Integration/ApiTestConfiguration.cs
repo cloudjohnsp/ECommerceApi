@@ -16,5 +16,6 @@ internal static class ApiTestConfiguration
             .UseSetting("Redis:Enabled", "false")
             .UseSetting("ProductImageStorage:Enabled", "false")
             .UseSetting("Email:Enabled", "false")
+            .UseSetting("ApiProtection:UseHttpsRedirection", "false")
             .UseSetting("OutboxProcessor:Enabled", "false");
 }
