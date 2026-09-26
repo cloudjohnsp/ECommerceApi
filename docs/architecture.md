@@ -49,7 +49,9 @@ correspondentes sem revelar detalhes internos da exceção.
 Atualizações e desativações de categorias são executadas em transação e usam
 `FOR UPDATE`. Isso serializa mutações da mesma categoria, evita que uma alteração
 de nome concorrente reative ou sobrescreva uma desativação e mantém a invalidação
-do cache estritamente posterior ao commit.
+do cache estritamente posterior ao commit. A criação ou atualização de produto
+também bloqueia a categoria escolhida até o commit, portanto um vínculo novo não
+pode ser confirmado enquanto a categoria é desativada concorrentemente.
 
 ## Pedidos, estoque e pagamentos
 

@@ -18,28 +18,41 @@ public sealed class CreateProductHandler(
 {
     public async Task<Result<ProductDto>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
     {
-        if (request.CategoryId.HasValue &&
-            await categoryRepository.GetByIdAsync(request.CategoryId.Value, cancellationToken) is null)
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            return Result<ProductDto>.Failure("Category not found.");
+            if (request.CategoryId.HasValue &&
+                await categoryRepository.GetByIdForUpdateAsync(
+                    request.CategoryId.Value,
+                    cancellationToken) is null)
+            {
+                return Result<ProductDto>.Failure("Category not found.");
+            }
+
+            var result = Product.Create(
+                request.Name,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.CategoryId);
+            if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
+
+            var product = result.Value!;
+            await repository.AddAsync(product, cancellationToken);
+            await outboxMessageRepository.AddAsync(
+                StockIntegrationEventFactory.Create(product, StockUpdateReasons.Created),
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            var productDto = product.ToDto();
+            await productCache.SetAsync(productDto, CancellationToken.None);
+            return Result<ProductDto>.Success(productDto);
         }
-
-        var result = Product.Create(
-            request.Name,
-            request.Description,
-            request.Price,
-            request.Stock,
-            request.CategoryId);
-        if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
-
-        var product = result.Value!;
-        await repository.AddAsync(product, cancellationToken);
-        await outboxMessageRepository.AddAsync(
-            StockIntegrationEventFactory.Create(product, StockUpdateReasons.Created),
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-        var productDto = product.ToDto();
-        await productCache.SetAsync(productDto, CancellationToken.None);
-        return Result<ProductDto>.Success(productDto);
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }

@@ -74,7 +74,8 @@ Produtos podem opcionalmente receber `categoryId` na criação ou atualização,
 o catálogo pode ser filtrado por esse identificador. A Application só aceita
 categorias ativas e existentes; a relação é protegida por chave estrangeira e,
 se uma categoria for removida fisicamente em manutenção, o PostgreSQL define o
-vínculo do produto como nulo.
+vínculo do produto como nulo. A categoria selecionada permanece bloqueada até o
+commit do produto para que uma desativação concorrente não invalide essa regra.
 
 Imagens de produto são enviadas por administradores em
 `POST /api/v1/products/{productId}/images` como `multipart/form-data`. A API

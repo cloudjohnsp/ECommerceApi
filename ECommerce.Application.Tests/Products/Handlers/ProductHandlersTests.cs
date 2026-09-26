@@ -46,7 +46,12 @@ public sealed class ProductHandlersTests
                 message.Payload.Contains(StockUpdateReasons.Created) &&
                 message.Payload.Contains("\"AvailableStock\":10")),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(
+            x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
         _cache.Verify(x => x.SetAsync(
             It.Is<ProductDto>(product => product.Id == result.Value.Id),
             CancellationToken.None), Times.Once);
@@ -56,7 +61,7 @@ public sealed class ProductHandlersTests
     public async Task Create_WithCategory_AssignsExistingCategory()
     {
         var category = Category.Create("Computers").Value!;
-        _categories.Setup(repository => repository.GetByIdAsync(
+        _categories.Setup(repository => repository.GetByIdForUpdateAsync(
                 category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
         var command = new CreateProductCommand("Notebook", "Gaming", 4999.90m, 10, category.Id);
@@ -67,6 +72,8 @@ public sealed class ProductHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.CategoryId.Should().Be(category.Id);
+        _categories.Verify(repository => repository.GetByIdAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -85,6 +92,12 @@ public sealed class ProductHandlersTests
             It.IsAny<Product>(), It.IsAny<CancellationToken>()), Times.Never);
         _outbox.Verify(repository => repository.AddAsync(
             It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(
+            unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            unit => unit.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
     }
 
     [Fact]
@@ -193,7 +206,7 @@ public sealed class ProductHandlersTests
         _repository.Setup(repository => repository.GetByIdForUpdateAsync(
                 product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
-        _categories.Setup(repository => repository.GetByIdAsync(
+        _categories.Setup(repository => repository.GetByIdForUpdateAsync(
                 category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
         var handler = new UpdateProductHandler(

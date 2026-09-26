@@ -25,7 +25,9 @@ public sealed class UpdateProductHandler(
             if (product is null) return Result<ProductDto>.Failure("Product not found.");
             var previousAvailableStock = product.AvailableStock;
             if (request.CategoryId.HasValue &&
-                await categoryRepository.GetByIdAsync(request.CategoryId.Value, cancellationToken) is null)
+                await categoryRepository.GetByIdForUpdateAsync(
+                    request.CategoryId.Value,
+                    cancellationToken) is null)
             {
                 return Result<ProductDto>.Failure("Category not found.");
             }
