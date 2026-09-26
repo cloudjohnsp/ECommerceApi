@@ -95,6 +95,11 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   inclusive um token emitido por uma rotação concorrente que terminou primeiro.
 - Logout bloqueia o token apresentado e revoga todos os refresh tokens ativos do
   usuário; assim, logout concorrente com rotação não deixa uma sessão residual.
+- Confirmação de e-mail e redefinição de senha bloqueiam o token de uso único com
+  `FOR UPDATE`; somente uma requisição concorrente pode consumi-lo.
+- A solicitação de redefinição bloqueia o usuário por e-mail antes de invalidar o
+  token anterior e gravar token + e-mail na outbox, deixando apenas um token
+  utilizável mesmo quando duas solicitações chegam juntas.
 - Clientes recebem escopo pelo claim de identidade; identificadores enviados no
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e

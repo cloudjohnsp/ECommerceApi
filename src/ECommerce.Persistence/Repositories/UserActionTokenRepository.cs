@@ -16,6 +16,21 @@ public sealed class UserActionTokenRepository(AppDbContext dbContext) : IUserAct
             token => token.TokenHash == tokenHash && token.Type == type,
             cancellationToken);
 
+    public Task<UserActionToken?> GetByHashForUpdateAsync(
+        string tokenHash,
+        UserActionTokenType type,
+        CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
+            ? dbContext.UserActionTokens
+                .FromSqlInterpolated($"""
+                    SELECT * FROM user_action_tokens
+                    WHERE token_hash = {tokenHash} AND type = {(int)type}
+                    FOR UPDATE
+                    """)
+                .SingleOrDefaultAsync(cancellationToken)
+            : dbContext.UserActionTokens.SingleOrDefaultAsync(
+                token => token.TokenHash == tokenHash && token.Type == type,
+                cancellationToken);
+
     public async Task AddAsync(UserActionToken token, CancellationToken cancellationToken = default) =>
         await dbContext.UserActionTokens.AddAsync(token, cancellationToken);
 

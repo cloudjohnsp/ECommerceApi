@@ -34,7 +34,7 @@ public sealed class UserActionHandlersTests
     {
         var user = UserFactory.Create();
         var token = CreateToken(user.Id, UserActionTokenType.EmailConfirmation);
-        _tokens.Setup(repository => repository.GetByHashAsync(
+        _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
                 TokenHash, UserActionTokenType.EmailConfirmation, It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
         _users.Setup(repository => repository.GetByIdAsync(
@@ -52,7 +52,8 @@ public sealed class UserActionHandlersTests
             UserActionTokenType.EmailConfirmation,
             It.IsAny<DateTimeOffset>(),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _audit.Verify(repository => repository.AddAsync(
             It.Is<UserAuditEntry>(entry => entry.Action == UserAuditAction.EmailConfirmed),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -75,7 +76,8 @@ public sealed class UserActionHandlersTests
         result.IsSuccess.Should().BeTrue();
         _tokens.Verify(repository => repository.AddAsync(
             It.IsAny<UserActionToken>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -83,7 +85,7 @@ public sealed class UserActionHandlersTests
     {
         var user = UserFactory.Create();
         user.ConfirmEmail();
-        _users.Setup(repository => repository.GetByEmailAsync(
+        _users.Setup(repository => repository.GetByEmailForUpdateAsync(
                 user.Email.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = new ForgotPasswordHandler(
@@ -104,7 +106,7 @@ public sealed class UserActionHandlersTests
         _outbox.Verify(repository => repository.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.PasswordResetRequested),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public sealed class UserActionHandlersTests
     {
         var user = UserFactory.Create();
         var token = CreateToken(user.Id, UserActionTokenType.PasswordReset);
-        _tokens.Setup(repository => repository.GetByHashAsync(
+        _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
                 TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
         _users.Setup(repository => repository.GetByIdAsync(
@@ -137,7 +139,8 @@ public sealed class UserActionHandlersTests
         user.PasswordHash.Should().Be("new-password-hash");
         _refreshTokens.Verify(repository => repository.RevokeAllForUserAsync(
             user.Id, It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _audit.Verify(repository => repository.AddAsync(
             It.Is<UserAuditEntry>(entry =>
                 entry.Action == UserAuditAction.PasswordChanged && entry.ChangesJson == "{}"),

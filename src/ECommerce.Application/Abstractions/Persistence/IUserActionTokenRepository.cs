@@ -9,6 +9,10 @@ public interface IUserActionTokenRepository
         string tokenHash,
         UserActionTokenType type,
         CancellationToken cancellationToken = default);
+    Task<UserActionToken?> GetByHashForUpdateAsync(
+        string tokenHash,
+        UserActionTokenType type,
+        CancellationToken cancellationToken = default);
     Task AddAsync(UserActionToken token, CancellationToken cancellationToken = default);
     Task ConsumeActiveForUserAsync(
         Guid userId,

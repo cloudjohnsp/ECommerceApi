@@ -40,6 +40,33 @@ public sealed class UserActionTokenRepositoryTests
         passwordReset.ConsumedAt.Should().BeNull();
     }
 
+    [Fact]
+    public async Task GetByHashForUpdateAsync_WithInMemoryProvider_ReturnsTrackedToken()
+    {
+        await using var context = CreateContext();
+        var user = User.Create(
+            "Jane",
+            "Doe",
+            Email.Create("lock-token@example.com").Value!,
+            "hashed-password").Value!;
+        var token = UserActionToken.Create(
+            user.Id,
+            FirstHash,
+            UserActionTokenType.PasswordReset,
+            DateTimeOffset.UtcNow.AddHours(1)).Value!;
+        context.AddRange(user, token);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new UserActionTokenRepository(context);
+
+        var result = await repository.GetByHashForUpdateAsync(
+            FirstHash,
+            UserActionTokenType.PasswordReset);
+
+        result.Should().NotBeNull();
+        context.Entry(result!).State.Should().Be(EntityState.Unchanged);
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

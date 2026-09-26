@@ -35,6 +35,9 @@ todos os tokens ainda ativos do usuário são revogados para interromper a cadei
 potencialmente comprometida.
 O logout usa o mesmo bloqueio transacional e encerra todas as sessões do usuário,
 inclusive quando concorre com uma solicitação de rotação.
+Tokens de confirmação e redefinição também são consumidos sob bloqueio pessimista;
+solicitações concorrentes de recuperação são serializadas pelo usuário e deixam
+somente o token mais recente utilizável.
 
 O catálogo é paginado e aceita busca textual, faixa de preço e ordenação:
 

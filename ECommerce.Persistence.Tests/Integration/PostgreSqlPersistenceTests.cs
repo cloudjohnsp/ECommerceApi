@@ -409,6 +409,103 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         persistedTokens.Should().OnlyContain(token => token.RevokedAt != null);
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task ResetPassword_ConcurrentUse_ConsumesTokenExactlyOnce()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        const string rawToken = "concurrent-password-reset-token";
+        var tokenService = new TestUserActionTokenService();
+        var user = User.Create(
+            "Reset",
+            "Customer",
+            Email.Create($"reset-{Guid.NewGuid():N}@example.com").Value!,
+            "old-hash").Value!;
+        var token = UserActionToken.Create(
+            user.Id,
+            tokenService.Hash(rawToken),
+            UserActionTokenType.PasswordReset,
+            DateTimeOffset.UtcNow.AddHours(1)).Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.AddRangeAsync(user, token);
+            await seedContext.SaveChangesAsync();
+        }
+
+        async Task<ECommerce.Shared.Results.Result> ResetAsync()
+        {
+            await using var context = new AppDbContext(options);
+            var handler = new ResetPasswordHandler(
+                new UserActionTokenRepository(context),
+                new UserRepository(context),
+                new RefreshTokenRepository(context),
+                tokenService,
+                new TestPasswordHasher(),
+                new UnitOfWork(context),
+                new UserAuditRepository(context));
+            return await handler.Handle(
+                new ResetPasswordCommand(rawToken, "NewPassword1!"),
+                CancellationToken.None);
+        }
+
+        var results = await Task.WhenAll(ResetAsync(), ResetAsync());
+
+        results.Should().ContainSingle(result => result.IsSuccess);
+        results.Should().ContainSingle(result => result.IsFailure);
+        await using var assertionContext = new AppDbContext(options);
+        (await assertionContext.UserActionTokens.SingleAsync(item => item.Id == token.Id))
+            .ConsumedAt.Should().NotBeNull();
+        (await assertionContext.UserAuditEntries.CountAsync(entry =>
+            entry.UserId == user.Id && entry.Action == UserAuditAction.PasswordChanged)).Should().Be(1);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task ForgotPassword_ConcurrentRequests_LeaveOneUsableToken()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var tokenService = new TestUserActionTokenService();
+        var user = User.Create(
+            "Forgot",
+            "Customer",
+            Email.Create($"forgot-{Guid.NewGuid():N}@example.com").Value!,
+            "hash").Value!;
+        user.ConfirmEmail();
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(user);
+            await seedContext.SaveChangesAsync();
+        }
+
+        async Task RequestResetAsync()
+        {
+            await using var context = new AppDbContext(options);
+            var handler = new ForgotPasswordHandler(
+                new UserRepository(context),
+                new UserActionTokenRepository(context),
+                new OutboxMessageRepository(context),
+                tokenService,
+                new UnitOfWork(context));
+            var result = await handler.Handle(
+                new ForgotPasswordCommand(user.Email.Value),
+                CancellationToken.None);
+            result.IsSuccess.Should().BeTrue();
+        }
+
+        await Task.WhenAll(RequestResetAsync(), RequestResetAsync());
+
+        await using var assertionContext = new AppDbContext(options);
+        var now = DateTimeOffset.UtcNow;
+        var usableTokens = await assertionContext.UserActionTokens.CountAsync(token =>
+            token.UserId == user.Id &&
+            token.Type == UserActionTokenType.PasswordReset &&
+            token.ConsumedAt == null &&
+            token.ExpiresAt > now);
+        usableTokens.Should().Be(1);
+    }
+
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>
         new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)
@@ -439,6 +536,20 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
 
         public DateTimeOffset GetRefreshTokenExpiresAt() => DateTimeOffset.UtcNow.AddDays(7);
+    }
+
+    private sealed class TestUserActionTokenService : IUserActionTokenService
+    {
+        private int _sequence;
+
+        public IssuedUserActionToken Issue()
+        {
+            var rawToken = $"action-{Interlocked.Increment(ref _sequence)}-{Guid.NewGuid():N}";
+            return new IssuedUserActionToken(rawToken, Hash(rawToken));
+        }
+
+        public string Hash(string rawToken) => Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
     }
 
     private sealed class NoOpProductCache : IProductCache

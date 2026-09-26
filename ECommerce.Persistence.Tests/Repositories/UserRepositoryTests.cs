@@ -53,6 +53,22 @@ public sealed class UserRepositoryTests
     }
 
     [Fact]
+    public async Task GetByEmailForUpdateAsync_WithInMemoryProvider_NormalizesAndTracksUser()
+    {
+        await using var context = CreateContext();
+        var user = CreateUser(email: "locking@example.com");
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new UserRepository(context);
+
+        var result = await repository.GetByEmailForUpdateAsync("  LOCKING@EXAMPLE.COM ");
+
+        result.Should().NotBeNull();
+        context.Entry(result!).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task ExistsByEmailAsync_ReturnsWhetherEmailExists()
     {
         await using var context = CreateContext();

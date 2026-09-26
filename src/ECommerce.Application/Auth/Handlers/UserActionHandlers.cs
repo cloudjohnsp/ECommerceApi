@@ -21,29 +21,40 @@ public sealed class ConfirmEmailHandler(
     public async Task<Result> Handle(ConfirmEmailCommand request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var token = await tokenRepository.GetByHashAsync(
-            tokenService.Hash(request.Token),
-            UserActionTokenType.EmailConfirmation,
-            cancellationToken);
-        if (token is null || !token.IsUsable(now))
-            return Result.Failure(InvalidTokenMessage);
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var token = await tokenRepository.GetByHashForUpdateAsync(
+                tokenService.Hash(request.Token),
+                UserActionTokenType.EmailConfirmation,
+                cancellationToken);
+            if (token is null || !token.IsUsable(now))
+                return Result.Failure(InvalidTokenMessage);
 
-        var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
-        if (user is null || !user.IsActive)
-            return Result.Failure(InvalidTokenMessage);
+            var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
+            if (user is null || !user.IsActive)
+                return Result.Failure(InvalidTokenMessage);
 
-        user.ConfirmEmail();
-        await tokenRepository.ConsumeActiveForUserAsync(
-            user.Id,
-            UserActionTokenType.EmailConfirmation,
-            now,
-            cancellationToken);
-        await userRepository.UpdateAsync(user, cancellationToken);
-        await auditRepository.AddAsync(
-            UserAuditEntryFactory.EmailConfirmed(user),
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-        return Result.Success();
+            user.ConfirmEmail();
+            await tokenRepository.ConsumeActiveForUserAsync(
+                user.Id,
+                UserActionTokenType.EmailConfirmation,
+                now,
+                cancellationToken);
+            await userRepository.UpdateAsync(user, cancellationToken);
+            await auditRepository.AddAsync(
+                UserAuditEntryFactory.EmailConfirmed(user),
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
 
@@ -60,29 +71,42 @@ public sealed class ForgotPasswordHandler(
         if (emailResult.IsFailure)
             return Result.Failure([.. emailResult.Errors]);
 
-        var user = await userRepository.GetByEmailAsync(emailResult.Value!.Value, cancellationToken);
-        if (user is null || !user.IsActive || !user.IsEmailConfirmed)
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var user = await userRepository.GetByEmailForUpdateAsync(
+                emailResult.Value!.Value,
+                cancellationToken);
+            if (user is null || !user.IsActive || !user.IsEmailConfirmed)
+                return Result.Success();
+
+            var now = DateTimeOffset.UtcNow;
+            await tokenRepository.ConsumeActiveForUserAsync(
+                user.Id,
+                UserActionTokenType.PasswordReset,
+                now,
+                cancellationToken);
+            var pendingTokenResult = UserActionTokenFactory.Create(
+                user,
+                UserActionTokenType.PasswordReset,
+                tokenService);
+            if (pendingTokenResult.IsFailure)
+                return Result.Failure([.. pendingTokenResult.Errors]);
+
+            await tokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
+            await outboxMessageRepository.AddAsync(
+                pendingTokenResult.Value.OutboxMessage,
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
             return Result.Success();
-
-        var now = DateTimeOffset.UtcNow;
-        await tokenRepository.ConsumeActiveForUserAsync(
-            user.Id,
-            UserActionTokenType.PasswordReset,
-            now,
-            cancellationToken);
-        var pendingTokenResult = UserActionTokenFactory.Create(
-            user,
-            UserActionTokenType.PasswordReset,
-            tokenService);
-        if (pendingTokenResult.IsFailure)
-            return Result.Failure([.. pendingTokenResult.Errors]);
-
-        await tokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
-        await outboxMessageRepository.AddAsync(
-            pendingTokenResult.Value.OutboxMessage,
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-        return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
 
@@ -100,32 +124,43 @@ public sealed class ResetPasswordHandler(
     public async Task<Result> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var token = await tokenRepository.GetByHashAsync(
-            tokenService.Hash(request.Token),
-            UserActionTokenType.PasswordReset,
-            cancellationToken);
-        if (token is null || !token.IsUsable(now))
-            return Result.Failure(InvalidTokenMessage);
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var token = await tokenRepository.GetByHashForUpdateAsync(
+                tokenService.Hash(request.Token),
+                UserActionTokenType.PasswordReset,
+                cancellationToken);
+            if (token is null || !token.IsUsable(now))
+                return Result.Failure(InvalidTokenMessage);
 
-        var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
-        if (user is null || !user.IsActive)
-            return Result.Failure(InvalidTokenMessage);
+            var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
+            if (user is null || !user.IsActive)
+                return Result.Failure(InvalidTokenMessage);
 
-        var changeResult = user.ChangePassword(passwordHasher.HashPassword(request.NewPassword));
-        if (changeResult.IsFailure)
-            return changeResult;
+            var changeResult = user.ChangePassword(passwordHasher.HashPassword(request.NewPassword));
+            if (changeResult.IsFailure)
+                return changeResult;
 
-        await tokenRepository.ConsumeActiveForUserAsync(
-            user.Id,
-            UserActionTokenType.PasswordReset,
-            now,
-            cancellationToken);
-        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
-        await userRepository.UpdateAsync(user, cancellationToken);
-        await auditRepository.AddAsync(
-            UserAuditEntryFactory.PasswordChanged(user, null),
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-        return Result.Success();
+            await tokenRepository.ConsumeActiveForUserAsync(
+                user.Id,
+                UserActionTokenType.PasswordReset,
+                now,
+                cancellationToken);
+            await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
+            await userRepository.UpdateAsync(user, cancellationToken);
+            await auditRepository.AddAsync(
+                UserAuditEntryFactory.PasswordChanged(user, null),
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
