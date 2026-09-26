@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Infrastructure.Options;
 using ECommerce.Shared.Results;
@@ -57,10 +58,21 @@ public sealed class PaymentGatewayClient(
                 return Result<GatewayPayment>.Failure(
                     $"Payment gateway rejected the request with status {(int)response.StatusCode}.");
 
+            var mediaType = response.Content.Headers.ContentType?.MediaType;
+            if (mediaType is null ||
+                !mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) &&
+                !mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<GatewayPayment>.Failure(
+                    "Payment gateway returned an invalid response.");
+            }
+
             var gatewayPayment = await response.Content.ReadFromJsonAsync<GatewayPaymentResponse>(
                 cancellationToken: cancellationToken);
 
-            return gatewayPayment is null || string.IsNullOrWhiteSpace(gatewayPayment.Id)
+            return gatewayPayment is null ||
+                   string.IsNullOrWhiteSpace(gatewayPayment.Id) ||
+                   string.IsNullOrWhiteSpace(gatewayPayment.Status)
                 ? Result<GatewayPayment>.Failure("Payment gateway returned an invalid response.")
                 : Result<GatewayPayment>.Success(new GatewayPayment(gatewayPayment.Id, gatewayPayment.Status));
         }
@@ -71,6 +83,14 @@ public sealed class PaymentGatewayClient(
         catch (HttpRequestException)
         {
             return Result<GatewayPayment>.Failure("Payment gateway is unavailable.");
+        }
+        catch (JsonException)
+        {
+            return Result<GatewayPayment>.Failure("Payment gateway returned an invalid response.");
+        }
+        catch (NotSupportedException)
+        {
+            return Result<GatewayPayment>.Failure("Payment gateway returned an invalid response.");
         }
     }
 

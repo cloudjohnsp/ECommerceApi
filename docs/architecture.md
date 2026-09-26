@@ -86,6 +86,9 @@ O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próp
 externa.
 Uma resposta de reembolso só pode avançar o estado local quando confirma o mesmo
 `ExternalPaymentId` enviado na solicitação e o status `refunded`.
+Respostas 2xx do gateway ainda precisam usar um media type JSON e conter
+identificador e status não vazios; violações do contrato são retornadas como
+falha controlada da integração, sem expor exceções de desserialização.
 Webhooks são autenticados por HMAC e o par `event`/`data.status` é validado antes
 de abrir a transação, evitando que um payload contraditório aplique uma transição
 financeira diferente da informada pelo gateway.

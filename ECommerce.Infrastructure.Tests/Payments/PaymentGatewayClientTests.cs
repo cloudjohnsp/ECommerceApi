@@ -53,6 +53,29 @@ public sealed class PaymentGatewayClientTests
         result.Errors.Should().Contain("Payment gateway is unavailable.");
     }
 
+    [Theory]
+    [InlineData("not-json", "application/json")]
+    [InlineData("{\"id\":\"pay_123\",\"status\":\"pending\"}", "text/plain")]
+    [InlineData("{\"id\":\"pay_123\",\"status\":\"\"}", "application/json")]
+    public async Task CreateAsync_WhenSuccessResponseCannotBeParsed_ReturnsFailure(
+        string responseBody,
+        string mediaType)
+    {
+        var handler = new StubHttpMessageHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = new StringContent(responseBody, Encoding.UTF8, mediaType)
+            }));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("http://gateway/") };
+        var sut = new PaymentGatewayClient(client, CreateOptions());
+
+        var result = await sut.CreateAsync(
+            new CreateGatewayPayment(Guid.NewGuid(), Guid.NewGuid(), 10m, "BRL"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment gateway returned an invalid response.");
+    }
+
     [Fact]
     public async Task RefundAsync_SendsIdempotentRefundRequest()
     {
