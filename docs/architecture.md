@@ -51,7 +51,10 @@ estoque e persiste pedido e evento de outbox na mesma transação. Cancelar um
 pedido pendente libera a reserva.
 Somente uma conta ativa com role `Customer` pode ser associada como cliente de
 um novo pedido; administradores podem operar e consultar pedidos, mas não são
-aceitos como identidade comercial do pedido.
+aceitos como identidade comercial do pedido. A criação bloqueia o cliente antes
+dos produtos, impedindo que uma desativação concorrente seja intercalada entre
+a autorização comercial e o commit. Produtos inativos são rejeitados mesmo que
+ainda possuam estoque físico.
 
 Cada criação de inventário e transição relevante de reserva, consumo, liberação,
 restauração ou ajuste também grava `stock.updated` na mesma transação. O contrato

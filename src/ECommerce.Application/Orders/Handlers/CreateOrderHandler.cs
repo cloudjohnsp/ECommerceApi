@@ -25,7 +25,9 @@ public sealed class CreateOrderHandler(
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            var customer = await userRepository.GetByIdAsync(request.CustomerId, cancellationToken);
+            var customer = await userRepository.GetByIdForUpdateAsync(
+                request.CustomerId,
+                cancellationToken);
             if (customer is null ||
                 !customer.IsActive ||
                 customer.Role != UserRole.Customer)
@@ -43,7 +45,11 @@ public sealed class CreateOrderHandler(
             foreach (var item in requestedItems)
             {
                 var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
-                if (product is null) return Result<OrderDto>.Failure($"Product '{item.ProductId}' not found.");
+                if (product is null || !product.IsActive)
+                {
+                    return Result<OrderDto>.Failure(
+                        $"Product '{item.ProductId}' not found or inactive.");
+                }
                 if (product.AvailableStock < item.Quantity)
                     return Result<OrderDto>.Failure($"Insufficient available stock for product '{product.Name}'.");
                 products.Add((product, item.Quantity));

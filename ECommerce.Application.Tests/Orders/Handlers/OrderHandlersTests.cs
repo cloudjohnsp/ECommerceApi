@@ -28,7 +28,7 @@ public sealed class OrderHandlersTests
     {
         var customer = UserFactory.Create();
         var product = ProductFactory.Create(stock: 10);
-        _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
+        _users.Setup(x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
@@ -52,6 +52,12 @@ public sealed class OrderHandlersTests
                 message.Payload.Contains(StockUpdateReasons.Reserved)),
             It.IsAny<CancellationToken>()), Times.Once);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Once);
+        _users.Verify(
+            x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _users.Verify(
+            x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
@@ -77,7 +83,7 @@ public sealed class OrderHandlersTests
     public async Task Create_WithAdministratorAsCustomer_ReturnsFailureWithoutLoadingProducts()
     {
         var administrator = UserFactory.Create(role: UserRole.Administrator);
-        _users.Setup(x => x.GetByIdAsync(
+        _users.Setup(x => x.GetByIdForUpdateAsync(
                 administrator.Id,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(administrator);
@@ -108,7 +114,7 @@ public sealed class OrderHandlersTests
     {
         var customer = UserFactory.Create();
         var product = ProductFactory.Create(stock: 2);
-        _users.Setup(x => x.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
+        _users.Setup(x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
@@ -125,11 +131,46 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
+    public async Task Create_WithInactiveProduct_ReturnsFailureWithoutReservingStock()
+    {
+        var customer = UserFactory.Create();
+        var product = ProductFactory.Create(stock: 10);
+        product.Deactivate();
+        _users.Setup(x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(customer);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        var handler = new CreateOrderHandler(
+            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
+
+        var result = await handler.Handle(
+            new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 1)]),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain($"Product '{product.Id}' not found or inactive.");
+        product.AvailableStock.Should().Be(10);
+        _orders.Verify(
+            x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _outboxMessages.Verify(
+            x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Create_WhenInfrastructureFails_RollsBackAndPropagatesException()
     {
         var customerId = Guid.NewGuid();
         const string sensitiveInfrastructureDetail = "server=internal-db; password=secret";
-        _users.Setup(x => x.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+        _users.Setup(x => x.GetByIdForUpdateAsync(customerId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(sensitiveInfrastructureDetail));
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,

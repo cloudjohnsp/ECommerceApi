@@ -111,6 +111,9 @@ Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
 `POST /api/v1/orders/{orderId}/items`. A operação bloqueia pedido e produto,
 reserva o estoque e grava `order.updated` e `stock.updated` na outbox na mesma
 transação. Pedidos pagos, cancelados ou reembolsados não aceitam novos itens.
+Tanto a criação quanto a inclusão de itens rejeitam produtos inativos; na
+criação, a conta do cliente também é bloqueada até o commit para não concorrer
+com sua desativação.
 
 A consulta paginada fica em `GET /api/v1/orders/search` e aceita `status`,
 `createdFromUtc`, `createdToUtc`, `sortBy`, `descending`, `page` e `pageSize`.
