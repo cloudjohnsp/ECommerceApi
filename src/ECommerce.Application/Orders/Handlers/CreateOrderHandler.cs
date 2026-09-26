@@ -83,10 +83,6 @@ public sealed class CreateOrderHandler(
 
             return Result<OrderDto>.Success(orderDto);
         }
-        catch (Exception ex)
-        {
-            return Result<OrderDto>.Failure($"An error occurred while creating the order: {ex.Message}");
-        }
         finally
         {
             if (!transactionCommitted)

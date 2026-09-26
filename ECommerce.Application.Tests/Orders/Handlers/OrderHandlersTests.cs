@@ -95,6 +95,27 @@ public sealed class OrderHandlersTests
     }
 
     [Fact]
+    public async Task Create_WhenInfrastructureFails_RollsBackAndPropagatesException()
+    {
+        var customerId = Guid.NewGuid();
+        const string sensitiveInfrastructureDetail = "server=internal-db; password=secret";
+        _users.Setup(x => x.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(sensitiveInfrastructureDetail));
+        var handler = new CreateOrderHandler(
+            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _unitOfWork.Object, _productCache.Object);
+
+        var action = () => handler.Handle(
+            new CreateOrderCommand(customerId, [new CreateOrderItem(Guid.NewGuid(), 1)]),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage(sensitiveInfrastructureDetail);
+        _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(x => x.RollbackTransactionAsync(CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
     public async Task GetById_WhenFound_ReturnsOrder()
     {
         var order = OrderFactory.Create();
