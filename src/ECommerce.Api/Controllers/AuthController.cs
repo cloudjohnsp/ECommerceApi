@@ -89,10 +89,11 @@ public sealed class AuthController(ISender mediator) : BaseApiController
 
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
     {
-        await mediator.Send(new LogoutCommand(request.RefreshToken));
-        return NoContent();
+        var result = await mediator.Send(new LogoutCommand(request.RefreshToken));
+        return result.IsFailure ? BadRequest(result.Errors) : NoContent();
     }
 
     [HttpPost("confirm-email")]

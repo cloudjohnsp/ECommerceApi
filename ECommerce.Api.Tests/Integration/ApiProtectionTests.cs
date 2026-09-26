@@ -35,6 +35,17 @@ public sealed class ApiProtectionTests
     }
 
     [Fact]
+    public async Task Logout_WithMissingRefreshToken_ReturnsBadRequest()
+    {
+        await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var response = await client.PostAsJsonAsync("/api/auth/logout", new { refreshToken = "" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task CorsPreflight_ForConfiguredOrigin_ReturnsAllowOriginHeader()
     {
         await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);
