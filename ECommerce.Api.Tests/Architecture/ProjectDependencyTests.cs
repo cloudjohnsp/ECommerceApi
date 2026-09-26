@@ -6,6 +6,21 @@ namespace ECommerce.Api.Tests.Architecture;
 public sealed class ProjectDependencyTests
 {
     [Theory]
+    [InlineData("src/ECommerce.Domain/ECommerce.Domain.csproj")]
+    [InlineData("src/ECommerce.Application/ECommerce.Application.csproj")]
+    public void CoreProjects_DoNotReferenceAspNetCoreFramework(string projectPath)
+    {
+        var project = XDocument.Load(Path.Combine(FindSolutionRoot(), projectPath));
+
+        var frameworkReferences = project
+            .Descendants("FrameworkReference")
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .Where(reference => !string.IsNullOrWhiteSpace(reference));
+
+        frameworkReferences.Should().BeEmpty();
+    }
+
+    [Theory]
     [MemberData(nameof(ProjectReferences))]
     public void ProjectReferences_PreserveDependencyDirection(
         string projectPath,
