@@ -50,6 +50,40 @@ public sealed class ApiProtectionTests
             .Should().ContainSingle("https://frontend.example.com");
     }
 
+    [Fact]
+    public async Task GlobalRateLimit_WhenForwardedHeadersAreDisabled_IgnoresSpoofedClientAddress()
+    {
+        await using var factory = new ProtectedApiFactory(
+            globalLimit: 1,
+            authenticationLimit: 10,
+            useForwardedHeaders: false);
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var firstRequest = CreateForwardedRequest("203.0.113.10");
+        using var secondRequest = CreateForwardedRequest("203.0.113.11");
+
+        (await client.SendAsync(firstRequest)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(secondRequest)).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task GlobalRateLimit_WhenForwardedHeadersAreEnabled_PartitionsByForwardedClientAddress()
+    {
+        await using var factory = new ProtectedApiFactory(
+            globalLimit: 1,
+            authenticationLimit: 10,
+            useForwardedHeaders: true);
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var firstClientRequest = CreateForwardedRequest("203.0.113.10");
+        using var repeatedClientRequest = CreateForwardedRequest("203.0.113.10");
+        using var otherClientRequest = CreateForwardedRequest("203.0.113.11");
+
+        (await client.SendAsync(firstClientRequest)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(repeatedClientRequest)).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (await client.SendAsync(otherClientRequest)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Theory]
     [InlineData("/api/health/live", HttpStatusCode.OK)]
     [InlineData("/api/route-that-does-not-exist", HttpStatusCode.NotFound)]
@@ -74,7 +108,18 @@ public sealed class ApiProtectionTests
         AllowAutoRedirect = false
     };
 
-    private sealed class ProtectedApiFactory(int globalLimit, int authenticationLimit)
+    private static HttpRequestMessage CreateForwardedRequest(string clientAddress)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/health/live");
+        request.Headers.Add("X-Forwarded-For", clientAddress);
+        request.Headers.Add("X-Forwarded-Proto", "https");
+        return request;
+    }
+
+    private sealed class ProtectedApiFactory(
+        int globalLimit,
+        int authenticationLimit,
+        bool useForwardedHeaders = false)
         : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -85,6 +130,7 @@ public sealed class ApiProtectionTests
             builder.UseSetting("ApiProtection:GlobalPermitLimit", globalLimit.ToString());
             builder.UseSetting("ApiProtection:AuthenticationPermitLimit", authenticationLimit.ToString());
             builder.UseSetting("ApiProtection:WindowSeconds", "300");
+            builder.UseSetting("ApiProtection:UseForwardedHeaders", useForwardedHeaders.ToString());
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureServices(services =>
             {

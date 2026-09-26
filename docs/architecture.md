@@ -123,6 +123,10 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e
   com limite mais restritivo os endpoints de autenticação.
+- Em implantação atrás de um ingress isolado, o processamento opt-in de um único
+  salto de `X-Forwarded-For` e `X-Forwarded-Proto` preserva o cliente usado pelo
+  rate limiting e o esquema HTTPS. A opção permanece desabilitada por padrão
+  para impedir spoofing quando a API recebe tráfego direto.
 - Todas as respostas, inclusive falhas, desabilitam MIME sniffing e framing e
   restringem o envio de referrer, câmera, geolocalização e microfone por headers.
 - A API usa bearer tokens em headers, não cookies de autenticação; portanto CSRF

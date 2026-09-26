@@ -6,6 +6,7 @@ using ECommerce.Persistence;
 using ECommerce.Api.Options;
 using ECommerce.Api.Security;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -128,6 +129,17 @@ public static class DependencyInjection
                     .AllowAnyHeader()
                     .AllowAnyMethod());
         });
+        if (options.UseForwardedHeaders)
+        {
+            services.Configure<ForwardedHeadersOptions>(forwardedHeaders =>
+            {
+                forwardedHeaders.ForwardedHeaders =
+                    ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                forwardedHeaders.ForwardLimit = 1;
+                forwardedHeaders.KnownIPNetworks.Clear();
+                forwardedHeaders.KnownProxies.Clear();
+            });
+        }
         services.AddRateLimiter(rateLimiter =>
         {
             rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

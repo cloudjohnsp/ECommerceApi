@@ -28,6 +28,8 @@ var app = builder.Build();
 await app.Services.ApplyDatabaseMigrationsAsync();
 app.Services.ScheduleOutboxJobs();
 
+if (app.Services.GetRequiredService<IOptions<ApiProtectionOptions>>().Value.UseForwardedHeaders)
+    app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>

@@ -70,6 +70,13 @@ Defina `ApiProtection__UseHttpsRedirection=false`: o App Service termina TLS no
 front-end e encaminha HTTP para o contêiner. A exigência de HTTPS deve permanecer
 habilitada na configuração **HTTPS Only** do próprio App Service.
 
+Defina também `ApiProtection__UseForwardedHeaders=true`. O contêiner do App
+Service não fica diretamente acessível: somente nesse limite de confiança a API
+aceita `X-Forwarded-For` e `X-Forwarded-Proto` do front-end, processando um único
+salto. Isso preserva o IP real usado pelo rate limiting e o esquema HTTPS
+original. Não habilite essa opção quando o processo puder receber tráfego direto,
+pois um cliente poderia forjar esses headers.
+
 O seed é destinado a ambientes locais e fica desabilitado em produção. Caso um
 bootstrap controlado seja necessário, configure `DatabaseSeed__Enabled=true` e
 forneça `DatabaseSeed__AdministratorEmail` e

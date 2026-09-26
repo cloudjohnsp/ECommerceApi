@@ -69,6 +69,20 @@ public sealed class CommittedConfigurationTests
     }
 
     [Fact]
+    public void ForwardedHeaders_AreDisabledByDefaultAndDocumentedForIsolatedIngress()
+    {
+        var root = FindSolutionRoot();
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            root, "src", "ECommerce.Api", "appsettings.json")));
+        var apiProtection = document.RootElement.GetProperty("ApiProtection");
+        var deploymentGuide = File.ReadAllText(Path.Combine(root, "docs", "azure-deployment.md"));
+
+        apiProtection.GetProperty("UseForwardedHeaders").GetBoolean().Should().BeFalse();
+        deploymentGuide.Should().Contain("ApiProtection__UseForwardedHeaders=true");
+        deploymentGuide.Should().Contain("Não habilite essa opção quando o processo puder receber tráfego direto");
+    }
+
+    [Fact]
     public void ReleaseWorkflow_UsesOidcAndImmutableContainerImage()
     {
         var workflow = File.ReadAllText(Path.Combine(
