@@ -19,4 +19,8 @@ public static class WorkerTelemetry
         "ecommerce.worker.notifications.sent");
     public static readonly Counter<long> FailedNotifications = Meter.CreateCounter<long>(
         "ecommerce.worker.notifications.failed");
+    public static readonly Counter<long> PublishedEvents = Meter.CreateCounter<long>(
+        "ecommerce.worker.events.published");
+    public static readonly Counter<long> FailedEventPublications = Meter.CreateCounter<long>(
+        "ecommerce.worker.events.publication_failed");
 }

@@ -197,5 +197,10 @@ public sealed class RabbitMqOrderConsumer(
             _options.ExchangeName,
             StockIntegrationEventProcessor.EventType,
             cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(
+            _options.QueueName,
+            _options.ExchangeName,
+            EmailSentIntegrationEventProcessor.EventType,
+            cancellationToken: cancellationToken);
     }
 }

@@ -10,8 +10,11 @@ public sealed class WorkerDbContext(DbContextOptions<WorkerDbContext> options) :
     public DbSet<ConsumedIntegrationEvent> ConsumedIntegrationEvents => Set<ConsumedIntegrationEvent>();
     public DbSet<OrderProjection> OrderProjections => Set<OrderProjection>();
     public DbSet<InventoryProjection> InventoryProjections => Set<InventoryProjection>();
+    public DbSet<EmailDeliveryProjection> EmailDeliveryProjections => Set<EmailDeliveryProjection>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<NotificationOutboxMessage> NotificationOutboxMessages => Set<NotificationOutboxMessage>();
+    public DbSet<WorkerIntegrationOutboxMessage> IntegrationOutboxMessages =>
+        Set<WorkerIntegrationOutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

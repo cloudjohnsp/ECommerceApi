@@ -1,3 +1,5 @@
+using System.Text.Json;
+using ECommerce.Shared.Messaging;
 using ECommerce.Worker.Notifications;
 using ECommerce.Worker.Options;
 using ECommerce.Worker.Persistence;
@@ -27,6 +29,15 @@ public sealed class NotificationOutboxProcessorTests
         message.SentAt.Should().NotBeNull();
         message.Attempts.Should().Be(1);
         sender.Deliveries.Should().ContainSingle();
+        var sentEvent = await context.IntegrationOutboxMessages.SingleAsync();
+        sentEvent.Id.Should().Be(message.Id);
+        sentEvent.Type.Should().Be("email.sent");
+        var payload = JsonSerializer.Deserialize<EmailSentIntegrationEventPayload>(sentEvent.Payload);
+        payload!.DeliveryId.Should().Be(message.Id);
+        payload.Category.Should().Be(EmailDeliveryCategories.OrderNotification);
+        sentEvent.Payload.Should().NotContain(message.Recipient);
+        sentEvent.Payload.Should().NotContain(message.Subject);
+        sentEvent.Payload.Should().NotContain(message.Body);
     }
 
     [Fact]
@@ -47,6 +58,7 @@ public sealed class NotificationOutboxProcessorTests
         message.LastError.Should().Be("SMTP unavailable");
         message.NextAttemptAt.Should().BeAfter(before.AddSeconds(9));
         message.LockedUntil.Should().BeNull();
+        (await context.IntegrationOutboxMessages.CountAsync()).Should().Be(0);
     }
 
     [Fact]

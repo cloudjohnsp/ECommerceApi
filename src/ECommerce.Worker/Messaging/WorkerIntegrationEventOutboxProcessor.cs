@@ -1,20 +1,17 @@
-using System.Text.Json;
-using ECommerce.Shared.Messaging;
-using ECommerce.Worker.Options;
 using ECommerce.Worker.Observability;
+using ECommerce.Worker.Options;
 using ECommerce.Worker.Persistence;
 using ECommerce.Worker.Persistence.Entities;
-using ECommerce.Worker.Processing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace ECommerce.Worker.Notifications;
+namespace ECommerce.Worker.Messaging;
 
-public sealed class NotificationOutboxProcessor(
+public sealed class WorkerIntegrationEventOutboxProcessor(
     WorkerDbContext dbContext,
-    IOrderEmailSender emailSender,
+    IWorkerIntegrationEventPublisher publisher,
     IOptions<NotificationProcessorOptions> options,
-    ILogger<NotificationOutboxProcessor> logger)
+    ILogger<WorkerIntegrationEventOutboxProcessor> logger)
 {
     private readonly NotificationProcessorOptions _options = options.Value;
 
@@ -25,11 +22,15 @@ public sealed class NotificationOutboxProcessor(
         {
             try
             {
-                await emailSender.SendAsync(
-                    message.Recipient,
-                    message.Subject,
-                    message.Body,
+                await publisher.PublishAsync(
+                    new WorkerIntegrationEvent(
+                        message.Id,
+                        message.Type,
+                        message.Payload,
+                        message.CreatedAt),
                     cancellationToken);
+                message.MarkProcessed(DateTimeOffset.UtcNow);
+                WorkerTelemetry.PublishedEvents.Add(1);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -40,37 +41,21 @@ public sealed class NotificationOutboxProcessor(
                 var retryDelay = TimeSpan.FromSeconds(
                     Math.Min(Math.Pow(2, message.Attempts + 1) * 5, 3600));
                 message.MarkFailed(exception.Message, DateTimeOffset.UtcNow.Add(retryDelay));
-                WorkerTelemetry.FailedNotifications.Add(1);
+                WorkerTelemetry.FailedEventPublications.Add(1);
                 logger.LogWarning(
                     exception,
-                    "Notification {NotificationId} delivery failed on attempt {Attempt}.",
+                    "Integration event {MessageId} publication failed on attempt {Attempt}.",
                     message.Id,
                     message.Attempts);
-                await dbContext.SaveChangesAsync(cancellationToken);
-                continue;
             }
 
-            var sentAt = DateTimeOffset.UtcNow;
-            message.MarkSent(sentAt);
-            var payload = new EmailSentIntegrationEventPayload(
-                message.Id,
-                EmailDeliveryCategories.OrderNotification,
-                sentAt);
-            await dbContext.IntegrationOutboxMessages.AddAsync(
-                new WorkerIntegrationOutboxMessage(
-                    message.Id,
-                    EmailSentIntegrationEventProcessor.EventType,
-                    JsonSerializer.Serialize(payload),
-                    sentAt),
-                cancellationToken);
-            WorkerTelemetry.SentNotifications.Add(1);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         return messages.Count;
     }
 
-    private async Task<List<NotificationOutboxMessage>> ClaimBatchAsync(
+    private async Task<List<WorkerIntegrationOutboxMessage>> ClaimBatchAsync(
         CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -86,11 +71,11 @@ public sealed class NotificationOutboxProcessor(
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var messages = await dbContext.NotificationOutboxMessages
+        var messages = await dbContext.IntegrationOutboxMessages
             .FromSqlInterpolated($$"""
                 SELECT *
-                FROM worker.notification_outbox_messages
-                WHERE "SentAt" IS NULL
+                FROM worker.integration_outbox_messages
+                WHERE "ProcessedAt" IS NULL
                   AND "Attempts" < {{_options.MaximumAttempts}}
                   AND "NextAttemptAt" <= {{now}}
                   AND ("LockedUntil" IS NULL OR "LockedUntil" <= {{now}})
@@ -107,10 +92,10 @@ public sealed class NotificationOutboxProcessor(
         return messages;
     }
 
-    private IQueryable<NotificationOutboxMessage> PendingQuery(DateTimeOffset now) =>
-        dbContext.NotificationOutboxMessages
+    private IQueryable<WorkerIntegrationOutboxMessage> PendingQuery(DateTimeOffset now) =>
+        dbContext.IntegrationOutboxMessages
             .Where(message =>
-                message.SentAt == null &&
+                message.ProcessedAt == null &&
                 message.Attempts < _options.MaximumAttempts &&
                 message.NextAttemptAt <= now &&
                 (message.LockedUntil == null || message.LockedUntil <= now))

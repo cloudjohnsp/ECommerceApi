@@ -1,9 +1,13 @@
 using System.Text.Json;
 using ECommerce.Shared.Messaging;
+using ECommerce.Worker.Messaging;
+using ECommerce.Worker.Notifications;
+using ECommerce.Worker.Options;
 using ECommerce.Worker.Persistence;
 using ECommerce.Worker.Processing;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -61,9 +65,47 @@ public sealed class WorkerPostgreSqlIntegrationTests
             Guid.NewGuid(),
             StockIntegrationEventProcessor.EventType,
             JsonSerializer.SerializeToUtf8Bytes(stockPayload));
+        var processorOptions = Microsoft.Extensions.Options.Options.Create(
+            new NotificationProcessorOptions
+            {
+                BatchSize = 10,
+                LockSeconds = 60,
+                MaximumAttempts = 8
+            });
+        var notificationProcessor = new NotificationOutboxProcessor(
+            context,
+            new RecordingOrderEmailSender(),
+            processorOptions,
+            NullLogger<NotificationOutboxProcessor>.Instance);
+        (await notificationProcessor.ProcessBatchAsync()).Should().Be(2);
+        var eventPublisher = new RecordingIntegrationEventPublisher();
+        var eventProcessor = new WorkerIntegrationEventOutboxProcessor(
+            context,
+            eventPublisher,
+            processorOptions,
+            NullLogger<WorkerIntegrationEventOutboxProcessor>.Instance);
+        (await eventProcessor.ProcessBatchAsync()).Should().Be(2);
+        var emailProcessor = new EmailSentIntegrationEventProcessor(context);
+        foreach (var integrationEvent in eventPublisher.Events)
+        {
+            await emailProcessor.ProcessAsync(
+                integrationEvent.Id,
+                integrationEvent.Type,
+                JsonSerializer.SerializeToUtf8Bytes(
+                    JsonSerializer.Deserialize<EmailSentIntegrationEventPayload>(
+                        integrationEvent.Payload)!),
+                CancellationToken.None);
+        }
 
-        (await context.ConsumedIntegrationEvents.CountAsync()).Should().Be(3);
+        (await context.ConsumedIntegrationEvents.CountAsync()).Should().Be(5);
         (await context.NotificationOutboxMessages.CountAsync()).Should().Be(2);
+        (await context.NotificationOutboxMessages.CountAsync(message => message.SentAt != null))
+            .Should().Be(2);
+        (await context.IntegrationOutboxMessages.CountAsync()).Should().Be(2);
+        (await context.IntegrationOutboxMessages.CountAsync(message => message.ProcessedAt != null))
+            .Should().Be(2);
+        eventPublisher.Events.Should().HaveCount(2);
+        (await context.EmailDeliveryProjections.CountAsync()).Should().Be(2);
         (await context.Invoices.CountAsync()).Should().Be(1);
         (await context.InventoryProjections.SingleAsync()).AvailableStock.Should().Be(9);
 
@@ -72,7 +114,29 @@ public sealed class WorkerPostgreSqlIntegrationTests
         await using var command = new NpgsqlCommand(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'worker';",
             connection);
-        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().BeGreaterThanOrEqualTo(6);
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().BeGreaterThanOrEqualTo(7);
+    }
+
+    private sealed class RecordingOrderEmailSender : IOrderEmailSender
+    {
+        public Task SendAsync(
+            string recipient,
+            string subject,
+            string body,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingIntegrationEventPublisher : IWorkerIntegrationEventPublisher
+    {
+        public List<WorkerIntegrationEvent> Events { get; } = [];
+
+        public Task PublishAsync(
+            WorkerIntegrationEvent integrationEvent,
+            CancellationToken cancellationToken = default)
+        {
+            Events.Add(integrationEvent);
+            return Task.CompletedTask;
+        }
     }
 }
 

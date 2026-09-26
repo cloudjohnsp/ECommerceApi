@@ -32,8 +32,10 @@ builder.Services.AddDbContext<WorkerDbContext>(options =>
         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", WorkerDbContext.SchemaName)));
 builder.Services.AddScoped<OrderIntegrationEventProcessor>();
 builder.Services.AddScoped<StockIntegrationEventProcessor>();
+builder.Services.AddScoped<EmailSentIntegrationEventProcessor>();
 builder.Services.AddScoped<IntegrationEventProcessor>();
 builder.Services.AddScoped<NotificationOutboxProcessor>();
+builder.Services.AddScoped<WorkerIntegrationEventOutboxProcessor>();
 
 builder.Services.AddOptions<WorkerRabbitMqOptions>()
     .Bind(builder.Configuration.GetSection(WorkerRabbitMqOptions.SectionName))
@@ -85,6 +87,7 @@ builder.Services.AddSingleton(_ => new ConnectionFactory
     AutomaticRecoveryEnabled = false,
     ConsumerDispatchConcurrency = 1
 });
+builder.Services.AddSingleton<IWorkerIntegrationEventPublisher, RabbitMqWorkerIntegrationEventPublisher>();
 builder.Services.AddHealthChecks()
     .AddCheck<WorkerPostgresHealthCheck>(
         "postgres",

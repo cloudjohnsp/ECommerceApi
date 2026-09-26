@@ -55,9 +55,31 @@ public sealed class IntegrationEventProcessorTests
         (await context.InventoryProjections.CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task EmailSent_IsDispatchedToEmailProcessor()
+    {
+        await using var context = CreateContext();
+        var processor = CreateProcessor(context);
+        var payload = new EmailSentIntegrationEventPayload(
+            Guid.NewGuid(),
+            EmailDeliveryCategories.EmailConfirmation,
+            DateTimeOffset.UtcNow);
+
+        var result = await processor.ProcessAsync(
+            Guid.NewGuid(),
+            EmailSentIntegrationEventProcessor.EventType,
+            JsonSerializer.SerializeToUtf8Bytes(payload));
+
+        result.Should().Be(IntegrationEventProcessingResult.Processed);
+        (await context.EmailDeliveryProjections.SingleAsync()).DeliveryId
+            .Should().Be(payload.DeliveryId);
+        (await context.OrderProjections.CountAsync()).Should().Be(0);
+    }
+
     private static IntegrationEventProcessor CreateProcessor(WorkerDbContext context) => new(
         new OrderIntegrationEventProcessor(context),
-        new StockIntegrationEventProcessor(context));
+        new StockIntegrationEventProcessor(context),
+        new EmailSentIntegrationEventProcessor(context));
 
     private static WorkerDbContext CreateContext()
     {

@@ -159,13 +159,16 @@ dotnet run --project src/ECommerce.Worker
 ```
 
 O consumidor recebe `order.created`, `order.updated`, `order.paid`,
-`payment.failed`, `order.refunded`, `order.cancelled` e `stock.updated`. A tabela
-de inbox impede efeitos duplicados; projeções de pedido e disponibilidade, nota
-fiscal e notificação são persistidas atomicamente antes do ACK. Eventos de
-estoque atrasados são registrados na inbox sem regredir a projeção mais recente.
+`payment.failed`, `order.refunded`, `order.cancelled`, `stock.updated` e
+`email.sent`. A tabela de inbox impede efeitos duplicados; projeções de pedido,
+disponibilidade e entregas, nota fiscal e notificação são persistidas
+atomicamente antes do ACK. Eventos atrasados são registrados na inbox sem
+regredir a projeção mais recente.
 Falhas transitórias são reenfileiradas e, após o limite da fila quorum, seguem
-para `ecommerce.worker.orders.dead`. E-mails usam uma segunda outbox com lease e
-backoff exponencial, visível no Mailpit durante o desenvolvimento.
+para `ecommerce.worker.orders.dead`. Notificações usam uma outbox com lease e
+backoff exponencial, visível no Mailpit durante o desenvolvimento. Depois do
+envio, uma segunda outbox local publica `email.sent` com confirmação do broker e
+retry, sem repetir o SMTP quando apenas o RabbitMQ estiver indisponível.
 O processo também expõe `/health/live`, `/health/ready` e `/metrics` na porta
 `8082` do host quando executado pelo Compose. O Prometheus coleta métricas de
 eventos consumidos, duplicados, falhos e notificações enviadas ou reprocessadas.
@@ -346,10 +349,11 @@ O dashboard técnico do Hangfire não é exposto pela API.
 
 Eventos de pedido, estoque e entrega de e-mail armazenados na outbox são
 publicados no exchange durável `ecommerce.events` do RabbitMQ com routing keys
-como `order.created` e `stock.updated`; entregas de conta usam `email.sent`. O
+como `order.created` e `stock.updated`; entregas de conta e pedido usam
+`email.sent`. O
 evento de estoque informa `ProductId`, `AvailableStock`,
 `OrderId` opcional, motivo e instante da mudança; o estoque físico e a reserva
 permanecem encapsulados no domínio. A publicação usa confirmação do broker e
-entrega persistente. Como o processamento
-é *at-least-once*, consumidores devem deduplicar pelo `MessageId`, que corresponde
+entrega persistente. Como o processamento é *at-least-once*, consumidores devem
+deduplicar pelo `MessageId`, que corresponde
 ao identificador da mensagem na outbox.

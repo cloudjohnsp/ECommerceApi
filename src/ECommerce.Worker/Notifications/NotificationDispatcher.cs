@@ -1,4 +1,5 @@
 using ECommerce.Worker.Options;
+using ECommerce.Worker.Messaging;
 using Microsoft.Extensions.Options;
 
 namespace ECommerce.Worker.Notifications;
@@ -20,6 +21,9 @@ public sealed class NotificationDispatcher(
                 using var scope = scopeFactory.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<NotificationOutboxProcessor>();
                 await processor.ProcessBatchAsync(stoppingToken);
+                var eventProcessor = scope.ServiceProvider
+                    .GetRequiredService<WorkerIntegrationEventOutboxProcessor>();
+                await eventProcessor.ProcessBatchAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

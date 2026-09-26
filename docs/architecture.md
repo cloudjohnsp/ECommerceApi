@@ -80,7 +80,8 @@ financeira diferente da informada pelo gateway.
 Eventos de integração são publicados cronologicamente a partir da outbox. O lote
 para no primeiro erro para preservar causalidade. A publicação é *at least once*:
 uma queda depois do publish e antes de marcar a outbox pode gerar redelivery.
-As routing keys incluem os eventos de ciclo de vida do pedido e `stock.updated`.
+As routing keys incluem os eventos de ciclo de vida do pedido, `stock.updated` e
+`email.sent`.
 
 O Worker usa:
 
@@ -90,10 +91,14 @@ O Worker usa:
 - inbox com `MessageId` único;
 - projeção local do pedido;
 - projeção local de `AvailableStock` alimentada por `stock.updated`;
+- projeção sanitizada das entregas alimentada por `email.sent`;
 - nota fiscal simulada única por pedido pago;
-- segunda outbox para e-mails, com lease e backoff exponencial.
+- outbox de notificações, com lease e backoff exponencial;
+- outbox de integração para publicar a confirmação do SMTP sem dual-write.
 
-Inbox, projeções, nota e intenção de notificação são confirmadas antes do ACK. O
+Inbox, projeções, nota e intenção de notificação são confirmadas antes do ACK. Ao
+enviar uma notificação, o Worker marca a entrega e cria `email.sent` na mesma
+transação local; outra etapa publica o evento com confirmação, lease e retry. O
 SMTP continua sendo *at least once*: uma falha depois da aceitação pelo servidor
 e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocolo.
 
