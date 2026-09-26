@@ -10,7 +10,7 @@ namespace ECommerce.Persistence.Repositories;
 public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
 {
     public Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Orders.Include(order => order.Items)
+        dbContext.Orders.AsNoTracking().Include(order => order.Items)
             .FirstOrDefaultAsync(order => order.Id == id, cancellationToken);
 
     public Task<Order?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>

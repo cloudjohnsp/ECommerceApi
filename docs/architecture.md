@@ -72,6 +72,12 @@ depois do commit. Se ela falhar, a intenção permanece pendente para o Hangfire
 Se o gateway responder e o processo cair antes do segundo commit, a mesma chave
 de idempotência é reutilizada no retry.
 
+Depois da chamada HTTP, o processador recarrega e bloqueia primeiro o pagamento
+e depois a intenção antes de registrar o identificador externo. Ele nunca salva
+a instância lida antes da chamada externa; assim, um webhook ou retry concorrente
+que já tenha avançado o pagamento não pode ser sobrescrito por um estado
+`Pending` obsoleto.
+
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
 externa.

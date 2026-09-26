@@ -9,7 +9,17 @@ namespace ECommerce.Persistence.Repositories;
 public sealed class OutboxMessageRepository(AppDbContext dbContext) : IOutboxMessageRepository
 {
     public Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.OutboxMessages.FirstOrDefaultAsync(message => message.Id == id, cancellationToken);
+        dbContext.OutboxMessages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(message => message.Id == id, cancellationToken);
+
+    public Task<OutboxMessage?> GetByIdForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
+            ? dbContext.OutboxMessages
+                .FromSqlInterpolated($"SELECT * FROM \"OutboxMessages\" WHERE \"Id\" = {id} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : dbContext.OutboxMessages.SingleOrDefaultAsync(message => message.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
         IReadOnlyCollection<OutBoxMessageType> types,

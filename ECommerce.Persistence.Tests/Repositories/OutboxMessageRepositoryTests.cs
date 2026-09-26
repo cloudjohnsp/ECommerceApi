@@ -51,6 +51,22 @@ public sealed class OutboxMessageRepositoryTests
     }
 
     [Fact]
+    public async Task GetByIdForUpdateAsync_WithInMemoryProvider_ReturnsTrackedMessage()
+    {
+        await using var context = CreateContext();
+        var repository = new OutboxMessageRepository(context);
+        var message = new OutboxMessage(OutBoxMessageType.PaymentCreationRequested, "{}");
+        await repository.AddAsync(message);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var persisted = await repository.GetByIdForUpdateAsync(message.Id);
+
+        persisted.Should().NotBeNull();
+        context.Entry(persisted!).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task GetPendingIdsAsync_ReturnsRequestedTypesInGlobalCreationOrderWithinBatchSize()
     {
         await using var context = CreateContext();

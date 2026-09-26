@@ -8,10 +8,22 @@ namespace ECommerce.Persistence.Repositories;
 public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentRepository
 {
     public Task<Payment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Payments.FirstOrDefaultAsync(payment => payment.Id == id, cancellationToken);
+        dbContext.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(payment => payment.Id == id, cancellationToken);
+
+    public Task<Payment?> GetByIdForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
+            ? dbContext.Payments
+                .FromSqlInterpolated($"SELECT * FROM payments WHERE id = {id} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : dbContext.Payments.SingleOrDefaultAsync(payment => payment.Id == id, cancellationToken);
 
     public Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default) =>
-        dbContext.Payments.FirstOrDefaultAsync(payment => payment.OrderId == orderId, cancellationToken);
+        dbContext.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(payment => payment.OrderId == orderId, cancellationToken);
 
     public Task<Payment?> GetByOrderIdForUpdateAsync(
         Guid orderId,

@@ -82,6 +82,37 @@ public sealed class PaymentCreationProcessorTests
         _unitOfWork.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Process_WhenPaymentAdvancesDuringGatewayCall_PreservesLockedState()
+    {
+        var (stalePayment, intention, gatewayRequest) = SetupPendingIntention();
+        var currentPayment = Payment.Create(
+            stalePayment.OrderId,
+            stalePayment.Amount,
+            stalePayment.Provider).Value!;
+        typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(currentPayment, stalePayment.Id);
+        currentPayment.MarkAsPaid("pay_123");
+        _payments.Setup(x => x.GetByIdForUpdateAsync(
+                stalePayment.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(currentPayment);
+        _outbox.Setup(x => x.GetByIdForUpdateAsync(
+                intention.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(intention);
+        _gateway.Setup(x => x.CreateAsync(gatewayRequest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GatewayPayment>.Success(new GatewayPayment("pay_123", "pending")));
+        var processor = CreateProcessor();
+
+        var result = await processor.ProcessAsync(intention.Id);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().BeSameAs(currentPayment);
+        currentPayment.Status.Should().Be(PaymentStatus.Paid);
+        currentPayment.PaidAt.Should().NotBeNull();
+        _payments.Verify(x => x.Update(currentPayment), Times.Once);
+        _payments.Verify(x => x.Update(stalePayment), Times.Never);
+        intention.Status.Should().Be(OutBoxMessageStatus.Processed);
+    }
+
     private (Payment Payment, OutboxMessage Intention, CreateGatewayPayment GatewayRequest) SetupPendingIntention()
     {
         var payment = Payment.Create(Guid.NewGuid(), 100m, "ECommercePayment").Value!;
@@ -92,6 +123,10 @@ public sealed class PaymentCreationProcessorTests
             JsonSerializer.Serialize(gatewayRequest));
         _outbox.Setup(x => x.GetByIdAsync(payment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(intention);
         _payments.Setup(x => x.GetByIdAsync(payment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+        _outbox.Setup(x => x.GetByIdForUpdateAsync(payment.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(intention);
+        _payments.Setup(x => x.GetByIdForUpdateAsync(payment.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
         return (payment, intention, gatewayRequest);
     }
 

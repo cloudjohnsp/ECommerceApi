@@ -38,33 +38,54 @@ public sealed class PaymentCreationProcessor(
             return Result<Payment>.Failure("Payment creation intention has an invalid payload.");
         }
 
-        if (payment.ExternalPaymentId is null)
+        var externalPaymentId = payment.ExternalPaymentId;
+        if (externalPaymentId is null)
         {
             var gatewayResult = await paymentGateway.CreateAsync(gatewayRequest, cancellationToken);
             if (gatewayResult.IsFailure)
                 return Result<Payment>.Failure([.. gatewayResult.Errors]);
 
-            var registerResult = payment.RegisterExternalPayment(gatewayResult.Value!.ExternalPaymentId);
-            if (registerResult.IsFailure)
-                return Result<Payment>.Failure([.. registerResult.Errors]);
+            externalPaymentId = gatewayResult.Value!.ExternalPaymentId;
         }
 
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            paymentRepository.Update(payment);
-            intention.MarkProcessed();
-            outboxMessageRepository.Update(intention);
+            var currentPayment = await paymentRepository.GetByIdForUpdateAsync(
+                outboxMessageId,
+                cancellationToken);
+            if (currentPayment is null)
+                return Result<Payment>.Failure("Payment not found.");
+
+            var currentIntention = await outboxMessageRepository.GetByIdForUpdateAsync(
+                outboxMessageId,
+                cancellationToken);
+            if (currentIntention is null ||
+                currentIntention.Type != OutBoxMessageType.PaymentCreationRequested)
+            {
+                return Result<Payment>.Failure("Payment creation intention not found.");
+            }
+
+            if (currentIntention.Status == OutBoxMessageStatus.Processed)
+                return Result<Payment>.Success(currentPayment);
+
+            var registerResult = currentPayment.RegisterExternalPayment(externalPaymentId);
+            if (registerResult.IsFailure)
+                return Result<Payment>.Failure([.. registerResult.Errors]);
+
+            paymentRepository.Update(currentPayment);
+            currentIntention.MarkProcessed();
+            outboxMessageRepository.Update(currentIntention);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
+
+            return Result<Payment>.Success(currentPayment);
         }
         finally
         {
             if (!transactionCommitted)
                 await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
         }
-
-        return Result<Payment>.Success(payment);
     }
 }

@@ -523,6 +523,37 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task PaymentCreationLocks_LoadPaymentAndOutboxUsingPostgreSql()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        var payment = Payment.Create(order.Id, 100m, "ECommercePayment").Value!;
+        var intention = new OutboxMessage(
+            payment.Id,
+            OutBoxMessageType.PaymentCreationRequested,
+            "{}");
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.AddRangeAsync(order, payment, intention);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = new AppDbContext(options);
+        var unitOfWork = new UnitOfWork(context);
+        await unitOfWork.BeginTransactionAsync();
+
+        var lockedPayment = await new PaymentRepository(context).GetByIdForUpdateAsync(payment.Id);
+        var lockedIntention = await new OutboxMessageRepository(context)
+            .GetByIdForUpdateAsync(intention.Id);
+
+        lockedPayment.Should().NotBeNull();
+        lockedIntention.Should().NotBeNull();
+        await unitOfWork.RollbackTransactionAsync();
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task ResetPassword_ConcurrentUse_ConsumesTokenExactlyOnce()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

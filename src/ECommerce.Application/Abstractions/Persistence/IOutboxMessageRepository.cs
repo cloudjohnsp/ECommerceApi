@@ -6,6 +6,7 @@ namespace ECommerce.Application.Abstractions.Persistence;
 public interface IOutboxMessageRepository
 {
     Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<OutboxMessage?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Guid>> GetPendingIdsAsync(
         IReadOnlyCollection<OutBoxMessageType> types,
         int take,

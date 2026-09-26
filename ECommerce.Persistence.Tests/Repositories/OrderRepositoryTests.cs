@@ -41,6 +41,8 @@ public sealed class OrderRepositoryTests
 
         result.Should().NotBeNull();
         result!.Items.Should().ContainSingle();
+        context.Entry(result).State.Should().Be(EntityState.Detached);
+        context.Entry(result.Items.Single()).State.Should().Be(EntityState.Detached);
     }
 
     [Fact]

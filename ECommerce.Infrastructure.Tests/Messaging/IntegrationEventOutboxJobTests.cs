@@ -77,6 +77,11 @@ public sealed class IntegrationEventOutboxJobTests
         public Task<OutboxMessage?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<OutboxMessage?>(null);
 
+        public Task<OutboxMessage?> GetByIdForUpdateAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OutboxMessage?>(null);
+
         public Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
