@@ -77,6 +77,9 @@ e depois a intenção antes de registrar o identificador externo. Ele nunca salv
 a instância lida antes da chamada externa; assim, um webhook ou retry concorrente
 que já tenha avançado o pagamento não pode ser sobrescrito por um estado
 `Pending` obsoleto.
+Uma criação só conclui essa intenção quando o gateway confirma o estado
+`pending`; estados inesperados são tratados como resposta inválida e mantêm a
+intenção disponível para diagnóstico e retry.
 
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada

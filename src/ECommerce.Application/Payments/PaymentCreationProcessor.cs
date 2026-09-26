@@ -45,7 +45,17 @@ public sealed class PaymentCreationProcessor(
             if (gatewayResult.IsFailure)
                 return Result<Payment>.Failure([.. gatewayResult.Errors]);
 
-            externalPaymentId = gatewayResult.Value!.ExternalPaymentId;
+            var gatewayPayment = gatewayResult.Value!;
+            if (!string.Equals(
+                    gatewayPayment.Status?.Trim(),
+                    "pending",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<Payment>.Failure(
+                    "Payment gateway returned an invalid creation status.");
+            }
+
+            externalPaymentId = gatewayPayment.ExternalPaymentId;
         }
 
         var transactionCommitted = false;

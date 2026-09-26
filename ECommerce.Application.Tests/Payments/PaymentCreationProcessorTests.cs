@@ -52,6 +52,24 @@ public sealed class PaymentCreationProcessorTests
     }
 
     [Fact]
+    public async Task Process_WhenGatewayReturnsUnexpectedCreationStatus_LeavesIntentionPending()
+    {
+        var (_, intention, gatewayRequest) = SetupPendingIntention();
+        _gateway.Setup(x => x.CreateAsync(gatewayRequest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GatewayPayment>.Success(new GatewayPayment("pay_123", "approved")));
+        var processor = CreateProcessor();
+
+        var result = await processor.ProcessAsync(intention.Id);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment gateway returned an invalid creation status.");
+        intention.Status.Should().Be(OutBoxMessageStatus.Pending);
+        _unitOfWork.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _payments.Verify(x => x.Update(It.IsAny<Payment>()), Times.Never);
+        _outbox.Verify(x => x.Update(It.IsAny<OutboxMessage>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Process_WhenPaymentAlreadyHasExternalId_DoesNotCallGatewayAndRepairsOutboxStatus()
     {
         var (payment, intention, _) = SetupPendingIntention();
