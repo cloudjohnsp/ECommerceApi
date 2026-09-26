@@ -357,6 +357,9 @@ Ao iniciar um pagamento, a API salva o pagamento e uma intenção
 executada imediatamente e um serviço em segundo plano reprocessa intenções que
 continuarem pendentes, usando o `Payment.Id` como chave de idempotência no
 gateway.
+O valor e a moeda ISO de três letras ficam registrados no pagamento local. Uma
+repetição para o mesmo pedido precisa usar a moeda original; a API rejeita a
+solicitação antes de reutilizar a intenção quando os códigos diferem.
 
 Os processadores de pagamentos, e-mails e eventos de integração são jobs
 recorrentes do Hangfire. O agendamento, o tamanho do lote e a quantidade de

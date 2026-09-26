@@ -8,6 +8,7 @@ public sealed class Payment : Entity
 {
     public Guid OrderId { get; private set; }
     public decimal Amount { get; private set; }
+    public string Currency { get; private set; } = string.Empty;
     public PaymentStatus Status { get; private set; }
     public string Provider { get; private set; } = string.Empty;
     public string? ExternalPaymentId { get; private set; }
@@ -20,18 +21,24 @@ public sealed class Payment : Entity
     {
     }
 
-    private Payment(Guid orderId, decimal amount, string provider)
+    private Payment(Guid orderId, decimal amount, string currency, string provider)
     {
         OrderId = orderId;
         Amount = amount;
+        Currency = currency;
         Provider = provider;
         Status = PaymentStatus.Pending;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
-    public static Result<Payment> Create(Guid orderId, decimal amount, string? provider)
+    public static Result<Payment> Create(
+        Guid orderId,
+        decimal amount,
+        string? currency,
+        string? provider)
     {
         var errors = new List<string>();
+        var normalizedCurrency = currency?.Trim().ToUpperInvariant();
 
         if (orderId == Guid.Empty)
             errors.Add("Order id is required.");
@@ -44,12 +51,22 @@ public sealed class Payment : Entity
             if (!MoneyConstraints.HasSupportedScale(amount))
                 errors.Add($"Payment amount cannot have more than {MoneyConstraints.Scale} decimal places.");
         }
+        if (normalizedCurrency is null ||
+            normalizedCurrency.Length != 3 ||
+            normalizedCurrency.Any(character => character is < 'A' or > 'Z'))
+        {
+            errors.Add("Payment currency must be a three-letter ISO code.");
+        }
         if (string.IsNullOrWhiteSpace(provider) || provider.Trim().Length > 100)
             errors.Add("Payment provider must contain between 1 and 100 characters.");
 
         return errors.Count > 0
             ? Result<Payment>.Failure([.. errors])
-            : Result<Payment>.Success(new Payment(orderId, amount, provider!.Trim()));
+            : Result<Payment>.Success(new Payment(
+                orderId,
+                amount,
+                normalizedCurrency!,
+                provider!.Trim()));
     }
 
     public Result RegisterExternalPayment(string? externalPaymentId)

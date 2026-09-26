@@ -47,6 +47,7 @@ public sealed class PaymentHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.ExternalPaymentId.Should().Be("pay_123");
+        result.Value.Currency.Should().Be("BRL");
         result.Value.Status.Should().Be(PaymentStatus.Pending);
         _payments.Verify(x => x.AddAsync(It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Once);
         _outbox.Verify(x => x.AddAsync(It.Is<OutboxMessage>(message =>
@@ -57,10 +58,39 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Create_WhenExistingPaymentUsesAnotherCurrency_ReturnsFailureWithoutCallingGateway()
+    {
+        var order = OrderFactory.Create();
+        var payment = Payment.Create(order.Id, order.Total, "USD", "ECommercePayment").Value!;
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        var handler = new CreatePaymentHandler(
+            _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment currency does not match the existing payment.");
+        _paymentProcessor.Verify(
+            x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _outbox.Verify(
+            x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Create_WhenPaymentWasAlreadyRegistered_DoesNotCallGatewayAgain()
     {
         var order = OrderFactory.Create();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
@@ -175,7 +205,7 @@ public sealed class PaymentHandlersTests
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 3);
         order.MarkAsPaid();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
@@ -232,7 +262,7 @@ public sealed class PaymentHandlersTests
         var order = OrderFactory.Create();
         order.MarkAsPaid();
         order.MarkAsRefunded();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         payment.MarkAsRefunded();
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
@@ -261,7 +291,7 @@ public sealed class PaymentHandlersTests
     {
         var order = OrderFactory.Create();
         order.MarkAsPaid();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
@@ -306,7 +336,7 @@ public sealed class PaymentHandlersTests
         product.ReserveStock(3);
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 3);
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
         _payments.Setup(x => x.GetByExternalIdForUpdateAsync("pay_123", It.IsAny<CancellationToken>()))
@@ -348,7 +378,7 @@ public sealed class PaymentHandlersTests
         product.ReserveStock(3);
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 3);
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
@@ -384,7 +414,7 @@ public sealed class PaymentHandlersTests
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 3);
         order.MarkAsPaid();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         SetupWebhook(payment, order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
@@ -477,7 +507,7 @@ public sealed class PaymentHandlersTests
     {
         var order = OrderFactory.Create();
         order.Cancel();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
         var handler = CreateWebhookHandler();

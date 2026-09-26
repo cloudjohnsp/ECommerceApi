@@ -107,6 +107,7 @@ public sealed class PaymentCreationProcessorTests
         var currentPayment = Payment.Create(
             stalePayment.OrderId,
             stalePayment.Amount,
+            stalePayment.Currency,
             stalePayment.Provider).Value!;
         typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(currentPayment, stalePayment.Id);
         currentPayment.MarkAsPaid("pay_123");
@@ -133,7 +134,7 @@ public sealed class PaymentCreationProcessorTests
 
     private (Payment Payment, OutboxMessage Intention, CreateGatewayPayment GatewayRequest) SetupPendingIntention()
     {
-        var payment = Payment.Create(Guid.NewGuid(), 100m, "ECommercePayment").Value!;
+        var payment = Payment.Create(Guid.NewGuid(), 100m, "BRL", "ECommercePayment").Value!;
         var gatewayRequest = new CreateGatewayPayment(payment.Id, payment.OrderId, payment.Amount, "BRL");
         var intention = new OutboxMessage(
             payment.Id,

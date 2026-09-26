@@ -3,17 +3,35 @@ using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ECommerce.Persistence.Tests.Repositories;
 
 public sealed class PaymentRepositoryTests
 {
     [Fact]
+    public void Model_RequiresValidatedThreeLetterCurrency()
+    {
+        using var context = CreateRelationalModelContext();
+        var entityType = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(Payment));
+
+        entityType.Should().NotBeNull();
+        var currency = entityType!.FindProperty(nameof(Payment.Currency));
+        currency.Should().NotBeNull();
+        currency!.IsNullable.Should().BeFalse();
+        currency.GetColumnType().Should().Be("character(3)");
+        entityType.GetCheckConstraints().Should().ContainSingle(constraint =>
+            constraint.Name == "ck_payments_currency" &&
+            constraint.Sql == "\"currency\" ~ '^[A-Z]{3}$'");
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ReturnsPersistedPayment()
     {
         await using var context = CreateContext();
         var repository = new PaymentRepository(context);
-        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "ECommercePayment").Value!;
+        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "BRL", "ECommercePayment").Value!;
         await repository.AddAsync(payment);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -23,6 +41,7 @@ public sealed class PaymentRepositoryTests
         persisted.Should().NotBeNull();
         persisted!.OrderId.Should().Be(payment.OrderId);
         persisted.Amount.Should().Be(125.50m);
+        persisted.Currency.Should().Be("BRL");
         context.Entry(persisted).State.Should().Be(EntityState.Detached);
     }
 
@@ -31,7 +50,7 @@ public sealed class PaymentRepositoryTests
     {
         await using var context = CreateContext();
         var repository = new PaymentRepository(context);
-        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "ECommercePayment").Value!;
+        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "BRL", "ECommercePayment").Value!;
         await repository.AddAsync(payment);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -47,7 +66,7 @@ public sealed class PaymentRepositoryTests
     {
         await using var context = CreateContext();
         var repository = new PaymentRepository(context);
-        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "ECommercePayment").Value!;
+        var payment = Payment.Create(Guid.NewGuid(), 125.50m, "BRL", "ECommercePayment").Value!;
         await repository.AddAsync(payment);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -62,6 +81,15 @@ public sealed class PaymentRepositoryTests
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new AppDbContext(options);
+    }
+
+    private static AppDbContext CreateRelationalModelContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=model;Username=model;Password=model")
             .Options;
 
         return new AppDbContext(options);

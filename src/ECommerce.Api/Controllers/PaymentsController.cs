@@ -38,8 +38,14 @@ public sealed class PaymentsController(ISender mediator) : BaseApiController
         if (result.IsSuccess) return Ok(result.Value);
 
         if (result.Errors.Contains("Order not found.")) return NotFound(result.Errors);
-        if (result.Errors.Any(error => error.StartsWith("Only pending orders", StringComparison.Ordinal)))
+        if (result.Errors.Any(error =>
+                error.StartsWith("Only pending orders", StringComparison.Ordinal) ||
+                error.Equals(
+                    "Payment currency does not match the existing payment.",
+                    StringComparison.Ordinal)))
+        {
             return Conflict(result.Errors);
+        }
         if (result.Errors.Any(error => error.StartsWith("Payment gateway", StringComparison.Ordinal)))
             return StatusCode(StatusCodes.Status502BadGateway, result.Errors);
 

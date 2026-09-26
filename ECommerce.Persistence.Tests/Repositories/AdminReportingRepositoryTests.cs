@@ -30,12 +30,12 @@ public sealed class AdminReportingRepositoryTests
         var refundedOrder = CreateOrder(activeUser.Id, activeProduct);
         refundedOrder.MarkAsPaid();
         refundedOrder.MarkAsRefunded();
-        var pendingPayment = Payment.Create(pendingOrder.Id, pendingOrder.Total, "test").Value!;
-        var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "test").Value!;
+        var pendingPayment = Payment.Create(pendingOrder.Id, pendingOrder.Total, "BRL", "test").Value!;
+        var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "BRL", "test").Value!;
         paidPayment.MarkAsPaid("pay_paid");
-        var failedPayment = Payment.Create(cancelledOrder.Id, cancelledOrder.Total, "test").Value!;
+        var failedPayment = Payment.Create(cancelledOrder.Id, cancelledOrder.Total, "BRL", "test").Value!;
         failedPayment.MarkAsFailed();
-        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "test").Value!;
+        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "BRL", "test").Value!;
         refundedPayment.MarkAsPaid("pay_refunded");
         refundedPayment.MarkAsRefunded();
 
@@ -78,9 +78,9 @@ public sealed class AdminReportingRepositoryTests
         refundedOrder.AddItem(mouse.Id, mouse.Name, mouse.Price, 1);
         refundedOrder.MarkAsPaid();
         refundedOrder.MarkAsRefunded();
-        var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "test").Value!;
+        var paidPayment = Payment.Create(paidOrder.Id, paidOrder.Total, "BRL", "test").Value!;
         paidPayment.MarkAsPaid("pay_report_paid");
-        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "test").Value!;
+        var refundedPayment = Payment.Create(refundedOrder.Id, refundedOrder.Total, "BRL", "test").Value!;
         refundedPayment.MarkAsPaid("pay_report_refunded");
         refundedPayment.MarkAsRefunded();
         await context.AddRangeAsync(

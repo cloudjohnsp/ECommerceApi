@@ -22,6 +22,7 @@ public sealed class CreatePaymentHandler(
     {
         Payment payment;
         OutboxMessage? intention = null;
+        var currency = request.Currency.Trim().ToUpperInvariant();
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -35,7 +36,11 @@ public sealed class CreatePaymentHandler(
             var existingPayment = await paymentRepository.GetByOrderIdAsync(request.OrderId, cancellationToken);
             if (existingPayment is null)
             {
-                var paymentResult = Payment.Create(order.Id, order.Total, "ECommercePayment");
+                var paymentResult = Payment.Create(
+                    order.Id,
+                    order.Total,
+                    currency,
+                    "ECommercePayment");
                 if (paymentResult.IsFailure)
                     return Result<PaymentDto>.Failure([.. paymentResult.Errors]);
 
@@ -45,6 +50,11 @@ public sealed class CreatePaymentHandler(
             else
             {
                 payment = existingPayment;
+                if (!string.Equals(payment.Currency, currency, StringComparison.Ordinal))
+                {
+                    return Result<PaymentDto>.Failure(
+                        "Payment currency does not match the existing payment.");
+                }
             }
 
             if (payment.ExternalPaymentId is null)
@@ -56,7 +66,7 @@ public sealed class CreatePaymentHandler(
                         payment.Id,
                         payment.OrderId,
                         payment.Amount,
-                        request.Currency.ToUpperInvariant());
+                        payment.Currency);
                     intention = new OutboxMessage(
                         payment.Id,
                         OutBoxMessageType.PaymentCreationRequested,

@@ -333,7 +333,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         var order = Order.Create(customer.Id).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 123);
         order.MarkAsPaid();
-        var payment = Payment.Create(order.Id, order.Total, "integration").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "integration").Value!;
         payment.MarkAsPaid($"pay_{suffix}");
 
         await using (var writeContext = new AppDbContext(options))
@@ -528,7 +528,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         var connectionString = await fixture.GetConnectionStringAsync();
         var options = CreateOptions(connectionString);
         var order = Order.Create(Guid.NewGuid()).Value!;
-        var payment = Payment.Create(order.Id, 100m, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, 100m, "BRL", "ECommercePayment").Value!;
         var intention = new OutboxMessage(
             payment.Id,
             OutBoxMessageType.PaymentCreationRequested,

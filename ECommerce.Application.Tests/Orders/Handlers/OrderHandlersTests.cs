@@ -285,7 +285,7 @@ public sealed class OrderHandlersTests
         product.ReserveStock(2);
         var order = Order.Create(Guid.NewGuid()).Value!;
         order.AddItem(product.Id, product.Name, product.Price, 2);
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .Callback(() => acquiredLocks.Add("order"))
@@ -325,7 +325,7 @@ public sealed class OrderHandlersTests
     public async Task UpdateToPaid_WithoutApprovedPayment_RollsBackWithoutChangingOrder()
     {
         var order = OrderFactory.Create();
-        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
         _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))

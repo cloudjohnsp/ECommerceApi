@@ -84,6 +84,9 @@ intenção disponível para diagnóstico e retry.
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
 externa.
+O pagamento local preserva valor e moeda ISO normalizada. Como há apenas um
+pagamento por pedido, tentativas repetidas com outra moeda são rejeitadas antes
+de qualquer chamada ao gateway.
 Uma resposta de reembolso só pode avançar o estado local quando confirma o mesmo
 `ExternalPaymentId` enviado na solicitação e o status `refunded`.
 Respostas 2xx do gateway ainda precisam usar um media type JSON e conter
