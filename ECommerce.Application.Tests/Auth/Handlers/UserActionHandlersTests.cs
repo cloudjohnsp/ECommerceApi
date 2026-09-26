@@ -120,6 +120,8 @@ public sealed class UserActionHandlersTests
         _users.Setup(repository => repository.GetByIdAsync(
                 user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
+        _passwordHasher.Setup(hasher => hasher.VerifyPassword("NewPassword1!", user.PasswordHash))
+            .Returns(false);
         _passwordHasher.Setup(hasher => hasher.HashPassword("NewPassword1!"))
             .Returns("new-password-hash");
         var handler = new ResetPasswordHandler(
@@ -145,6 +147,50 @@ public sealed class UserActionHandlersTests
             It.Is<UserAuditEntry>(entry =>
                 entry.Action == UserAuditAction.PasswordChanged && entry.ChangesJson == "{}"),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WhenNewPasswordMatchesCurrentPassword_PreservesTokenAndSessions()
+    {
+        var user = UserFactory.Create();
+        var originalPasswordHash = user.PasswordHash;
+        var token = CreateToken(user.Id, UserActionTokenType.PasswordReset);
+        _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
+                TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
+        _users.Setup(repository => repository.GetByIdAsync(
+                user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _passwordHasher.Setup(hasher => hasher.VerifyPassword("CurrentPassword1!", user.PasswordHash))
+            .Returns(true);
+        var handler = new ResetPasswordHandler(
+            _tokens.Object,
+            _users.Object,
+            _refreshTokens.Object,
+            _tokenService.Object,
+            _passwordHasher.Object,
+            _unitOfWork.Object,
+            _audit.Object);
+
+        var result = await handler.Handle(
+            new ResetPasswordCommand("raw-token", "CurrentPassword1!"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("New password must be different from the current password.");
+        user.PasswordHash.Should().Be(originalPasswordHash);
+        _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
+        _tokens.Verify(repository => repository.ConsumeActiveForUserAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<UserActionTokenType>(),
+            It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _refreshTokens.Verify(repository => repository.RevokeAllForUserAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _audit.Verify(repository => repository.AddAsync(
+            It.IsAny<UserAuditEntry>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(CancellationToken.None), Times.Once);
     }
 
     private static UserActionToken CreateToken(Guid userId, UserActionTokenType type) =>

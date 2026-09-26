@@ -139,6 +139,9 @@ public sealed class ResetPasswordHandler(
             if (user is null || !user.IsActive)
                 return Result.Failure(InvalidTokenMessage);
 
+            if (passwordHasher.VerifyPassword(request.NewPassword, user.PasswordHash))
+                return Result.Failure("New password must be different from the current password.");
+
             var changeResult = user.ChangePassword(passwordHasher.HashPassword(request.NewPassword));
             if (changeResult.IsFailure)
                 return changeResult;
