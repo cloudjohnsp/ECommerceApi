@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ECommerce.Api.Authorization;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Api.Controllers;
 
@@ -18,6 +19,27 @@ public sealed class OrdersController(ISender mediator) : BaseApiController
         if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
         var result = await mediator.Send(new GetOrdersQuery(customerId), cancellationToken);
         return Ok(result.Value);
+    }
+
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(PagedResult<OrderDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Search(
+        [FromQuery] OrderSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!User.TryGetCustomerScope(out var customerId)) return Forbid();
+        var query = new SearchOrdersQuery(
+            customerId,
+            request.Status,
+            request.CreatedFromUtc,
+            request.CreatedToUtc,
+            request.SortBy,
+            request.Descending,
+            request.Page,
+            request.PageSize);
+        var result = await mediator.Send(query, cancellationToken);
+        return result.IsFailure ? BadRequest(result.Errors) : Ok(result.Value);
     }
 
     [HttpGet("{orderId:guid}")]

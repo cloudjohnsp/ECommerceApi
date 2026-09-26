@@ -94,6 +94,13 @@ Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
 reserva o estoque e grava `order.updated` na outbox na mesma transação. Pedidos
 pagos, cancelados ou reembolsados não aceitam novos itens.
 
+A consulta paginada fica em `GET /api/v1/orders/search` e aceita `status`,
+`createdFromUtc`, `createdToUtc`, `sortBy`, `descending`, `page` e `pageSize`.
+`sortBy` aceita `createdAt`, `status` ou `total`, e `pageSize` é limitado a 100.
+Clientes recebem somente os próprios pedidos, independentemente dos parâmetros
+enviados; administradores podem consultar o conjunto global. O `GET /orders`
+original permanece disponível para compatibilidade.
+
 O `PUT /api/v1/orders/{orderId}` é uma operação administrativa de reconciliação,
 não um atalho para aprovar pagamentos. A transição para `Paid` só ocorre quando
 já existe um pagamento aprovado; nesse caso, a reserva é consumida e o evento

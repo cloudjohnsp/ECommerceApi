@@ -287,6 +287,13 @@
       "name": "Orders and payments",
       "item": [
         {
+          "name": "Search orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders/search?sortBy=createdAt&descending=true&page=1&pageSize=20"
+          }
+        },
+        {
           "name": "Create order",
           "request": {
             "method": "POST",

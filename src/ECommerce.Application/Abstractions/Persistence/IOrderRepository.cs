@@ -1,4 +1,6 @@
 using ECommerce.Domain.Entities;
+using ECommerce.Application.Abstractions.Specifications;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Application.Abstractions.Persistence;
 
@@ -9,6 +11,9 @@ public interface IOrderRepository
     Task<IReadOnlyCollection<Order>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Order>> GetByCustomerIdAsync(
         Guid customerId,
+        CancellationToken cancellationToken = default);
+    Task<PagedResult<Order>> SearchAsync(
+        ISpecification<Order> specification,
         CancellationToken cancellationToken = default);
     Task AddAsync(Order order, CancellationToken cancellationToken = default);
     void Update(Order order);

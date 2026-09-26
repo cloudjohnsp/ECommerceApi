@@ -11,6 +11,7 @@ using ECommerce.Application.Payments;
 using ECommerce.Application.Payments.Dtos;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
+using ECommerce.Shared.Pagination;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -197,6 +198,32 @@ public sealed class AuthorizationControllerTests
                 command.ProductId == productId &&
                 command.Quantity == 2 &&
                 command.CustomerId == authenticatedUserId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SearchOrders_CustomerScopeComesFromAuthenticatedUser()
+    {
+        var authenticatedUserId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(x => x.Send(It.IsAny<SearchOrdersQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PagedResult<OrderDto>>.Success(new PagedResult<OrderDto>([], 1, 20, 0)));
+        var controller = new OrdersController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(authenticatedUserId, UserRole.Customer)
+                }
+            }
+        };
+
+        var response = await controller.Search(new OrderSearchRequest(), CancellationToken.None);
+
+        response.Should().BeOfType<OkObjectResult>();
+        mediator.Verify(x => x.Send(
+            It.Is<SearchOrdersQuery>(query => query.CustomerId == authenticatedUserId),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

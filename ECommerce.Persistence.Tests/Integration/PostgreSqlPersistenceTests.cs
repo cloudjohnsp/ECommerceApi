@@ -1,6 +1,7 @@
 using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Orders;
 using ECommerce.Application.Orders.Handlers;
+using ECommerce.Application.Orders.Specifications;
 using ECommerce.Application.Products.Dtos;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
@@ -287,6 +288,14 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             item.Quantity == 123 &&
             item.GrossRevenue == 399.75m);
         report.DailySales.Should().Contain(item => item.SuccessfulPayments > 0);
+
+        var orderSearch = await new OrderRepository(reportContext).SearchAsync(
+            new OrderSearchSpecification(new SearchOrdersQuery(
+                CustomerId: customer.Id,
+                Status: OrderStatus.Paid,
+                SortBy: "total",
+                Descending: true)));
+        orderSearch.Items.Should().ContainSingle().Which.Id.Should().Be(order.Id);
     }
 
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>

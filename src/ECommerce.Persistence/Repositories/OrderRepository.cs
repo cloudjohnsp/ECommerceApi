@@ -2,6 +2,8 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Domain.Entities;
 using ECommerce.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
+using ECommerce.Application.Abstractions.Specifications;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Persistence.Repositories;
 
@@ -29,6 +31,24 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
             .Where(order => order.CustomerId == customerId)
             .OrderByDescending(order => order.CreatedAt)
             .ToListAsync(cancellationToken);
+
+    public async Task<PagedResult<Order>> SearchAsync(
+        ISpecification<Order> specification,
+        CancellationToken cancellationToken = default)
+    {
+        var filteredQuery = dbContext.Orders.AsNoTracking().Where(specification.Criteria);
+        var totalCount = await filteredQuery.CountAsync(cancellationToken);
+        var items = await specification.ApplyOrdering(filteredQuery)
+            .Include(order => order.Items)
+            .Skip(specification.Skip)
+            .Take(specification.Take)
+            .ToListAsync(cancellationToken);
+        return new PagedResult<Order>(
+            items,
+            specification.Skip / specification.Take + 1,
+            specification.Take,
+            totalCount);
+    }
 
     public async Task AddAsync(Order order, CancellationToken cancellationToken = default) =>
         await dbContext.Orders.AddAsync(order, cancellationToken);

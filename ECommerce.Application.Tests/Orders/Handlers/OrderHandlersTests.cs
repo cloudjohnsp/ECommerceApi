@@ -7,6 +7,8 @@ using ECommerce.Domain.Enums;
 using ECommerce.Domain.Tests.Support;
 using FluentAssertions;
 using Moq;
+using ECommerce.Application.Abstractions.Specifications;
+using ECommerce.Shared.Pagination;
 
 namespace ECommerce.Application.Tests.Orders.Handlers;
 
@@ -138,6 +140,28 @@ public sealed class OrderHandlersTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().ContainSingle().Which.CustomerId.Should().Be(customerId);
         _orders.Verify(x => x.GetAllAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Search_ReturnsMappedPagedOrders()
+    {
+        var customerId = Guid.NewGuid();
+        var order = OrderFactory.Create(customerId);
+        _orders.Setup(repository => repository.SearchAsync(
+                It.IsAny<ISpecification<Order>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<Order>([order], 2, 10, 13));
+        var handler = new SearchOrdersHandler(_orders.Object);
+
+        var result = await handler.Handle(
+            new SearchOrdersQuery(customerId, Page: 2, PageSize: 10),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Page.Should().Be(2);
+        result.Value.PageSize.Should().Be(10);
+        result.Value.TotalCount.Should().Be(13);
+        result.Value.Items.Should().ContainSingle().Which.CustomerId.Should().Be(customerId);
     }
 
     [Fact]

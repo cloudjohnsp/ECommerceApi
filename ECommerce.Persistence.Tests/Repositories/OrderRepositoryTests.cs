@@ -3,6 +3,9 @@ using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using ECommerce.Application.Orders;
+using ECommerce.Application.Orders.Specifications;
+using ECommerce.Domain.Enums;
 
 namespace ECommerce.Persistence.Tests.Repositories;
 
@@ -88,6 +91,37 @@ public sealed class OrderRepositoryTests
         context.ChangeTracker.Clear();
 
         (await context.Orders.SingleAsync()).Status.Should().Be(Domain.Enums.OrderStatus.Paid);
+    }
+
+    [Fact]
+    public async Task SearchAsync_FiltersSortsAndPaginatesOrders()
+    {
+        await using var context = CreateContext();
+        var customerId = Guid.NewGuid();
+        var lowerTotal = CreateOrder(customerId);
+        var higherTotal = Order.Create(customerId).Value!;
+        higherTotal.AddItem(Guid.NewGuid(), "Workstation", 500m, 2);
+        lowerTotal.MarkAsPaid();
+        higherTotal.MarkAsPaid();
+        var anotherCustomer = CreateOrder(Guid.NewGuid());
+        anotherCustomer.MarkAsPaid();
+        context.Orders.AddRange(lowerTotal, higherTotal, anotherCustomer);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new OrderRepository(context);
+        var specification = new OrderSearchSpecification(new SearchOrdersQuery(
+            CustomerId: customerId,
+            Status: OrderStatus.Paid,
+            SortBy: "total",
+            Descending: true,
+            Page: 1,
+            PageSize: 1));
+
+        var result = await repository.SearchAsync(specification);
+
+        result.TotalCount.Should().Be(2);
+        result.Items.Should().ContainSingle().Which.Id.Should().Be(higherTotal.Id);
+        result.Items.Single().Items.Should().ContainSingle();
     }
 
     private static AppDbContext CreateContext()
