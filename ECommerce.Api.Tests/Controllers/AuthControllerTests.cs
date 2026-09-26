@@ -42,4 +42,24 @@ public sealed class AuthControllerTests
 
         response.Should().BeOfType<NoContentResult>();
     }
+
+    [Fact]
+    public async Task Logout_PropagatesRequestCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(sender => sender.Send(
+                It.IsAny<LogoutCommand>(),
+                cancellation.Token))
+            .ReturnsAsync(Result.Success());
+        var controller = new AuthController(mediator.Object);
+
+        await controller.Logout(
+            new LogoutRequest("refresh-token"),
+            cancellation.Token);
+
+        mediator.Verify(sender => sender.Send(
+            It.IsAny<LogoutCommand>(),
+            cancellation.Token), Times.Once);
+    }
 }

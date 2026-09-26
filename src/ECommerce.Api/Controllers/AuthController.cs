@@ -18,10 +18,12 @@ public sealed class AuthController(ISender mediator) : BaseApiController
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequest request,
+        CancellationToken cancellationToken = default)
     {
         var command = new LoginCommand(request.Email, request.Password);
-        var result = await mediator.Send(command);
+        var result = await mediator.Send(command, cancellationToken);
 
         if (result.IsFailure)
         {
@@ -39,7 +41,9 @@ public sealed class AuthController(ISender mediator) : BaseApiController
     [HttpPost("register")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    public async Task<IActionResult> Register(
+        [FromBody] RegisterRequest request,
+        CancellationToken cancellationToken = default)
     {
         CreateUserCommand command = new(
             request.FirstName,
@@ -49,7 +53,7 @@ public sealed class AuthController(ISender mediator) : BaseApiController
             ECommerce.Domain.Enums.UserRole.Customer
         );
 
-        var createdUser = await mediator.Send(command);
+        var createdUser = await mediator.Send(command, cancellationToken);
 
         if (createdUser.IsFailure)
         {
@@ -70,10 +74,12 @@ public sealed class AuthController(ISender mediator) : BaseApiController
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+    public async Task<IActionResult> Refresh(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken cancellationToken = default)
     {
         var command = new RefreshTokenCommand(request.RefreshToken);
-        var result = await mediator.Send(command);
+        var result = await mediator.Send(command, cancellationToken);
 
         if (result.IsFailure)
         {
@@ -90,9 +96,13 @@ public sealed class AuthController(ISender mediator) : BaseApiController
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
+    public async Task<IActionResult> Logout(
+        [FromBody] LogoutRequest request,
+        CancellationToken cancellationToken = default)
     {
-        var result = await mediator.Send(new LogoutCommand(request.RefreshToken));
+        var result = await mediator.Send(
+            new LogoutCommand(request.RefreshToken),
+            cancellationToken);
         return result.IsFailure ? BadRequest(result.Errors) : NoContent();
     }
 

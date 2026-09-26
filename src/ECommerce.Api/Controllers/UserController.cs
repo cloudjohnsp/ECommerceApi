@@ -19,12 +19,14 @@ public sealed class UserController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetUserById([FromRoute] Guid userId)
+    public async Task<IActionResult> GetUserById(
+        [FromRoute] Guid userId,
+        CancellationToken cancellationToken = default)
     {
         if (!User.CanAccessUser(userId)) return Forbid();
 
         GetUserByIdQuery query = new(userId);
-        var user = await _mediator.Send(query);
+        var user = await _mediator.Send(query, cancellationToken);
         if (user.IsFailure)
         {
             return NotFound(user.Errors);
@@ -57,7 +59,10 @@ public sealed class UserController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateProfile(Guid userId, [FromBody] UpdateUserProfileRequest request)
+    public async Task<IActionResult> UpdateProfile(
+        Guid userId,
+        [FromBody] UpdateUserProfileRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!User.CanAccessUser(userId)) return Forbid();
         if (!User.TryGetUserId(out var actorUserId)) return Unauthorized();
@@ -67,7 +72,7 @@ public sealed class UserController(ISender mediator) : BaseApiController
             request.FirstName,
             request.LastName,
             request.Email,
-            actorUserId));
+            actorUserId), cancellationToken);
         if (result.IsFailure)
         {
             return result.Errors.Contains("User not found.") ? NotFound(result.Errors) : BadRequest(result.Errors);
@@ -81,7 +86,10 @@ public sealed class UserController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ChangePassword(Guid userId, [FromBody] ChangePasswordRequest request)
+    public async Task<IActionResult> ChangePassword(
+        Guid userId,
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!User.IsUser(userId)) return Forbid();
         if (!User.TryGetUserId(out var actorUserId)) return Unauthorized();
@@ -90,7 +98,7 @@ public sealed class UserController(ISender mediator) : BaseApiController
             userId,
             request.CurrentPassword,
             request.NewPassword,
-            actorUserId));
+            actorUserId), cancellationToken);
         if (result.IsFailure)
         {
             return result.Errors.Contains("User not found.") ? NotFound(result.Errors) : BadRequest(result.Errors);
@@ -105,14 +113,17 @@ public sealed class UserController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ChangeRole(Guid userId, [FromBody] ChangeRoleRequest request)
+    public async Task<IActionResult> ChangeRole(
+        Guid userId,
+        [FromBody] ChangeRoleRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!User.TryGetUserId(out var actorUserId)) return Unauthorized();
 
         var result = await _mediator.Send(new ChangeUserRoleCommand(
             userId,
             request.Role,
-            actorUserId));
+            actorUserId), cancellationToken);
         if (result.IsFailure)
         {
             return result.Errors.Contains("User not found.") ? NotFound(result.Errors) : BadRequest(result.Errors);
@@ -126,12 +137,16 @@ public sealed class UserController(ISender mediator) : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid userId)
+    public async Task<IActionResult> Delete(
+        Guid userId,
+        CancellationToken cancellationToken = default)
     {
         if (!User.CanAccessUser(userId)) return Forbid();
         if (!User.TryGetUserId(out var actorUserId)) return Unauthorized();
 
-        var result = await _mediator.Send(new DeleteUserCommand(userId, actorUserId));
+        var result = await _mediator.Send(
+            new DeleteUserCommand(userId, actorUserId),
+            cancellationToken);
         if (result.IsFailure)
         {
             return result.Errors.Contains("User not found.") ? NotFound(result.Errors) : BadRequest(result.Errors);
