@@ -56,6 +56,19 @@ public sealed class CommittedConfigurationTests
     }
 
     [Fact]
+    public void DockerBuildContext_ExcludesSecretsGitMetadataAndTestArtifacts()
+    {
+        var dockerIgnore = File.ReadAllLines(Path.Combine(FindSolutionRoot(), ".dockerignore"));
+
+        dockerIgnore.Should().Contain("**/.env*");
+        dockerIgnore.Should().Contain("**/.git");
+        dockerIgnore.Should().Contain("**/.agents");
+        dockerIgnore.Should().Contain("**/.codex");
+        dockerIgnore.Should().Contain("**/*.Tests");
+        dockerIgnore.Should().NotContain(line => line.StartsWith("!.git", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LaunchProfiles_EnableRedirectionOnlyWhenHttpsEndpointIsAvailable()
     {
         var root = FindSolutionRoot();
