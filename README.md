@@ -276,6 +276,10 @@ Health checks disponíveis:
   Azure Blob Storage e SMTP;
 - `/api/health`: executa todas as verificações registradas.
 
+`/api/v1/health` permanece como alias versionado de liveness para compatibilidade.
+Ele não ocupa `/api/health`, que é atendido exclusivamente pelo pipeline de
+health checks e nunca por uma resposta fixa de controller.
+
 ## Coleção Postman
 
 Importe `postman/ECommerceApi.postman_collection.json` e

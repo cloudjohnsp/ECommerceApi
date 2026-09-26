@@ -23,6 +23,10 @@ Infrastructure implementam essas portas. O Worker possui armazenamento próprio
 no schema PostgreSQL `worker` e compartilha somente o contrato serializado dos
 eventos.
 
+As rotas operacionais `/api/health`, `/api/health/live` e `/api/health/ready`
+são atendidas pelo middleware de health checks. O alias `/api/v1/health` é uma
+rota de liveness separada e não sombreia o diagnóstico completo das dependências.
+
 ## Validação
 
 A validação não é repetida igualmente em todas as camadas:

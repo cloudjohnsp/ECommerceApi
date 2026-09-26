@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
 namespace ECommerce.Api.Tests.Integration;
@@ -66,6 +67,8 @@ public sealed class ObservabilityTests
 
         versionedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         legacyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        legacyResponse.Content.Headers.ContentType!.MediaType.Should().Be("text/plain");
+        (await legacyResponse.Content.ReadAsStringAsync()).Should().Be("Healthy");
         versionedResponse.Headers.GetValues("api-supported-versions")
             .Should().Contain("1.0");
     }
@@ -121,6 +124,8 @@ public sealed class ObservabilityTests
             builder.ConfigureServices(services =>
             {
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
+                services.PostConfigure<HealthCheckServiceOptions>(options =>
+                    options.Registrations.Clear());
             });
         }
     }
