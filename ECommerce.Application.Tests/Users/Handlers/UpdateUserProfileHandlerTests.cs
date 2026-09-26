@@ -18,6 +18,7 @@ public sealed class UpdateUserProfileHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IUserActionTokenRepository> _tokenRepository = new();
+    private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IOutboxMessageRepository> _outboxRepository = new();
     private readonly Mock<IUserActionTokenService> _tokenService = new();
     private readonly Mock<IUserAuditRepository> _auditRepository = new();
@@ -35,11 +36,8 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "John", "Doe", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _unitOfWork.Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
         var handler = CreateHandler();
 
         // Act
@@ -58,13 +56,57 @@ public sealed class UpdateUserProfileHandlerTests
         _outboxRepository.Verify(repository => repository.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.EmailConfirmationRequested),
             It.IsAny<CancellationToken>()), Times.Once);
+        _tokenRepository.Verify(repository => repository.ConsumeActiveForUserAsync(
+            user.Id,
+            UserActionTokenType.EmailConfirmation,
+            It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _tokenRepository.Verify(repository => repository.ConsumeActiveForUserAsync(
+            user.Id,
+            UserActionTokenType.PasswordReset,
+            It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
+            user.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
         _auditRepository.Verify(repository => repository.AddAsync(
             It.Is<UserAuditEntry>(entry =>
                 entry.UserId == user.Id &&
                 entry.Action == UserAuditAction.ProfileUpdated &&
                 entry.ChangesJson.Contains("john.doe@example.com", StringComparison.Ordinal)),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenEmailDoesNotChange_DoesNotInvalidateIdentityTokensOrSessions()
+    {
+        var user = UserFactory.Create();
+        var request = new UpdateUserProfileCommand(
+            user.Id,
+            "Updated",
+            "Name",
+            user.Email.Value);
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(
+                user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        var handler = CreateHandler();
+
+        var result = await handler.Handle(request, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        _tokenRepository.Verify(repository => repository.ConsumeActiveForUserAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<UserActionTokenType>(),
+            It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _tokenRepository.Verify(repository => repository.AddAsync(
+            It.IsAny<UserActionToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _outboxRepository.Verify(repository => repository.AddAsync(
+            It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+        _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -73,7 +115,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "John", "Doe", "invalid-email");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = CreateHandler();
         // Act
@@ -89,7 +131,7 @@ public sealed class UpdateUserProfileHandlerTests
     {
         // Arrange
         var request = new UpdateUserProfileCommand(Guid.NewGuid(), "John", "Doe", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
         var handler = CreateHandler();
         // Act
@@ -106,7 +148,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "", "Doe", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = CreateHandler();
         // Act
@@ -123,7 +165,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "J@hn", "Doe", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = CreateHandler();
         // Act
@@ -140,7 +182,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "John", "D0e", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = CreateHandler();
         // Act
@@ -157,7 +199,7 @@ public sealed class UpdateUserProfileHandlerTests
         // Arrange
         var user = UserFactory.Create();
         var request = new UpdateUserProfileCommand(user.Id, "John", "", "john.doe@example.com");
-        _userRepository.Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _userRepository.Setup(repository => repository.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = CreateHandler();
         // Act
@@ -172,6 +214,7 @@ public sealed class UpdateUserProfileHandlerTests
         _userRepository.Object,
         _unitOfWork.Object,
         _tokenRepository.Object,
+        _refreshTokenRepository.Object,
         _outboxRepository.Object,
         _tokenService.Object,
         _auditRepository.Object);

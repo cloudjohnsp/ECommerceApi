@@ -14,26 +14,35 @@ public sealed class ChangeUserRoleHandler(
 {
     public async Task<Result<UserDto>> Handle(ChangeUserRoleCommand request, CancellationToken cancellationToken)
     {
-        var user = await userRepository.GetByIdAsync(request.UserId, cancellationToken);
-        if (user is null)
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            return Result<UserDto>.Failure("User not found.");
-        }
+            var user = await userRepository.GetByIdForUpdateAsync(request.UserId, cancellationToken);
+            if (user is null)
+                return Result<UserDto>.Failure("User not found.");
 
-        var previousRole = user.Role;
-        var changeResult = user.ChangeRole(request.Role);
-        if (changeResult.IsFailure)
+            var previousRole = user.Role;
+            var changeResult = user.ChangeRole(request.Role);
+            if (changeResult.IsFailure)
+            {
+                return Result<UserDto>.Failure([.. changeResult.Errors]);
+            }
+
+            await userRepository.UpdateAsync(user, cancellationToken);
+            await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
+            await auditRepository.AddAsync(
+                UserAuditEntryFactory.RoleChanged(user, request.ActorUserId, previousRole),
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+
+            return Result<UserDto>.Success(user.Adapt<UserDto>());
+        }
+        finally
         {
-            return Result<UserDto>.Failure([.. changeResult.Errors]);
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
         }
-
-        await userRepository.UpdateAsync(user, cancellationToken);
-        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
-        await auditRepository.AddAsync(
-            UserAuditEntryFactory.RoleChanged(user, request.ActorUserId, previousRole),
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-
-        return Result<UserDto>.Success(user.Adapt<UserDto>());
     }
 }

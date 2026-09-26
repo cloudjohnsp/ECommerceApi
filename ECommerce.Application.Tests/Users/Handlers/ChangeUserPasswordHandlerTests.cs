@@ -24,7 +24,7 @@ public sealed class ChangeUserPasswordHandlerTests
         var originalPasswordHash = user.PasswordHash;
         var command = new ChangeUserPasswordCommand(user.Id, "CurrentPassword1!", "NewPassword1!");
         _userRepository
-            .Setup(repository => repository.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByIdForUpdateAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         _passwordHasher
             .Setup(hasher => hasher.VerifyPassword(command.CurrentPassword!, originalPasswordHash))
@@ -32,10 +32,6 @@ public sealed class ChangeUserPasswordHandlerTests
         _passwordHasher
             .Setup(hasher => hasher.HashPassword(command.NewPassword!))
             .Returns("new-hashed-password");
-        _unitOfWork
-            .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
         var handler = new ChangeUserPasswordHandler(
             _userRepository.Object,
             _refreshTokenRepository.Object,
@@ -62,7 +58,7 @@ public sealed class ChangeUserPasswordHandlerTests
                 entry.Action == ECommerce.Domain.Enums.UserAuditAction.PasswordChanged &&
                 !entry.ChangesJson.Contains("NewPassword", StringComparison.Ordinal)),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -72,7 +68,7 @@ public sealed class ChangeUserPasswordHandlerTests
         var originalPasswordHash = user.PasswordHash;
         var command = new ChangeUserPasswordCommand(user.Id, "WrongPassword1!", "NewPassword1!");
         _userRepository
-            .Setup(repository => repository.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByIdForUpdateAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         _passwordHasher
             .Setup(hasher => hasher.VerifyPassword(command.CurrentPassword!, originalPasswordHash))
@@ -100,7 +96,7 @@ public sealed class ChangeUserPasswordHandlerTests
         _auditRepository.Verify(repository => repository.AddAsync(
             It.IsAny<UserAuditEntry>(),
             It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -111,7 +107,7 @@ public sealed class ChangeUserPasswordHandlerTests
             "CurrentPassword1!",
             "NewPassword1!");
         _userRepository
-            .Setup(repository => repository.GetByIdAsync(command.UserId, It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByIdForUpdateAsync(command.UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
         var handler = new ChangeUserPasswordHandler(
@@ -133,6 +129,6 @@ public sealed class ChangeUserPasswordHandlerTests
         _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
             It.IsAny<Guid>(),
             It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

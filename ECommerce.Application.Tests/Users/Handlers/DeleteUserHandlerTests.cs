@@ -22,12 +22,8 @@ public sealed class DeleteUserHandlerTests
         var user = UserFactory.Create();
         var command = new DeleteUserCommand(user.Id);
         _userRepository
-            .Setup(repository => repository.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByIdForUpdateAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _unitOfWork
-            .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
         var handler = new DeleteUserHandler(
             _userRepository.Object,
             _refreshTokenRepository.Object,
@@ -47,7 +43,7 @@ public sealed class DeleteUserHandlerTests
             It.Is<UserAuditEntry>(entry =>
                 entry.UserId == user.Id && entry.Action == UserAuditAction.Deactivated),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -55,7 +51,7 @@ public sealed class DeleteUserHandlerTests
     {
         var command = new DeleteUserCommand(Guid.NewGuid());
         _userRepository
-            .Setup(repository => repository.GetByIdAsync(command.UserId, It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByIdForUpdateAsync(command.UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
         var handler = new DeleteUserHandler(
@@ -72,6 +68,6 @@ public sealed class DeleteUserHandlerTests
         _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
             It.IsAny<Guid>(),
             It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

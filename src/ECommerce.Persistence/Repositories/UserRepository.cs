@@ -24,6 +24,14 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
             .FirstOrDefaultAsync(u => u.Email.Value == normalizedEmail, cancellationToken);
     }
 
+    public Task<User?> GetByIdForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken = default) => _dbContext.Database.IsRelational()
+            ? _dbContext.Users
+                .FromSqlInterpolated($"SELECT * FROM users WHERE id = {id} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : _dbContext.Users.SingleOrDefaultAsync(user => user.Id == id, cancellationToken);
+
     public Task<User?> GetByEmailForUpdateAsync(
         string email,
         CancellationToken cancellationToken = default)

@@ -101,6 +101,8 @@ mutação. O histórico paginado fica disponível ao próprio usuário e a
 administradores em `GET /api/v1/user/{userId}/history`. As diferenças de perfil
 e role são armazenadas como `jsonb`; senhas, hashes e tokens nunca são incluídos
 na trilha.
+Ao alterar o endereço de e-mail, a mesma transação revoga as sessões e tokens de
+recuperação existentes e cria uma nova confirmação para o endereço atualizado.
 
 Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
 `POST /api/v1/orders/{orderId}/items`. A operação bloqueia pedido e produto,

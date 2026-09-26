@@ -38,6 +38,22 @@ public sealed class UserRepositoryTests
     }
 
     [Fact]
+    public async Task GetByIdForUpdateAsync_WithInMemoryProvider_ReturnsTrackedUser()
+    {
+        await using var context = CreateContext();
+        var user = CreateUser();
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new UserRepository(context);
+
+        var result = await repository.GetByIdForUpdateAsync(user.Id);
+
+        result.Should().NotBeNull();
+        context.Entry(result!).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task GetByEmailAsync_NormalizesEmailBeforeQuerying()
     {
         await using var context = CreateContext();

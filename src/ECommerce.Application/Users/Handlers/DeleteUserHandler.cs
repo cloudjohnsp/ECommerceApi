@@ -12,25 +12,34 @@ public sealed class DeleteUserHandler(
 {
     public async Task<Result> Handle(DeleteUserCommand request, CancellationToken cancellationToken)
     {
-        var user = await userRepository.GetByIdAsync(request.UserId, cancellationToken);
-        if (user is null)
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            return Result.Failure("User not found.");
-        }
+            var user = await userRepository.GetByIdForUpdateAsync(request.UserId, cancellationToken);
+            if (user is null)
+                return Result.Failure("User not found.");
 
-        var deactivateResult = user.Deactivate();
-        if (deactivateResult.IsFailure)
+            var deactivateResult = user.Deactivate();
+            if (deactivateResult.IsFailure)
+            {
+                return deactivateResult;
+            }
+
+            await userRepository.UpdateAsync(user, cancellationToken);
+            await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
+            await auditRepository.AddAsync(
+                UserAuditEntryFactory.Deactivated(user, request.ActorUserId),
+                cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+
+            return Result.Success();
+        }
+        finally
         {
-            return deactivateResult;
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
         }
-
-        await userRepository.UpdateAsync(user, cancellationToken);
-        await refreshTokenRepository.RevokeAllForUserAsync(user.Id, cancellationToken);
-        await auditRepository.AddAsync(
-            UserAuditEntryFactory.Deactivated(user, request.ActorUserId),
-            cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-
-        return Result.Success();
     }
 }
