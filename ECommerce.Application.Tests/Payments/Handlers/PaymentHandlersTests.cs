@@ -374,6 +374,50 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Webhook_WithStatusThatContradictsEvent_IsRejectedBeforeDatabaseAccess()
+    {
+        _signatureVerifier.Setup(x => x.IsValid(It.IsAny<string>(), "valid")).Returns(true);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                "{\"event\":\"payment.approved\",\"data\":{\"id\":\"pay_123\",\"status\":\"declined\"}}",
+                "valid"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment webhook event and status do not match.");
+        _payments.Verify(
+            x => x.GetByExternalIdForUpdateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Webhook_WithUnsupportedEvent_IsRejectedBeforeDatabaseAccess()
+    {
+        _signatureVerifier.Setup(x => x.IsValid(It.IsAny<string>(), "valid")).Returns(true);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                "{\"event\":\"payment.pending\",\"data\":{\"id\":\"pay_123\",\"status\":\"pending\"}}",
+                "valid"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Unsupported payment webhook event.");
+        _payments.Verify(
+            x => x.GetByExternalIdForUpdateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Webhook_Declined_WhenOrderIsAlreadyCancelled_DoesNotRestoreStockAgain()
     {
         var order = OrderFactory.Create();

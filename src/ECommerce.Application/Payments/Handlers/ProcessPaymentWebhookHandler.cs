@@ -43,6 +43,9 @@ public sealed class ProcessPaymentWebhookHandler(
 
         if (webhook?.Data is null || string.IsNullOrWhiteSpace(webhook.Data.Id))
             return Result.Failure("Invalid payment webhook payload.");
+        var webhookValidation = ValidateWebhook(webhook);
+        if (webhookValidation.IsFailure)
+            return webhookValidation;
 
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -163,6 +166,25 @@ public sealed class ProcessPaymentWebhookHandler(
             if (!transactionCommitted)
                 await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
         }
+    }
+
+    private static Result ValidateWebhook(PaymentWebhook webhook)
+    {
+        var expectedStatus = webhook.Event switch
+        {
+            "payment.approved" => "approved",
+            "payment.declined" => "declined",
+            "payment.refunded" => "refunded",
+            _ => null
+        };
+        if (expectedStatus is null)
+            return Result.Failure("Unsupported payment webhook event.");
+        return string.Equals(
+                webhook.Data.Status?.Trim(),
+                expectedStatus,
+                StringComparison.OrdinalIgnoreCase)
+            ? Result.Success()
+            : Result.Failure("Payment webhook event and status do not match.");
     }
 
     private sealed record PaymentWebhook(string Event, PaymentWebhookData Data);

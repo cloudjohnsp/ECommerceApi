@@ -71,6 +71,9 @@ de idempotência é reutilizada no retry.
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
 externa.
+Webhooks são autenticados por HMAC e o par `event`/`data.status` é validado antes
+de abrir a transação, evitando que um payload contraditório aplique uma transição
+financeira diferente da informada pelo gateway.
 
 ## Eventos e Worker
 

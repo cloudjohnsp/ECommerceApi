@@ -309,7 +309,9 @@ Content-Type: application/json
 O gateway retorna um identificador `pay_...`. A aprovação ou recusa feita no
 simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segredo
 `PaymentGateway:WebhookSecret` deve ser igual ao `WEBHOOK_SECRET` configurado no
-gateway.
+gateway. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
+campo `data.status` corresponda à transição indicada por `event` antes de acessar
+o banco.
 
 Um cliente pode solicitar o reembolso integral do próprio pedido pago, e um
 administrador pode reembolsar qualquer pedido, por meio de:
