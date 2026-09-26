@@ -36,7 +36,9 @@ A validação não é repetida igualmente em todas as camadas:
    concorrência.
 
 Falhas esperadas retornam `Result`; exceções ficam reservadas para condições
-inesperadas e são convertidas em `ProblemDetails` pelo middleware da API.
+inesperadas e são convertidas em `ProblemDetails` sanitizado pelo middleware da
+API. Respostas de erro incluem `traceId` e `correlationId` para localizar os logs
+correspondentes sem revelar detalhes internos da exceção.
 
 ## Pedidos, estoque e pagamentos
 

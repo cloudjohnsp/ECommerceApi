@@ -60,10 +60,24 @@ public sealed class ExceptionHandlingMiddleware(
         return WriteResponseAsync(context, statusCode, problem);
     }
 
-    private static Task WriteResponseAsync(HttpContext context, int statusCode, ProblemDetails problem)
+    private static Task WriteResponseAsync<TProblem>(
+        HttpContext context,
+        int statusCode,
+        TProblem problem)
+        where TProblem : ProblemDetails
     {
+        problem.Extensions["traceId"] = context.TraceIdentifier;
+        if (context.Items.TryGetValue(CorrelationIdMiddleware.ContextItemName, out var correlationId) &&
+            correlationId is string value)
+        {
+            problem.Extensions["correlationId"] = value;
+        }
+
         context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/problem+json";
-        return context.Response.WriteAsJsonAsync(problem);
+        return context.Response.WriteAsJsonAsync(
+            problem,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: context.RequestAborted);
     }
 }

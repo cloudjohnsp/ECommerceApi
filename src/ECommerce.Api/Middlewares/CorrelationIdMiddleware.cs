@@ -7,6 +7,7 @@ public sealed class CorrelationIdMiddleware(
     ILogger<CorrelationIdMiddleware> logger)
 {
     public const string HeaderName = "X-Correlation-ID";
+    public const string ContextItemName = "CorrelationId";
     private const int MaxCorrelationIdLength = 128;
 
     public async Task InvokeAsync(HttpContext context)
@@ -14,6 +15,7 @@ public sealed class CorrelationIdMiddleware(
         var correlationId = GetCorrelationId(context.Request);
         var activity = Activity.Current;
 
+        context.Items[ContextItemName] = correlationId;
         activity?.SetTag("correlation.id", correlationId);
         context.Response.OnStarting(() =>
         {
