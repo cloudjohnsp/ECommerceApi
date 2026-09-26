@@ -114,6 +114,8 @@ transação. Pedidos pagos, cancelados ou reembolsados não aceitam novos itens.
 Tanto a criação quanto a inclusão de itens rejeitam produtos inativos; na
 criação, a conta do cliente também é bloqueada até o commit para não concorrer
 com sua desativação.
+A desativação administrativa do produto adquire o mesmo bloqueio usado pelos
+fluxos de estoque, evitando perda de reservas ou ajustes concorrentes.
 
 A consulta paginada fica em `GET /api/v1/orders/search` e aceita `status`,
 `createdFromUtc`, `createdToUtc`, `sortBy`, `descending`, `page` e `pageSize`.

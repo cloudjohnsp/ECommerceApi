@@ -56,6 +56,10 @@ dos produtos, impedindo que uma desativação concorrente seja intercalada entre
 a autorização comercial e o commit. Produtos inativos são rejeitados mesmo que
 ainda possuam estoque físico.
 
+A desativação de produto usa o mesmo bloqueio pessimista das reservas e ajustes
+de estoque. Assim, ela não persiste uma cópia obsoleta do agregado nem sobrescreve
+uma reserva ou consumo que tenha ocorrido concorrentemente.
+
 Cada criação de inventário e transição relevante de reserva, consumo, liberação,
 restauração ou ajuste também grava `stock.updated` na mesma transação. O contrato
 público contém somente `ProductId`, `AvailableStock`, o `OrderId` opcional, o

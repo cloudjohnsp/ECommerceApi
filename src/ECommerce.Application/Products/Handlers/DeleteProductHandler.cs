@@ -13,15 +13,28 @@ public sealed class DeleteProductHandler(
 {
     public async Task<Result> Handle(DeleteProductCommand request, CancellationToken cancellationToken)
     {
-        var product = await repository.GetByIdAsync(request.ProductId, cancellationToken);
-        if (product is null) return Result.Failure("Product not found.");
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var product = await repository.GetByIdForUpdateAsync(
+                request.ProductId,
+                cancellationToken);
+            if (product is null) return Result.Failure("Product not found.");
 
-        var result = product.Deactivate();
-        if (result.IsFailure) return result;
+            var result = product.Deactivate();
+            if (result.IsFailure) return result;
 
-        repository.Update(product);
-        await unitOfWork.Commit(cancellationToken);
-        await productCache.RemoveAsync(product.Id, CancellationToken.None);
-        return Result.Success();
+            repository.Update(product);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            await productCache.RemoveAsync(product.Id, CancellationToken.None);
+            return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }

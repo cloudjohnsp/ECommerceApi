@@ -243,7 +243,10 @@ public sealed class ProductHandlersTests
     public async Task Delete_WhenProductExists_DeactivatesAndCommits()
     {
         var product = ProductFactory.Create();
-        _repository.Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        _repository.Setup(x => x.GetByIdForUpdateAsync(
+                product.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
         var handler = new DeleteProductHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
 
         var result = await handler.Handle(new DeleteProductCommand(product.Id), CancellationToken.None);
@@ -251,7 +254,18 @@ public sealed class ProductHandlersTests
         result.IsSuccess.Should().BeTrue();
         product.IsActive.Should().BeFalse();
         _repository.Verify(x => x.Update(product), Times.Once);
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _repository.Verify(
+            x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
         _cache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
@@ -263,6 +277,11 @@ public sealed class ProductHandlersTests
         var result = await handler.Handle(new DeleteProductCommand(Guid.NewGuid()), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        _unitOfWork.Verify(x => x.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(
+            x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
     }
 }
