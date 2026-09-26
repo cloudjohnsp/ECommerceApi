@@ -471,6 +471,58 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task UserForUpdate_ConcurrentMutationWaitsAndObservesCommittedState()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var user = User.Create(
+            "Concurrent",
+            "Customer",
+            Email.Create($"user-lock-{Guid.NewGuid():N}@example.com").Value!,
+            "hash").Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(user);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var firstContext = new AppDbContext(options);
+        var firstUnitOfWork = new UnitOfWork(firstContext);
+        var firstRepository = new UserRepository(firstContext);
+        await firstUnitOfWork.BeginTransactionAsync();
+        var firstMutation = await firstRepository.GetByIdForUpdateAsync(user.Id);
+        firstMutation.Should().NotBeNull();
+
+        var secondAttemptStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondMutation = Task.Run(async () =>
+        {
+            await using var secondContext = new AppDbContext(options);
+            var secondUnitOfWork = new UnitOfWork(secondContext);
+            var secondRepository = new UserRepository(secondContext);
+            await secondUnitOfWork.BeginTransactionAsync();
+            secondAttemptStarted.SetResult();
+            var lockedUser = await secondRepository.GetByIdForUpdateAsync(user.Id);
+            var observedRole = lockedUser!.Role;
+            await secondUnitOfWork.CommitTransactionAsync();
+            return observedRole;
+        });
+
+        await secondAttemptStarted.Task;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        var secondMutationWasBlocked = !secondMutation.IsCompleted;
+
+        firstMutation!.ChangeRole(UserRole.Administrator).IsSuccess.Should().BeTrue();
+        await firstRepository.UpdateAsync(firstMutation);
+        await firstUnitOfWork.CommitTransactionAsync();
+
+        var observedRole = await secondMutation;
+        secondMutationWasBlocked.Should().BeTrue();
+        observedRole.Should().Be(UserRole.Administrator);
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task ResetPassword_ConcurrentUse_ConsumesTokenExactlyOnce()
     {
         var connectionString = await fixture.GetConnectionStringAsync();
