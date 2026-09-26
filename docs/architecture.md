@@ -29,6 +29,8 @@ A validação não é repetida igualmente em todas as camadas:
 
 1. Controllers validam apenas aspectos HTTP, identidade e autorização.
 2. FluentValidation rejeita formatos e campos obrigatórios antes do handler.
+   Quando o contrato retorna `Result` ou `Result<T>`, cada mensagem distinta é
+   devolvida como erro do próprio resultado, sem usar exceção como fluxo esperado.
 3. Entidades protegem invariantes e transições de estado com `Result`.
 4. Configurações Fluent API definem tipos, relações, índices e constraints de
    persistência; elas não substituem regras de negócio.
