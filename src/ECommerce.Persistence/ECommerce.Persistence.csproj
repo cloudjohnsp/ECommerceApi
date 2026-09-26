@@ -8,5 +8,6 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <ProjectReference Include="../ECommerce.Application/ECommerce.Application.csproj" />
     <ProjectReference Include="../ECommerce.Domain/ECommerce.Domain.csproj" />
+    <ProjectReference Include="../ECommerce.Shared/ECommerce.Shared.csproj" />
   </ItemGroup>
 </Project>
