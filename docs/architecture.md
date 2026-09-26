@@ -123,6 +123,8 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e
   com limite mais restritivo os endpoints de autenticação.
+- Todas as respostas, inclusive falhas, desabilitam MIME sniffing e framing e
+  restringem o envio de referrer, câmera, geolocalização e microfone por headers.
 - A API usa bearer tokens em headers, não cookies de autenticação; portanto CSRF
   não é aplicável ao modelo atual.
 - EF Core parametriza consultas. SQL explícito usa interpolação parametrizada.

@@ -50,6 +50,24 @@ public sealed class ApiProtectionTests
             .Should().ContainSingle("https://frontend.example.com");
     }
 
+    [Theory]
+    [InlineData("/api/health/live", HttpStatusCode.OK)]
+    [InlineData("/api/route-that-does-not-exist", HttpStatusCode.NotFound)]
+    public async Task Responses_IncludeSecurityHeaders(string path, HttpStatusCode expectedStatusCode)
+    {
+        await using var factory = new ProtectedApiFactory(globalLimit: 100, authenticationLimit: 10);
+        using var client = factory.CreateClient(CreateClientOptions());
+
+        using var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(expectedStatusCode);
+        response.Headers.GetValues("X-Content-Type-Options").Should().ContainSingle("nosniff");
+        response.Headers.GetValues("X-Frame-Options").Should().ContainSingle("DENY");
+        response.Headers.GetValues("Referrer-Policy").Should().ContainSingle("no-referrer");
+        response.Headers.GetValues("Permissions-Policy")
+            .Should().ContainSingle("camera=(), geolocation=(), microphone=()");
+    }
+
     private static WebApplicationFactoryClientOptions CreateClientOptions() => new()
     {
         BaseAddress = new Uri("https://localhost"),

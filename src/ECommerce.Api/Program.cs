@@ -28,6 +28,7 @@ var app = builder.Build();
 await app.Services.ApplyDatabaseMigrationsAsync();
 app.Services.ScheduleOutboxJobs();
 
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>
 {
