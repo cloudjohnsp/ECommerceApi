@@ -146,6 +146,9 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e
   com limite mais restritivo os endpoints de autenticação.
+- O webhook de pagamento limita o corpo a 64 KiB antes de alocar o payload
+  completo ou despachar o caso de uso, inclusive quando `Content-Length` não é
+  informado.
 - Em implantação atrás de um ingress isolado, o processamento opt-in de um único
   salto de `X-Forwarded-For` e `X-Forwarded-Proto` preserva o cliente usado pelo
   rate limiting e o esquema HTTPS. A opção permanece desabilitada por padrão
