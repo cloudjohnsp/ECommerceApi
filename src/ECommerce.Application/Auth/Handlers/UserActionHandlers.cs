@@ -20,20 +20,30 @@ public sealed class ConfirmEmailHandler(
 
     public async Task<Result> Handle(ConfirmEmailCommand request, CancellationToken cancellationToken)
     {
+        var tokenHash = tokenService.Hash(request.Token);
+        var tokenCandidate = await tokenRepository.GetByHashAsync(
+            tokenHash,
+            UserActionTokenType.EmailConfirmation,
+            cancellationToken);
+        if (tokenCandidate is null)
+            return Result.Failure(InvalidTokenMessage);
+
         var now = DateTimeOffset.UtcNow;
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            var token = await tokenRepository.GetByHashForUpdateAsync(
-                tokenService.Hash(request.Token),
-                UserActionTokenType.EmailConfirmation,
+            var user = await userRepository.GetByIdForUpdateAsync(
+                tokenCandidate.UserId,
                 cancellationToken);
-            if (token is null || !token.IsUsable(now))
+            if (user is null || !user.IsActive)
                 return Result.Failure(InvalidTokenMessage);
 
-            var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
-            if (user is null || !user.IsActive)
+            var token = await tokenRepository.GetByHashForUpdateAsync(
+                tokenHash,
+                UserActionTokenType.EmailConfirmation,
+                cancellationToken);
+            if (token is null || token.UserId != user.Id || !token.IsUsable(now))
                 return Result.Failure(InvalidTokenMessage);
 
             user.ConfirmEmail();
@@ -123,20 +133,30 @@ public sealed class ResetPasswordHandler(
 
     public async Task<Result> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
+        var tokenHash = tokenService.Hash(request.Token);
+        var tokenCandidate = await tokenRepository.GetByHashAsync(
+            tokenHash,
+            UserActionTokenType.PasswordReset,
+            cancellationToken);
+        if (tokenCandidate is null)
+            return Result.Failure(InvalidTokenMessage);
+
         var now = DateTimeOffset.UtcNow;
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            var token = await tokenRepository.GetByHashForUpdateAsync(
-                tokenService.Hash(request.Token),
-                UserActionTokenType.PasswordReset,
+            var user = await userRepository.GetByIdForUpdateAsync(
+                tokenCandidate.UserId,
                 cancellationToken);
-            if (token is null || !token.IsUsable(now))
+            if (user is null || !user.IsActive)
                 return Result.Failure(InvalidTokenMessage);
 
-            var user = await userRepository.GetByIdAsync(token.UserId, cancellationToken);
-            if (user is null || !user.IsActive)
+            var token = await tokenRepository.GetByHashForUpdateAsync(
+                tokenHash,
+                UserActionTokenType.PasswordReset,
+                cancellationToken);
+            if (token is null || token.UserId != user.Id || !token.IsUsable(now))
                 return Result.Failure(InvalidTokenMessage);
 
             if (passwordHasher.VerifyPassword(request.NewPassword, user.PasswordHash))

@@ -34,10 +34,13 @@ public sealed class UserActionHandlersTests
     {
         var user = UserFactory.Create();
         var token = CreateToken(user.Id, UserActionTokenType.EmailConfirmation);
+        _tokens.Setup(repository => repository.GetByHashAsync(
+                TokenHash, UserActionTokenType.EmailConfirmation, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
         _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
                 TokenHash, UserActionTokenType.EmailConfirmation, It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
-        _users.Setup(repository => repository.GetByIdAsync(
+        _users.Setup(repository => repository.GetByIdForUpdateAsync(
                 user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         var handler = new ConfirmEmailHandler(
@@ -57,6 +60,25 @@ public sealed class UserActionHandlersTests
         _audit.Verify(repository => repository.AddAsync(
             It.Is<UserAuditEntry>(entry => entry.Action == UserAuditAction.EmailConfirmed),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmEmail_WithUnknownToken_ReturnsFailureWithoutStartingTransaction()
+    {
+        var handler = new ConfirmEmailHandler(
+            _tokens.Object, _users.Object, _tokenService.Object, _unitOfWork.Object, _audit.Object);
+
+        var result = await handler.Handle(new ConfirmEmailCommand("raw-token"), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Invalid or expired email confirmation token.");
+        _unitOfWork.Verify(unit => unit.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _users.Verify(repository => repository.GetByIdForUpdateAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokens.Verify(repository => repository.GetByHashForUpdateAsync(
+            It.IsAny<string>(),
+            It.IsAny<UserActionTokenType>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -114,10 +136,13 @@ public sealed class UserActionHandlersTests
     {
         var user = UserFactory.Create();
         var token = CreateToken(user.Id, UserActionTokenType.PasswordReset);
+        _tokens.Setup(repository => repository.GetByHashAsync(
+                TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
         _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
                 TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
-        _users.Setup(repository => repository.GetByIdAsync(
+        _users.Setup(repository => repository.GetByIdForUpdateAsync(
                 user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         _passwordHasher.Setup(hasher => hasher.VerifyPassword("NewPassword1!", user.PasswordHash))
@@ -150,15 +175,45 @@ public sealed class UserActionHandlersTests
     }
 
     [Fact]
+    public async Task ResetPassword_WithUnknownToken_ReturnsFailureWithoutStartingTransaction()
+    {
+        var handler = new ResetPasswordHandler(
+            _tokens.Object,
+            _users.Object,
+            _refreshTokens.Object,
+            _tokenService.Object,
+            _passwordHasher.Object,
+            _unitOfWork.Object,
+            _audit.Object);
+
+        var result = await handler.Handle(
+            new ResetPasswordCommand("raw-token", "NewPassword1!"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Invalid or expired password reset token.");
+        _unitOfWork.Verify(unit => unit.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _users.Verify(repository => repository.GetByIdForUpdateAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokens.Verify(repository => repository.GetByHashForUpdateAsync(
+            It.IsAny<string>(),
+            It.IsAny<UserActionTokenType>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ResetPassword_WhenNewPasswordMatchesCurrentPassword_PreservesTokenAndSessions()
     {
         var user = UserFactory.Create();
         var originalPasswordHash = user.PasswordHash;
         var token = CreateToken(user.Id, UserActionTokenType.PasswordReset);
+        _tokens.Setup(repository => repository.GetByHashAsync(
+                TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
         _tokens.Setup(repository => repository.GetByHashForUpdateAsync(
                 TokenHash, UserActionTokenType.PasswordReset, It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
-        _users.Setup(repository => repository.GetByIdAsync(
+        _users.Setup(repository => repository.GetByIdForUpdateAsync(
                 user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         _passwordHasher.Setup(hasher => hasher.VerifyPassword("CurrentPassword1!", user.PasswordHash))
