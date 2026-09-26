@@ -69,6 +69,21 @@ public sealed class CommittedConfigurationTests
     }
 
     [Fact]
+    public void LocalStartupScript_InitializesSecretsAndUsesExplicitComposeFiles()
+    {
+        var root = FindSolutionRoot();
+        var script = File.ReadAllText(Path.Combine(root, "scripts", "start-local.ps1"));
+
+        script.Should().Contain("initialize-dev-env.ps1");
+        script.Should().Contain("Get-Command docker");
+        script.Should().Contain("--env-file");
+        script.Should().Contain("docker-compose.yml");
+        script.Should().Contain("--detach");
+        script.Should().Contain("--build");
+        script.Should().Contain("$LASTEXITCODE");
+    }
+
+    [Fact]
     public void LaunchProfiles_EnableRedirectionOnlyWhenHttpsEndpointIsAvailable()
     {
         var root = FindSolutionRoot();

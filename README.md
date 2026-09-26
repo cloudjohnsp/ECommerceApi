@@ -178,17 +178,18 @@ publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre 
 segredos da plataforma; a validação de opções interrompe a inicialização quando
 uma configuração obrigatória estiver ausente.
 
-Para executar todo o ambiente Docker, inicialize o arquivo local `.env` e então
-suba os serviços:
+Para inicializar os segredos locais e subir todo o ambiente Docker com um único
+comando, execute:
 
 ```powershell
-.\scripts\initialize-dev-env.ps1
-docker compose up -d --build
+.\scripts\start-local.ps1
 ```
 
-O script preenche somente os segredos obrigatórios que estiverem ausentes ou em
-branco, preserva os valores já configurados e não imprime os segredos. O arquivo
-`.env` é ignorado pelo Git. O valor de
+O script verifica a disponibilidade do Docker, preenche somente os segredos
+obrigatórios que estiverem ausentes ou em branco e executa o Compose com os
+caminhos explícitos do `.env` e do `docker-compose.yml`. Valores já configurados
+são preservados e os segredos não são impressos. Use `-NoBuild` para reutilizar
+as imagens locais sem reconstruí-las. O arquivo `.env` é ignorado pelo Git. O valor de
 `PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
 `ECommercePayment`.
 
@@ -202,7 +203,7 @@ Se a política de execução do PowerShell bloquear scripts locais, execute apen
 para este processo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\initialize-dev-env.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
 ```
 
 No Compose, o seed idempotente cria três categorias e três produtos de exemplo.
