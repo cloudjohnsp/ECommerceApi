@@ -168,6 +168,7 @@ public sealed class PaymentHandlersTests
     [Fact]
     public async Task Refund_PaidPayment_RefundsOrderAndRestoresStock()
     {
+        var acquiredLocks = new List<string>();
         var product = ProductFactory.Create(stock: 10);
         product.ReserveStock(3);
         product.ReduceStock(3);
@@ -177,9 +178,12 @@ public sealed class PaymentHandlersTests
         var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("order"))
+            .ReturnsAsync(order);
         _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
         _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("payment"))
             .ReturnsAsync(payment);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
@@ -200,6 +204,7 @@ public sealed class PaymentHandlersTests
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        acquiredLocks.Should().Equal("payment", "order");
         result.Value!.Status.Should().Be(PaymentStatus.Refunded);
         payment.Status.Should().Be(PaymentStatus.Refunded);
         order.Status.Should().Be(OrderStatus.Refunded);
@@ -254,6 +259,7 @@ public sealed class PaymentHandlersTests
     [Fact]
     public async Task Webhook_Approved_MarksPaymentAndOrderAsPaid()
     {
+        var acquiredLocks = new List<string>();
         var product = ProductFactory.Create(stock: 10);
         product.ReserveStock(3);
         var order = Order.Create(Guid.NewGuid()).Value!;
@@ -261,6 +267,12 @@ public sealed class PaymentHandlersTests
         var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
+        _payments.Setup(x => x.GetByExternalIdForUpdateAsync("pay_123", It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("payment"))
+            .ReturnsAsync(payment);
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("order"))
+            .ReturnsAsync(order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = CreateWebhookHandler();
 
@@ -271,6 +283,7 @@ public sealed class PaymentHandlersTests
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        acquiredLocks.Should().Equal("payment", "order");
         payment.Status.Should().Be(PaymentStatus.Paid);
         order.Status.Should().Be(OrderStatus.Paid);
         product.AvailableStock.Should().Be(7);

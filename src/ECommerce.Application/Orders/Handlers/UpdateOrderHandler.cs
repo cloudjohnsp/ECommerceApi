@@ -25,14 +25,14 @@ public sealed class UpdateOrderHandler(
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
+            var payment = await paymentRepository.GetByOrderIdForUpdateAsync(
+                request.OrderId,
+                cancellationToken);
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
             if (order is null) return Result<OrderDto>.Failure("Order not found.");
             if (order.Status == OrderStatus.Paid)
                 return Result<OrderDto>.Success(order.ToDto());
 
-            var payment = await paymentRepository.GetByOrderIdForUpdateAsync(
-                order.Id,
-                cancellationToken);
             if (payment?.Status != PaymentStatus.Paid)
                 return Result<OrderDto>.Failure(
                     "Order can only be reconciled after its payment is approved.");

@@ -280,6 +280,7 @@ public sealed class OrderHandlersTests
     [Fact]
     public async Task UpdateToPaid_WithApprovedPayment_ConsumesReservationAndCommits()
     {
+        var acquiredLocks = new List<string>();
         var product = ProductFactory.Create(stock: 10);
         product.ReserveStock(2);
         var order = Order.Create(Guid.NewGuid()).Value!;
@@ -287,8 +288,10 @@ public sealed class OrderHandlersTests
         var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("order"))
             .ReturnsAsync(order);
         _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => acquiredLocks.Add("payment"))
             .ReturnsAsync(payment);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
@@ -303,6 +306,7 @@ public sealed class OrderHandlersTests
         var result = await handler.Handle(new UpdateOrderCommand(order.Id, OrderStatus.Paid), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        acquiredLocks.Should().Equal("payment", "order");
         order.Status.Should().Be(OrderStatus.Paid);
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderPaid),

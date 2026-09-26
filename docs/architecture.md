@@ -79,6 +79,11 @@ Webhooks são autenticados por HMAC e o par `event`/`data.status` é validado an
 de abrir a transação, evitando que um payload contraditório aplique uma transição
 financeira diferente da informada pelo gateway.
 
+Operações que precisam alterar pagamento, pedido e estoque adquirem os bloqueios
+sempre na ordem `Payment → Order → Product`, com produtos ordenados pelo
+identificador. A reconciliação administrativa, o webhook e o reembolso seguem a
+mesma ordem para impedir ciclos de espera e deadlocks entre esses fluxos.
+
 ## Eventos e Worker
 
 Eventos de integração são publicados cronologicamente a partir da outbox. O lote
