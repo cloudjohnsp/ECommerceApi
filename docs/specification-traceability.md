@@ -21,7 +21,7 @@ auditoria do estado final repetível.
 
 | Requisito | Evidência |
 | --- | --- |
-| Clean Architecture | Projetos separados em `Api`, `Application`, `Domain`, `Persistence`, `Infrastructure`, `Shared` e `Worker`; referências declaradas nos respectivos `.csproj` |
+| Clean Architecture | Projetos separados em `Api`, `Application`, `Domain`, `Persistence`, `Infrastructure`, `Shared` e `Worker`; `ProjectDependencyTests` protege a direção das referências declaradas nos `.csproj` |
 | CQRS e MediatR | Commands, queries e handlers organizados por feature em `ECommerce.Application` |
 | FluentValidation | Validators por feature e `ValidationBehaviour` registrado no pipeline do MediatR |
 | Result Pattern | Primitivas em `ECommerce.Shared/Results` usadas pelo domínio e pelos casos de uso para falhas esperadas |
