@@ -169,6 +169,19 @@ public sealed class ProductTests
     }
 
     [Fact]
+    public void RestoreStock_WhenMaximumQuantityWouldOverflow_ReturnsFailureWithoutChangingStock()
+    {
+        var product = ProductFactory.Create(stock: int.MaxValue);
+
+        var result = product.RestoreStock(1);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Product stock cannot exceed the supported maximum quantity.");
+        product.AvailableStock.Should().Be(int.MaxValue);
+        product.UpdatedAt.Should().BeNull();
+    }
+
+    [Fact]
     public void Update_StockBelowReservedQuantity_DoesNotMutateProduct()
     {
         var product = ProductFactory.Create(stock: 10);

@@ -59,7 +59,10 @@ public sealed class Inventory : Entity
     internal Result Restore(int quantity)
     {
         if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
-        _stock = checked(_stock + quantity);
+        if (_stock > int.MaxValue - quantity)
+            return Result.Failure("Product stock cannot exceed the supported maximum quantity.");
+
+        _stock += quantity;
         return Result.Success();
     }
 }
