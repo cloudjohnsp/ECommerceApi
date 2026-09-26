@@ -31,6 +31,33 @@ public sealed class PaymentTests
     }
 
     [Fact]
+    public void Create_WithMaximumPersistableAmount_ReturnsSuccess()
+    {
+        var result = Payment.Create(Guid.NewGuid(), Order.MaximumTotal, "Stripe");
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Amount.Should().Be(Order.MaximumTotal);
+    }
+
+    [Fact]
+    public void Create_WithAmountAboveDatabasePrecision_ReturnsFailure()
+    {
+        var result = Payment.Create(Guid.NewGuid(), Order.MaximumTotal + 0.01m, "Stripe");
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain($"Payment amount cannot exceed {Order.MaximumTotal}.");
+    }
+
+    [Fact]
+    public void Create_WithUnsupportedAmountScale_ReturnsFailure()
+    {
+        var result = Payment.Create(Guid.NewGuid(), 10.999m, "Stripe");
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment amount cannot have more than 2 decimal places.");
+    }
+
+    [Fact]
     public void MarkAsPaid_WithExternalId_CompletesPayment()
     {
         var payment = Payment.Create(Guid.NewGuid(), 100m, "Stripe").Value!;

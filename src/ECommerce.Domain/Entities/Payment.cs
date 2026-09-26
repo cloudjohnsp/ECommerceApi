@@ -1,4 +1,5 @@
 using ECommerce.Domain.Enums;
+using ECommerce.Domain.ValueObjects;
 using ECommerce.Shared.Results;
 
 namespace ECommerce.Domain.Entities;
@@ -36,6 +37,13 @@ public sealed class Payment : Entity
             errors.Add("Order id is required.");
         if (amount <= 0)
             errors.Add("Payment amount must be greater than zero.");
+        else
+        {
+            if (amount > MoneyConstraints.MaximumValue)
+                errors.Add($"Payment amount cannot exceed {MoneyConstraints.MaximumValue}.");
+            if (!MoneyConstraints.HasSupportedScale(amount))
+                errors.Add($"Payment amount cannot have more than {MoneyConstraints.Scale} decimal places.");
+        }
         if (string.IsNullOrWhiteSpace(provider) || provider.Trim().Length > 100)
             errors.Add("Payment provider must contain between 1 and 100 characters.");
 

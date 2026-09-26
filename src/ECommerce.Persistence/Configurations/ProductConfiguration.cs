@@ -1,4 +1,5 @@
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,7 +18,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(product => product.Description)
             .HasColumnName("description").HasMaxLength(2000).IsRequired();
         builder.Property(product => product.Price)
-            .HasColumnName("price").HasPrecision(18, 2).IsRequired();
+            .HasColumnName("price").HasPrecision(MoneyConstraints.Precision, MoneyConstraints.Scale).IsRequired();
         builder.Property(product => product.CategoryId).HasColumnName("category_id");
         builder.Ignore(product => product.AvailableStock);
         builder.Property(product => product.IsActive)

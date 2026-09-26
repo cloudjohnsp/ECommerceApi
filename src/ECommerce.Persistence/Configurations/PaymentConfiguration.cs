@@ -1,4 +1,5 @@
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -12,7 +13,8 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.HasKey(payment => payment.Id);
         builder.Property(payment => payment.Id).ValueGeneratedNever();
         builder.Property(payment => payment.OrderId).HasColumnName("order_id").IsRequired();
-        builder.Property(payment => payment.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+        builder.Property(payment => payment.Amount).HasColumnName("amount")
+            .HasPrecision(MoneyConstraints.Precision, MoneyConstraints.Scale).IsRequired();
         builder.Property(payment => payment.Status).HasColumnName("status").HasConversion<int>().IsRequired();
         builder.Property(payment => payment.Provider).HasColumnName("provider").HasMaxLength(100).IsRequired();
         builder.Property(payment => payment.ExternalPaymentId).HasColumnName("external_payment_id").HasMaxLength(200);

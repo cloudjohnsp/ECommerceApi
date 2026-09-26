@@ -1,10 +1,13 @@
 using ECommerce.Domain.Enums;
+using ECommerce.Domain.ValueObjects;
 using ECommerce.Shared.Results;
 
 namespace ECommerce.Domain.Entities;
 
 public sealed class Order : Entity
 {
+    public const decimal MaximumTotal = MoneyConstraints.MaximumValue;
+
     private readonly List<OrderItem> _items = [];
 
     public Guid CustomerId { get; private set; }
@@ -38,10 +41,20 @@ public sealed class Order : Entity
         if (productId == Guid.Empty) return Result.Failure("Product id is required.");
         if (string.IsNullOrWhiteSpace(productName)) return Result.Failure("Product name is required.");
         if (unitPrice <= 0) return Result.Failure("Unit price must be greater than zero.");
+        if (unitPrice > MoneyConstraints.MaximumValue)
+            return Result.Failure($"Unit price cannot exceed {MoneyConstraints.MaximumValue}.");
+        if (!MoneyConstraints.HasSupportedScale(unitPrice))
+            return Result.Failure($"Unit price cannot have more than {MoneyConstraints.Scale} decimal places.");
         if (quantity <= 0) return Result.Failure("Quantity must be greater than zero.");
 
         var existing = _items.FirstOrDefault(item => item.ProductId == productId);
         if (existing is not null) return Result.Failure("Product is already included in the order.");
+
+        if (unitPrice > MaximumTotal / quantity)
+            return Result.Failure($"Order total cannot exceed {MaximumTotal}.");
+        var subtotal = unitPrice * quantity;
+        if (Total > MaximumTotal - subtotal)
+            return Result.Failure($"Order total cannot exceed {MaximumTotal}.");
 
         _items.Add(new OrderItem(productId, productName.Trim(), unitPrice, quantity));
         UpdatedAt = DateTimeOffset.UtcNow;

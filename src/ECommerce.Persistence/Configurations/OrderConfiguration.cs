@@ -1,4 +1,5 @@
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -46,7 +47,8 @@ public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(item => item.OrderId).HasColumnName("order_id").IsRequired();
         builder.Property(item => item.ProductId).HasColumnName("product_id").IsRequired();
         builder.Property(item => item.ProductName).HasColumnName("product_name").HasMaxLength(150).IsRequired();
-        builder.Property(item => item.UnitPrice).HasColumnName("unit_price").HasPrecision(18, 2).IsRequired();
+        builder.Property(item => item.UnitPrice).HasColumnName("unit_price")
+            .HasPrecision(MoneyConstraints.Precision, MoneyConstraints.Scale).IsRequired();
         builder.Property(item => item.Quantity).HasColumnName("quantity").IsRequired();
         builder.Ignore(item => item.Subtotal);
         builder.HasOne<Product>()

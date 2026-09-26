@@ -1,12 +1,13 @@
 using ECommerce.Shared.Results;
+using ECommerce.Domain.ValueObjects;
 
 namespace ECommerce.Domain.Entities;
 
 public sealed class Product : Entity
 {
-    public const int PricePrecision = 18;
-    public const int PriceScale = 2;
-    public const decimal MaximumPrice = 9999999999999999.99m;
+    public const int PricePrecision = MoneyConstraints.Precision;
+    public const int PriceScale = MoneyConstraints.Scale;
+    public const decimal MaximumPrice = MoneyConstraints.MaximumValue;
 
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
@@ -121,7 +122,7 @@ public sealed class Product : Entity
         {
             if (price > MaximumPrice)
                 errors.Add($"Product price cannot exceed {MaximumPrice}.");
-            if (decimal.Round(price, PriceScale) != price)
+            if (!MoneyConstraints.HasSupportedScale(price))
                 errors.Add($"Product price cannot have more than {PriceScale} decimal places.");
         }
         if (stock < 0)

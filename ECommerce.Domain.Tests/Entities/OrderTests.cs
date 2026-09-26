@@ -52,6 +52,42 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void AddItem_WhenSubtotalExceedsPersistablePaymentAmount_ReturnsFailure()
+    {
+        var order = OrderFactory.Create(withItem: false);
+
+        var result = order.AddItem(Guid.NewGuid(), "Notebook", Order.MaximumTotal, 2);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain($"Order total cannot exceed {Order.MaximumTotal}.");
+        order.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AddItem_WhenCumulativeTotalExceedsPersistablePaymentAmount_ReturnsFailure()
+    {
+        var order = OrderFactory.Create(withItem: false);
+        order.AddItem(Guid.NewGuid(), "First", 1m, 1).IsSuccess.Should().BeTrue();
+
+        var result = order.AddItem(Guid.NewGuid(), "Second", Order.MaximumTotal, 1);
+
+        result.IsFailure.Should().BeTrue();
+        order.Items.Should().ContainSingle();
+        order.Total.Should().Be(1m);
+    }
+
+    [Fact]
+    public void AddItem_WithUnsupportedUnitPriceScale_ReturnsFailure()
+    {
+        var order = OrderFactory.Create(withItem: false);
+
+        var result = order.AddItem(Guid.NewGuid(), "Notebook", 10.999m, 1);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Unit price cannot have more than 2 decimal places.");
+    }
+
+    [Fact]
     public void MarkAsPaid_WithItems_ChangesStatus()
     {
         var order = OrderFactory.Create();
