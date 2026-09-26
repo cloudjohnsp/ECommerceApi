@@ -60,7 +60,8 @@ public sealed class IntegrationEventOutboxProcessorTests
     [InlineData(OutBoxMessageType.OrderRefunded, "order.refunded")]
     [InlineData(OutBoxMessageType.OrderCancelled, "order.cancelled")]
     [InlineData(OutBoxMessageType.StockUpdated, "stock.updated")]
-    public async Task Process_OrderLifecycleMessage_UsesExpectedRoutingKey(
+    [InlineData(OutBoxMessageType.EmailSent, "email.sent")]
+    public async Task Process_IntegrationMessage_UsesExpectedRoutingKey(
         OutBoxMessageType messageType,
         string expectedRoutingKey)
     {

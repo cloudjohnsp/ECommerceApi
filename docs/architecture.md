@@ -111,6 +111,9 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
 - A solicitação de redefinição bloqueia o usuário por e-mail antes de invalidar o
   token anterior e gravar token + e-mail na outbox, deixando apenas um token
   utilizável mesmo quando duas solicitações chegam juntas.
+- Quando um e-mail de conta é aceito pelo SMTP, a intenção original é concluída e
+  um `email.sent` sanitizado é gravado atomicamente para publicação posterior.
+  Destinatário, nome, conteúdo e token não fazem parte do evento de integração.
 - Clientes recebem escopo pelo claim de identidade; identificadores enviados no
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e

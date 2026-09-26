@@ -23,10 +23,13 @@ senha.
 
 Novos cadastros precisam confirmar o e-mail antes de autenticar. O registro e
 as solicitações de recuperação gravam o token com hash e a entrega de e-mail na
-mesma transação via Outbox; o worker SMTP remove o token em texto claro do
-payload depois do envio. Os endpoints públicos são `confirm-email`,
-`forgot-password` e `reset-password` sob `/api/v1/auth` (com rotas legadas em
-`/api/auth`). Em desenvolvimento, o Docker Compose expõe a caixa do Mailpit em
+mesma transação via Outbox; o processador SMTP remove o token em texto claro do
+payload depois do envio. Após a entrega, a mesma transação que encerra essa
+intenção cria `email.sent`; o evento informa apenas o identificador da entrega e
+a categoria, sem destinatário, nome, conteúdo ou token. Os endpoints públicos
+são `confirm-email`, `forgot-password` e `reset-password` sob `/api/v1/auth`;
+as rotas legadas permanecem em `/api/auth`. Em desenvolvimento, o Docker Compose
+expõe a caixa do Mailpit em
 `http://localhost:8025`.
 
 Refresh tokens são persistidos somente como hash e rotacionados sob transação
@@ -341,11 +344,12 @@ schema `hangfire` do PostgreSQL. Cada job impede execuções concorrentes da mes
 tarefa, e falhas não tratadas ficam sob a política de retry durável do Hangfire.
 O dashboard técnico do Hangfire não é exposto pela API.
 
-Eventos de pedido e estoque armazenados na outbox são publicados no exchange
-durável `ecommerce.events` do RabbitMQ com routing keys como `order.created` e
-`stock.updated`. O evento de estoque informa `ProductId`, `AvailableStock`,
+Eventos de pedido, estoque e entrega de e-mail armazenados na outbox são
+publicados no exchange durável `ecommerce.events` do RabbitMQ com routing keys
+como `order.created` e `stock.updated`; entregas de conta usam `email.sent`. O
+evento de estoque informa `ProductId`, `AvailableStock`,
 `OrderId` opcional, motivo e instante da mudança; o estoque físico e a reserva
-permanecem encapsulados no domínio. A
-publicação usa confirmação do broker e entrega persistente. Como o processamento
+permanecem encapsulados no domínio. A publicação usa confirmação do broker e
+entrega persistente. Como o processamento
 é *at-least-once*, consumidores devem deduplicar pelo `MessageId`, que corresponde
 ao identificador da mensagem na outbox.

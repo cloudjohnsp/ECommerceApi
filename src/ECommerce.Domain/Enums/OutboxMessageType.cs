@@ -12,5 +12,6 @@ public enum OutBoxMessageType
     PaymentFailed = 8,
     OrderRefunded = 9,
     OrderCancelled = 10,
-    StockUpdated = 11
+    StockUpdated = 11,
+    EmailSent = 12
 }

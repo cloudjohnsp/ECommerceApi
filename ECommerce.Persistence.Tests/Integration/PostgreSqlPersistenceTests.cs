@@ -1,7 +1,9 @@
 using ECommerce.Application.Abstractions.Caching;
+using ECommerce.Application.Abstractions.Email;
 using ECommerce.Application.Abstractions.Security;
 using ECommerce.Application.Auth;
 using ECommerce.Application.Auth.Handlers;
+using ECommerce.Application.Email;
 using ECommerce.Application.Orders;
 using ECommerce.Application.Orders.Handlers;
 using ECommerce.Application.Orders.Specifications;
@@ -18,6 +20,9 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using ECommerce.Shared.Messaging;
+using ECommerce.Shared.Results;
 
 namespace ECommerce.Persistence.Tests.Integration;
 
@@ -57,6 +62,55 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             "payments",
             "OutboxMessages"
         ]);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task UserEmailDelivery_PersistsSanitizedEmailSentEventAtomically()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var delivery = new UserEmailDelivery(
+            $"email-{Guid.NewGuid():N}@example.com",
+            "Integration",
+            $"token-{Guid.NewGuid():N}",
+            UserEmailDeliveryType.EmailConfirmation);
+        var sourceMessage = new OutboxMessage(
+            OutBoxMessageType.EmailConfirmationRequested,
+            JsonSerializer.Serialize(delivery));
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.OutboxMessages.AddAsync(sourceMessage);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using (var commandContext = new AppDbContext(options))
+        {
+            var processor = new UserEmailOutboxProcessor(
+                new OutboxMessageRepository(commandContext),
+                new SuccessfulUserEmailSender(),
+                new UnitOfWork(commandContext));
+
+            var result = await processor.ProcessAsync(sourceMessage.Id);
+
+            result.IsSuccess.Should().BeTrue(string.Join("; ", result.Errors));
+        }
+
+        await using var assertionContext = new AppDbContext(options);
+        var persistedSource = await assertionContext.OutboxMessages
+            .SingleAsync(message => message.Id == sourceMessage.Id);
+        var sentEvent = await assertionContext.OutboxMessages.SingleAsync(message =>
+            message.Type == OutBoxMessageType.EmailSent &&
+            message.Payload.Contains(sourceMessage.Id.ToString()));
+        var payload = JsonSerializer.Deserialize<EmailSentIntegrationEventPayload>(sentEvent.Payload);
+
+        persistedSource.Status.Should().Be(OutBoxMessageStatus.Processed);
+        persistedSource.Payload.Should().Be("{}");
+        sentEvent.Status.Should().Be(OutBoxMessageStatus.Pending);
+        payload!.DeliveryId.Should().Be(sourceMessage.Id);
+        payload.Category.Should().Be(EmailDeliveryCategories.EmailConfirmation);
+        sentEvent.Payload.Should().NotContain(delivery.Recipient);
+        sentEvent.Payload.Should().NotContain(delivery.Token);
     }
 
     [PostgreSqlIntegrationFact]
@@ -527,6 +581,14 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
         public bool VerifyPassword(string password, string hashedPassword) =>
             hashedPassword == HashPassword(password);
+    }
+
+    private sealed class SuccessfulUserEmailSender : IUserEmailSender
+    {
+        public Task<Result> SendAsync(
+            UserEmailDelivery delivery,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
     }
 
     private sealed class TestJwtTokenService : IJwtTokenService

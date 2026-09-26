@@ -49,6 +49,9 @@ public sealed class UserEmailOutboxProcessor(
         {
             message.MarkProcessed(clearPayload: true);
             outboxMessageRepository.Update(message);
+            await outboxMessageRepository.AddAsync(
+                EmailIntegrationEventFactory.Create(message.Id, delivery.Type),
+                cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             return Result.Success();

@@ -57,6 +57,7 @@ public sealed class IntegrationEventOutboxProcessor(
         OutBoxMessageType.OrderRefunded => "order.refunded",
         OutBoxMessageType.OrderCancelled => "order.cancelled",
         OutBoxMessageType.StockUpdated => "stock.updated",
+        OutBoxMessageType.EmailSent => "email.sent",
         _ => null
     };
 }
