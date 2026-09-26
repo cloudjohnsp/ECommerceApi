@@ -274,6 +274,9 @@ token para `confirmationToken` e execute a confirmação antes do login. O fluxo
 de recuperação usa `resetToken` copiado do Mailpit e `newPassword`; quando a
 troca é concluída, o ambiente atualiza `password` automaticamente. Para testar
 upload, informe em `productImagePath` um JPEG, PNG ou WebP local de até 5 MB.
+O endpoint autenticado de troca de senha exige `currentPassword` e
+`newPassword`; recuperação sem a credencial atual continua restrita ao token de
+uso único enviado por e-mail.
 
 Operações administrativas exigem login com o administrador criado pelo seed;
 as demais podem ser exercitadas com o cliente cadastrado. A coleção cobre todos

@@ -117,6 +117,9 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
   usuário; assim, logout concorrente com rotação não deixa uma sessão residual.
 - Troca ou redefinição de senha, alteração de role e desativação também revogam
   todos os refresh tokens na mesma unidade de trabalho da mutação e auditoria.
+- A troca autenticada exige a senha atual; a recuperação sem essa credencial
+  exige o token de uso único enviado por e-mail. Ambos usam a mesma política de
+  complexidade para a nova senha.
 - Confirmação de e-mail e redefinição de senha bloqueiam o token de uso único com
   `FOR UPDATE`; somente uma requisição concorrente pode consumi-lo.
 - A solicitação de redefinição bloqueia o usuário por e-mail antes de invalidar o

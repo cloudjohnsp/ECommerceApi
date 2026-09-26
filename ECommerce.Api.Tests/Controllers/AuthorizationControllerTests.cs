@@ -81,10 +81,43 @@ public sealed class AuthorizationControllerTests
 
         var result = await controller.ChangePassword(
             Guid.NewGuid(),
-            new ChangePasswordRequest("Password123!"));
+            new ChangePasswordRequest("Password123!", "NewPassword123!"));
 
         result.Should().BeOfType<ForbidResult>();
         mediator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ChangePassword_OwnAccountDispatchesCurrentAndNewPassword()
+    {
+        var userId = Guid.NewGuid();
+        var mediator = new Mock<ISender>();
+        mediator.Setup(sender => sender.Send(
+                It.IsAny<ChangeUserPasswordCommand>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<UserDto>.Failure("Expected test response."));
+        var controller = new UserController(mediator.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = CreatePrincipal(userId, UserRole.Customer)
+                }
+            }
+        };
+
+        await controller.ChangePassword(
+            userId,
+            new ChangePasswordRequest("CurrentPassword1!", "NewPassword2!"));
+
+        mediator.Verify(sender => sender.Send(
+            It.Is<ChangeUserPasswordCommand>(command =>
+                command.UserId == userId &&
+                command.CurrentPassword == "CurrentPassword1!" &&
+                command.NewPassword == "NewPassword2!" &&
+                command.ActorUserId == userId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

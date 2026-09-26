@@ -617,9 +617,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"password\": \"{{newPassword}}\"\n}"
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
             },
-            "description": "Informe newPassword no ambiente. Em caso de sucesso, password é atualizado automaticamente.",
+            "description": "Confirma password atual e aplica newPassword. Em caso de sucesso, password é atualizado automaticamente.",
             "url": "{{baseUrl}}/user/{{userId}}/password"
           },
           "event": [

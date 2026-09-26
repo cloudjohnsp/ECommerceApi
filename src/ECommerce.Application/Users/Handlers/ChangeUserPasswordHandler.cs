@@ -22,7 +22,10 @@ public sealed class ChangeUserPasswordHandler(
             return Result<UserDto>.Failure("User not found.");
         }
 
-        var changeResult = user.ChangePassword(passwordHasher.HashPassword(request.Password!));
+        if (!passwordHasher.VerifyPassword(request.CurrentPassword!, user.PasswordHash))
+            return Result<UserDto>.Failure("Current password is invalid.");
+
+        var changeResult = user.ChangePassword(passwordHasher.HashPassword(request.NewPassword!));
         if (changeResult.IsFailure)
         {
             return Result<UserDto>.Failure([.. changeResult.Errors]);

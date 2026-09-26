@@ -88,7 +88,8 @@ public sealed class UserController(ISender mediator) : BaseApiController
 
         var result = await _mediator.Send(new ChangeUserPasswordCommand(
             userId,
-            request.Password,
+            request.CurrentPassword,
+            request.NewPassword,
             actorUserId));
         if (result.IsFailure)
         {

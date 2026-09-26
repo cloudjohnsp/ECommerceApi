@@ -1,4 +1,5 @@
 using FluentValidation;
+using ECommerce.Application.Security;
 
 namespace ECommerce.Application.Auth.Validators;
 
@@ -19,8 +20,8 @@ public sealed class ResetPasswordValidator : AbstractValidator<ResetPasswordComm
         RuleFor(command => command.Token).NotEmpty().MaximumLength(512);
         RuleFor(command => command.NewPassword)
             .NotEmpty()
-            .MinimumLength(8)
-            .Matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\\S+$).{8,20}$")
+            .MinimumLength(PasswordPolicy.MinimumLength)
+            .Matches(PasswordPolicy.Pattern)
             .WithMessage("Password must match the specified pattern.");
     }
 }

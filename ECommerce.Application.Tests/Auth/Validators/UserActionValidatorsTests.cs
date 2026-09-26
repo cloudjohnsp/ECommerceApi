@@ -27,4 +27,13 @@ public sealed class UserActionValidatorsTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(error => error.PropertyName == "NewPassword");
     }
+
+    [Fact]
+    public async Task ResetPassword_WithExclamationMarkAsSpecialCharacter_IsValid()
+    {
+        var result = await new ResetPasswordValidator()
+            .ValidateAsync(new ResetPasswordCommand("token", "NewPassword1!"));
+
+        result.IsValid.Should().BeTrue();
+    }
 }

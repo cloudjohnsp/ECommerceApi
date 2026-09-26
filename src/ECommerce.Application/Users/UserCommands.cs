@@ -15,7 +15,8 @@ public sealed record UpdateUserProfileCommand(
     Guid? ActorUserId = null) : IRequest<Result<UserDto>>;
 public sealed record ChangeUserPasswordCommand(
     Guid UserId,
-    string? Password,
+    string? CurrentPassword,
+    string? NewPassword,
     Guid? ActorUserId = null) : IRequest<Result<UserDto>>;
 public sealed record ChangeUserRoleCommand(
     Guid UserId,

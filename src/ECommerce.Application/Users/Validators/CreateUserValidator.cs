@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ECommerce.Application.Security;
 
 namespace ECommerce.Application.Users.Validators
 {
@@ -19,8 +20,9 @@ namespace ECommerce.Application.Users.Validators
                 .WithMessage("Invalid email format.");
             RuleFor(user => user.Password)
                 .NotEmpty().WithMessage("Password is required.")
-                .MinimumLength(8).WithMessage("Password must be at least 8 characters long.")
-                .Matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\\S+$).{8,20}$")
+                .MinimumLength(PasswordPolicy.MinimumLength)
+                .WithMessage("Password must be at least 8 characters long.")
+                .Matches(PasswordPolicy.Pattern)
                 .WithMessage("Password must match the specified pattern.");
             RuleFor(user => user.Role)
                 .IsInEnum().WithMessage("Invalid role.");
