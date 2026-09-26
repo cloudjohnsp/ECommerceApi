@@ -1,4 +1,5 @@
 using FluentValidation;
+using ECommerce.Domain.Entities;
 
 namespace ECommerce.Application.Products.Validators;
 
@@ -8,7 +9,10 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(150);
         RuleFor(x => x.Description).MaximumLength(2000);
-        RuleFor(x => x.Price).GreaterThan(0);
+        RuleFor(x => x.Price)
+            .GreaterThan(0)
+            .LessThanOrEqualTo(Product.MaximumPrice)
+            .PrecisionScale(Product.PricePrecision, Product.PriceScale, ignoreTrailingZeros: true);
         RuleFor(x => x.Stock).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CategoryId).NotEmpty().When(x => x.CategoryId.HasValue);
     }
@@ -21,7 +25,10 @@ public sealed class UpdateProductValidator : AbstractValidator<UpdateProductComm
         RuleFor(x => x.ProductId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(150);
         RuleFor(x => x.Description).MaximumLength(2000);
-        RuleFor(x => x.Price).GreaterThan(0);
+        RuleFor(x => x.Price)
+            .GreaterThan(0)
+            .LessThanOrEqualTo(Product.MaximumPrice)
+            .PrecisionScale(Product.PricePrecision, Product.PriceScale, ignoreTrailingZeros: true);
         RuleFor(x => x.Stock).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CategoryId).NotEmpty().When(x => x.CategoryId.HasValue);
     }

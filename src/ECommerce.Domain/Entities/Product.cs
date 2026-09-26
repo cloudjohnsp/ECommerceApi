@@ -4,6 +4,10 @@ namespace ECommerce.Domain.Entities;
 
 public sealed class Product : Entity
 {
+    public const int PricePrecision = 18;
+    public const int PriceScale = 2;
+    public const decimal MaximumPrice = 9999999999999999.99m;
+
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public decimal Price { get; private set; }
@@ -113,6 +117,13 @@ public sealed class Product : Entity
             errors.Add("Product description cannot exceed 2000 characters.");
         if (price <= 0)
             errors.Add("Product price must be greater than zero.");
+        else
+        {
+            if (price > MaximumPrice)
+                errors.Add($"Product price cannot exceed {MaximumPrice}.");
+            if (decimal.Round(price, PriceScale) != price)
+                errors.Add($"Product price cannot have more than {PriceScale} decimal places.");
+        }
         if (stock < 0)
             errors.Add("Product stock cannot be negative.");
         return errors.Count == 0 ? Result.Success() : Result.Failure([.. errors]);

@@ -45,6 +45,33 @@ public sealed class ProductTests
     }
 
     [Fact]
+    public void Create_WithMaximumPersistablePrice_ReturnsSuccess()
+    {
+        var result = Product.Create("Product", "Description", Product.MaximumPrice, 1);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Price.Should().Be(Product.MaximumPrice);
+    }
+
+    [Fact]
+    public void Create_WithPriceAboveDatabasePrecision_ReturnsFailure()
+    {
+        var result = Product.Create("Product", "Description", 10000000000000000m, 1);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain($"Product price cannot exceed {Product.MaximumPrice}.");
+    }
+
+    [Fact]
+    public void Create_WithMoreThanTwoDecimalPlaces_ReturnsFailure()
+    {
+        var result = Product.Create("Product", "Description", 10.999m, 1);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Product price cannot have more than 2 decimal places.");
+    }
+
+    [Fact]
     public void Update_WithValidData_ChangesProductAndTimestamp()
     {
         var product = ProductFactory.Create();
@@ -82,6 +109,19 @@ public sealed class ProductTests
         product.Name.Should().Be("Notebook");
         product.Price.Should().Be(4999.90m);
         product.AvailableStock.Should().Be(10);
+        product.UpdatedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void Update_WithNonPersistablePrice_DoesNotChangeProduct()
+    {
+        var product = ProductFactory.Create();
+
+        var result = product.Update("Changed", "Changed", 10.999m, 5);
+
+        result.IsFailure.Should().BeTrue();
+        product.Name.Should().Be("Notebook");
+        product.Price.Should().Be(4999.90m);
         product.UpdatedAt.Should().BeNull();
     }
 

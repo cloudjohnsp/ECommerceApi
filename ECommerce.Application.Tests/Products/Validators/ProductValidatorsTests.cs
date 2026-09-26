@@ -1,6 +1,7 @@
 using ECommerce.Application.Products;
 using ECommerce.Application.Products.Validators;
 using FluentAssertions;
+using ECommerce.Domain.Entities;
 
 namespace ECommerce.Application.Tests.Products.Validators;
 
@@ -25,6 +26,26 @@ public sealed class ProductValidatorsTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Select(x => x.PropertyName).Should().Contain(["Name", "Description", "Price", "Stock"]);
+    }
+
+    [Theory]
+    [InlineData(10000000000000000)]
+    [InlineData(10.999)]
+    public async Task Create_WithPriceThatCannotBePersisted_IsInvalid(decimal price)
+    {
+        var result = await new CreateProductValidator().ValidateAsync(
+            new CreateProductCommand("Notebook", "Description", price, 1));
+
+        result.Errors.Should().Contain(error => error.PropertyName == "Price");
+    }
+
+    [Fact]
+    public async Task Update_WithMaximumPersistablePrice_IsValid()
+    {
+        var result = await new UpdateProductValidator().ValidateAsync(
+            new UpdateProductCommand(Guid.NewGuid(), "Notebook", "Description", Product.MaximumPrice, 1));
+
+        result.IsValid.Should().BeTrue();
     }
 
     [Fact]
