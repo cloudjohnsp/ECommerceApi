@@ -42,27 +42,40 @@ public sealed class UpdateCategoryHandler(
         UpdateCategoryCommand request,
         CancellationToken cancellationToken)
     {
-        var category = await repository.GetByIdAsync(request.CategoryId, cancellationToken);
-        if (category is null)
-            return Result<CategoryDto>.Failure("Category not found.");
-
-        var updateResult = category.Update(request.Name);
-        if (updateResult.IsFailure)
-            return Result<CategoryDto>.Failure([.. updateResult.Errors]);
-        if (await repository.ExistsBySlugAsync(
-                category.Slug,
-                category.Id,
-                cancellationToken))
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            return Result<CategoryDto>.Failure("A category with this name already exists.");
-        }
+            var category = await repository.GetByIdForUpdateAsync(
+                request.CategoryId,
+                cancellationToken);
+            if (category is null)
+                return Result<CategoryDto>.Failure("Category not found.");
 
-        repository.Update(category);
-        await unitOfWork.Commit(cancellationToken);
-        var categoryDto = category.ToDto();
-        await categoryCache.SetAsync(categoryDto, CancellationToken.None);
-        await categoryCache.RemoveAllAsync(CancellationToken.None);
-        return Result<CategoryDto>.Success(categoryDto);
+            var updateResult = category.Update(request.Name);
+            if (updateResult.IsFailure)
+                return Result<CategoryDto>.Failure([.. updateResult.Errors]);
+            if (await repository.ExistsBySlugAsync(
+                    category.Slug,
+                    category.Id,
+                    cancellationToken))
+            {
+                return Result<CategoryDto>.Failure("A category with this name already exists.");
+            }
+
+            repository.Update(category);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            var categoryDto = category.ToDto();
+            await categoryCache.SetAsync(categoryDto, CancellationToken.None);
+            await categoryCache.RemoveAllAsync(CancellationToken.None);
+            return Result<CategoryDto>.Success(categoryDto);
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
 
@@ -75,19 +88,32 @@ public sealed class DeleteCategoryHandler(
         DeleteCategoryCommand request,
         CancellationToken cancellationToken)
     {
-        var category = await repository.GetByIdAsync(request.CategoryId, cancellationToken);
-        if (category is null)
-            return Result.Failure("Category not found.");
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var category = await repository.GetByIdForUpdateAsync(
+                request.CategoryId,
+                cancellationToken);
+            if (category is null)
+                return Result.Failure("Category not found.");
 
-        var result = category.Deactivate();
-        if (result.IsFailure)
-            return result;
+            var result = category.Deactivate();
+            if (result.IsFailure)
+                return result;
 
-        repository.Update(category);
-        await unitOfWork.Commit(cancellationToken);
-        await categoryCache.RemoveAsync(category.Id, CancellationToken.None);
-        await categoryCache.RemoveAllAsync(CancellationToken.None);
-        return Result.Success();
+            repository.Update(category);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            await categoryCache.RemoveAsync(category.Id, CancellationToken.None);
+            await categoryCache.RemoveAllAsync(CancellationToken.None);
+            return Result.Success();
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
 

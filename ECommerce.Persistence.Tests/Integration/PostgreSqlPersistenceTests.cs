@@ -558,6 +558,54 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task CategoryForUpdate_ConcurrentMutationWaitsAndObservesCommittedState()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var category = Category.Create($"Category lock {Guid.NewGuid():N}").Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Categories.AddAsync(category);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var firstContext = new AppDbContext(options);
+        var firstUnitOfWork = new UnitOfWork(firstContext);
+        var firstRepository = new CategoryRepository(firstContext);
+        await firstUnitOfWork.BeginTransactionAsync();
+        var firstMutation = await firstRepository.GetByIdForUpdateAsync(category.Id);
+        firstMutation.Should().NotBeNull();
+
+        var secondAttemptStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondMutation = Task.Run(async () =>
+        {
+            await using var secondContext = new AppDbContext(options);
+            var secondUnitOfWork = new UnitOfWork(secondContext);
+            var secondRepository = new CategoryRepository(secondContext);
+            await secondUnitOfWork.BeginTransactionAsync();
+            secondAttemptStarted.SetResult();
+            var lockedCategory = await secondRepository.GetByIdForUpdateAsync(category.Id);
+            var observedName = lockedCategory!.Name;
+            await secondUnitOfWork.CommitTransactionAsync();
+            return observedName;
+        });
+
+        await secondAttemptStarted.Task;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        var secondMutationWasBlocked = !secondMutation.IsCompleted;
+
+        firstMutation!.Update("Serialized category").IsSuccess.Should().BeTrue();
+        firstRepository.Update(firstMutation);
+        await firstUnitOfWork.CommitTransactionAsync();
+
+        var observedName = await secondMutation;
+        secondMutationWasBlocked.Should().BeTrue();
+        observedName.Should().Be("Serialized category");
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task PaymentCreationLocks_LoadPaymentAndOutboxUsingPostgreSql()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

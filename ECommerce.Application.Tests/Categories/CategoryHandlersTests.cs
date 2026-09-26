@@ -57,7 +57,7 @@ public sealed class CategoryHandlersTests
     public async Task Update_WhenCategoryExists_UpdatesAndCommits()
     {
         var category = Category.Create("Audio").Value!;
-        _repository.Setup(repository => repository.GetByIdAsync(
+        _repository.Setup(repository => repository.GetByIdForUpdateAsync(
                 category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
         var handler = new UpdateCategoryHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
@@ -69,7 +69,15 @@ public sealed class CategoryHandlersTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Slug.Should().Be("casa-e-jardim");
         _repository.Verify(repository => repository.Update(category), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.RollbackTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
         _cache.Verify(cache => cache.SetAsync(
             It.Is<CategoryDto>(cached => cached.Id == category.Id && cached.Slug == "casa-e-jardim"),
             CancellationToken.None), Times.Once);
@@ -80,7 +88,7 @@ public sealed class CategoryHandlersTests
     public async Task Delete_WhenCategoryExists_SoftDeletesAndCommits()
     {
         var category = Category.Create("Audio").Value!;
-        _repository.Setup(repository => repository.GetByIdAsync(
+        _repository.Setup(repository => repository.GetByIdForUpdateAsync(
                 category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
         var handler = new DeleteCategoryHandler(_repository.Object, _unitOfWork.Object, _cache.Object);
@@ -90,7 +98,15 @@ public sealed class CategoryHandlersTests
         result.IsSuccess.Should().BeTrue();
         category.IsActive.Should().BeFalse();
         _repository.Verify(repository => repository.Update(category), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _unitOfWork.Verify(
+            unit => unit.RollbackTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
         _cache.Verify(cache => cache.RemoveAsync(category.Id, CancellationToken.None), Times.Once);
         _cache.Verify(cache => cache.RemoveAllAsync(CancellationToken.None), Times.Once);
     }

@@ -67,7 +67,8 @@ respostas informam as versões suportadas nos headers de API versioning.
 Categorias possuem CRUD próprio em `/api/v1/categories` (ou na rota legada
 `/api/categories`). Leituras são públicas; criação, alteração e desativação
 lógica exigem a role `Administrator`. O slug é gerado pelo domínio a partir do
-nome e possui índice único no PostgreSQL.
+nome e possui índice único no PostgreSQL. Alteração e desativação são
+serializadas por bloqueio pessimista, e o cache só é atualizado após o commit.
 
 Produtos podem opcionalmente receber `categoryId` na criação ou atualização, e
 o catálogo pode ser filtrado por esse identificador. A Application só aceita

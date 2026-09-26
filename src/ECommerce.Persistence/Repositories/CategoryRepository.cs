@@ -10,6 +10,16 @@ public sealed class CategoryRepository(AppDbContext dbContext) : ICategoryReposi
     public Task<Category?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Categories.FirstOrDefaultAsync(category => category.Id == id, cancellationToken);
 
+    public Task<Category?> GetByIdForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
+            ? dbContext.Categories
+                .FromSqlInterpolated($"SELECT * FROM categories WHERE id = {id} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : dbContext.Categories.SingleOrDefaultAsync(
+                category => category.Id == id,
+                cancellationToken);
+
     public async Task<IReadOnlyCollection<Category>> GetAllAsync(
         CancellationToken cancellationToken = default) =>
         await dbContext.Categories.AsNoTracking()
