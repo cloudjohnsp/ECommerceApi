@@ -3,7 +3,7 @@ using ECommerce.Domain.Entities;
 using ECommerce.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
-namespace ECommerce.Infrastructure.Persistence;
+namespace ECommerce.Persistence.Repositories;
 
 public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
 {

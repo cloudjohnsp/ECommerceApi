@@ -17,35 +17,43 @@ public sealed class RefreshTokenHandler(
     public async Task<Result<AuthTokensDto>> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
         string tokenHash = jwtTokenService.HashRefreshToken(request.RefreshToken);
-        var storedToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
-        if (storedToken is null)
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
-        }
+            var storedToken = await refreshTokenRepository.GetByTokenHashForUpdateAsync(
+                tokenHash,
+                cancellationToken);
+            if (storedToken is null)
+                return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
 
-        if (storedToken.RevokedAt is not null)
+            if (storedToken.RevokedAt is not null)
+            {
+                await refreshTokenRepository.RevokeAllForUserAsync(storedToken.UserId, cancellationToken);
+                await unitOfWork.CommitTransactionAsync(cancellationToken);
+                transactionCommitted = true;
+                return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
+            }
+
+            if (storedToken.ExpiresAt <= DateTimeOffset.UtcNow)
+                return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
+
+            var user = await userRepository.GetByIdAsync(storedToken.UserId, cancellationToken);
+            if (user is null || !user.IsActive || !user.IsEmailConfirmed)
+                return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
+
+            var (Dto, RefreshTokenEntity) = AuthTokenFactory.Issue(user, jwtTokenService);
+            storedToken.Revoke(RefreshTokenEntity.Id);
+            await refreshTokenRepository.AddAsync(RefreshTokenEntity, cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+
+            return Result<AuthTokensDto>.Success(Dto);
+        }
+        finally
         {
-            await refreshTokenRepository.RevokeAllForUserAsync(storedToken.UserId, cancellationToken);
-            await unitOfWork.Commit(cancellationToken);
-            return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
         }
-
-        if (storedToken.ExpiresAt <= DateTimeOffset.UtcNow)
-        {
-            return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
-        }
-
-        var user = await userRepository.GetByIdAsync(storedToken.UserId, cancellationToken);
-        if (user is null || !user.IsActive || !user.IsEmailConfirmed)
-        {
-            return Result<AuthTokensDto>.Failure(InvalidRefreshTokenMessage);
-        }
-
-        var (Dto, RefreshTokenEntity) = AuthTokenFactory.Issue(user, jwtTokenService);
-        storedToken.Revoke(RefreshTokenEntity.Id);
-        await refreshTokenRepository.AddAsync(RefreshTokenEntity, cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-
-        return Result<AuthTokensDto>.Success(Dto);
     }
 }

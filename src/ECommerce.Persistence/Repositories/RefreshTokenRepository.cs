@@ -3,7 +3,7 @@ using ECommerce.Domain.Entities;
 using ECommerce.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
-namespace ECommerce.Infrastructure.Persistence;
+namespace ECommerce.Persistence.Repositories;
 
 public sealed class RefreshTokenRepository(AppDbContext dbContext) : IRefreshTokenRepository
 {
@@ -12,6 +12,15 @@ public sealed class RefreshTokenRepository(AppDbContext dbContext) : IRefreshTok
         return await dbContext.RefreshTokens
             .FirstOrDefaultAsync(token => token.TokenHash == tokenHash, cancellationToken);
     }
+
+    public Task<RefreshToken?> GetByTokenHashForUpdateAsync(
+        string tokenHash,
+        CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
+            ? dbContext.RefreshTokens
+                .FromSqlInterpolated($"SELECT * FROM refresh_tokens WHERE token_hash = {tokenHash} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : dbContext.RefreshTokens
+                .SingleOrDefaultAsync(token => token.TokenHash == tokenHash, cancellationToken);
 
     public async Task AddAsync(RefreshToken refreshToken, CancellationToken cancellationToken = default)
     {

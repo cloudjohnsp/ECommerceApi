@@ -2,7 +2,7 @@
 using ECommerce.Domain.Enums;
 using ECommerce.Domain.ValueObjects;
 using ECommerce.Persistence.Contexts;
-using ECommerce.Infrastructure.Persistence;
+using ECommerce.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 

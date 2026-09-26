@@ -89,7 +89,10 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
 ## Segurança
 
 - JWT é validado na borda e refresh tokens são armazenados com hash e rotacionados.
-- Reutilizar um refresh token revogado invalida a família ativa do usuário.
+- A rotação abre uma transação e bloqueia o token por hash com `FOR UPDATE`, de
+  modo que duas requisições concorrentes não possam criar duas cadeias válidas.
+- Reutilizar um refresh token revogado invalida a família ativa do usuário,
+  inclusive um token emitido por uma rotação concorrente que terminou primeiro.
 - Clientes recebem escopo pelo claim de identidade; identificadores enviados no
   corpo não permitem operar em nome de outro usuário.
 - CORS aceita somente origens configuradas e rate limiting protege globalmente e

@@ -1,4 +1,7 @@
 using ECommerce.Application.Abstractions.Caching;
+using ECommerce.Application.Abstractions.Security;
+using ECommerce.Application.Auth;
+using ECommerce.Application.Auth.Handlers;
 using ECommerce.Application.Orders;
 using ECommerce.Application.Orders.Handlers;
 using ECommerce.Application.Orders.Specifications;
@@ -6,7 +9,6 @@ using ECommerce.Application.Products.Dtos;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Domain.ValueObjects;
-using ECommerce.Infrastructure.Persistence;
 using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using ECommerce.Persistence.Options;
@@ -14,6 +16,8 @@ using ECommerce.Persistence.Seeding;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ECommerce.Persistence.Tests.Integration;
 
@@ -298,6 +302,55 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         orderSearch.Items.Should().ContainSingle().Which.Id.Should().Be(order.Id);
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task RefreshTokenRotation_ConcurrentReuseProducesOneChainAndRevokesIt()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        const string rawRefreshToken = "concurrent-original-token";
+        var tokenService = new TestJwtTokenService();
+        var user = User.Create(
+            "Concurrent",
+            "Customer",
+            Email.Create($"refresh-{Guid.NewGuid():N}@example.com").Value!,
+            "hash").Value!;
+        user.ConfirmEmail();
+        var originalToken = RefreshToken.Create(
+            user.Id,
+            tokenService.HashRefreshToken(rawRefreshToken),
+            DateTimeOffset.UtcNow.AddDays(1));
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.AddRangeAsync(user, originalToken);
+            await seedContext.SaveChangesAsync();
+        }
+
+        async Task<ECommerce.Shared.Results.Result<ECommerce.Application.Auth.Dtos.AuthTokensDto>> RotateAsync()
+        {
+            await using var context = new AppDbContext(options);
+            var handler = new RefreshTokenHandler(
+                new RefreshTokenRepository(context),
+                new UserRepository(context),
+                new UnitOfWork(context),
+                tokenService);
+            return await handler.Handle(
+                new RefreshTokenCommand(rawRefreshToken),
+                CancellationToken.None);
+        }
+
+        var results = await Task.WhenAll(RotateAsync(), RotateAsync());
+
+        results.Should().ContainSingle(result => result.IsSuccess);
+        results.Should().ContainSingle(result => result.IsFailure);
+        await using var assertionContext = new AppDbContext(options);
+        var persistedTokens = await assertionContext.RefreshTokens
+            .Where(token => token.UserId == user.Id)
+            .ToArrayAsync();
+        persistedTokens.Should().HaveCount(2);
+        persistedTokens.Should().OnlyContain(token => token.RevokedAt != null);
+    }
+
     private static DbContextOptions<AppDbContext> CreateOptions(string connectionString) =>
         new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)
@@ -312,6 +365,22 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
         public bool VerifyPassword(string password, string hashedPassword) =>
             hashedPassword == HashPassword(password);
+    }
+
+    private sealed class TestJwtTokenService : IJwtTokenService
+    {
+        private int _sequence;
+
+        public int AccessTokenExpiresInSeconds => 900;
+
+        public string GenerateAccessToken(User user) => $"access-{user.Id}";
+
+        public string GenerateRefreshToken() => $"rotated-{Interlocked.Increment(ref _sequence)}";
+
+        public string HashRefreshToken(string refreshToken) => Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
+
+        public DateTimeOffset GetRefreshTokenExpiresAt() => DateTimeOffset.UtcNow.AddDays(7);
     }
 
     private sealed class NoOpProductCache : IProductCache

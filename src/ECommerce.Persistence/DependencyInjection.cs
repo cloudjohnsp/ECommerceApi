@@ -1,5 +1,4 @@
 using ECommerce.Application.Abstractions.Persistence;
-using ECommerce.Infrastructure.Persistence;
 using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;

@@ -24,7 +24,7 @@ public sealed class RefreshTokenHandlerTests
             .Setup(service => service.HashRefreshToken(command.RefreshToken))
             .Returns("unknown-hash");
         _refreshTokenRepository
-            .Setup(repository => repository.GetByTokenHashAsync("unknown-hash", It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByTokenHashForUpdateAsync("unknown-hash", It.IsAny<CancellationToken>()))
             .ReturnsAsync((RefreshToken?)null);
 
         var handler = CreateHandler();
@@ -33,7 +33,8 @@ public sealed class RefreshTokenHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Invalid refresh token.");
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -47,11 +48,8 @@ public sealed class RefreshTokenHandlerTests
             .Setup(service => service.HashRefreshToken(command.RefreshToken))
             .Returns("revoked-hash");
         _refreshTokenRepository
-            .Setup(repository => repository.GetByTokenHashAsync("revoked-hash", It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByTokenHashForUpdateAsync("revoked-hash", It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
-        _unitOfWork
-            .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var handler = CreateHandler();
 
@@ -60,7 +58,8 @@ public sealed class RefreshTokenHandlerTests
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Invalid refresh token.");
         _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -72,7 +71,7 @@ public sealed class RefreshTokenHandlerTests
             .Setup(service => service.HashRefreshToken(command.RefreshToken))
             .Returns("expired-hash");
         _refreshTokenRepository
-            .Setup(repository => repository.GetByTokenHashAsync("expired-hash", It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByTokenHashForUpdateAsync("expired-hash", It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
 
         var handler = CreateHandler();
@@ -81,7 +80,8 @@ public sealed class RefreshTokenHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Invalid refresh token.");
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -103,7 +103,8 @@ public sealed class RefreshTokenHandlerTests
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Invalid refresh token.");
         _refreshTokenRepository.Verify(repository => repository.AddAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -129,9 +130,6 @@ public sealed class RefreshTokenHandlerTests
         _jwtTokenService
             .Setup(service => service.AccessTokenExpiresInSeconds)
             .Returns(3600);
-        _unitOfWork
-            .Setup(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var handler = CreateHandler();
 
@@ -149,7 +147,8 @@ public sealed class RefreshTokenHandlerTests
         _refreshTokenRepository.Verify(repository => repository.AddAsync(
             It.Is<RefreshToken>(refreshToken => refreshToken.UserId == user.Id),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -169,6 +168,7 @@ public sealed class RefreshTokenHandlerTests
         result.IsFailure.Should().BeTrue();
         _refreshTokenRepository.Verify(repository => repository.AddAsync(
             It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private RefreshTokenHandler CreateHandler()
@@ -186,7 +186,7 @@ public sealed class RefreshTokenHandlerTests
             .Setup(service => service.HashRefreshToken(command.RefreshToken))
             .Returns("valid-hash");
         _refreshTokenRepository
-            .Setup(repository => repository.GetByTokenHashAsync("valid-hash", It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetByTokenHashForUpdateAsync("valid-hash", It.IsAny<CancellationToken>()))
             .ReturnsAsync(token);
         _jwtTokenService
             .Setup(service => service.HashRefreshToken(It.IsAny<string>()))
