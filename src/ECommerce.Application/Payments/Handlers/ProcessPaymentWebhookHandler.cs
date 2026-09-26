@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Diagnostics;
+using System.Globalization;
 using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Abstractions.Persistence;
@@ -55,6 +56,9 @@ public sealed class ProcessPaymentWebhookHandler(
                 webhook.Data.Id,
                 cancellationToken);
             if (payment is null) return Result.Failure("Payment not found.");
+
+            var paymentIdentityValidation = ValidatePaymentIdentity(webhook.Data, payment);
+            if (paymentIdentityValidation.IsFailure) return paymentIdentityValidation;
 
             if (webhook.Event == "payment.approved" && payment.Status == PaymentStatus.Paid)
                 return Result.Success();
@@ -187,6 +191,31 @@ public sealed class ProcessPaymentWebhookHandler(
             : Result.Failure("Payment webhook event and status do not match.");
     }
 
+    private static Result ValidatePaymentIdentity(PaymentWebhookData data, Payment payment)
+    {
+        var referenceMatches = Guid.TryParse(data.Reference, out var referencedOrderId) &&
+                               referencedOrderId == payment.OrderId;
+        var amountMatches = decimal.TryParse(
+                                data.Amount,
+                                NumberStyles.AllowDecimalPoint,
+                                CultureInfo.InvariantCulture,
+                                out var webhookAmount) &&
+                            webhookAmount == payment.Amount;
+        var currencyMatches = string.Equals(
+            data.Currency,
+            payment.Currency,
+            StringComparison.Ordinal);
+
+        return referenceMatches && amountMatches && currencyMatches
+            ? Result.Success()
+            : Result.Failure("Payment webhook data does not match the local payment.");
+    }
+
     private sealed record PaymentWebhook(string Event, PaymentWebhookData Data);
-    private sealed record PaymentWebhookData(string Id, string Status);
+    private sealed record PaymentWebhookData(
+        string Id,
+        string Status,
+        string? Reference,
+        string? Amount,
+        string? Currency);
 }

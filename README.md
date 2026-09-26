@@ -335,7 +335,9 @@ simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segred
 `PaymentGateway:WebhookSecret` deve ser igual ao `WEBHOOK_SECRET` configurado no
 gateway. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
 campo `data.status` corresponda à transição indicada por `event` antes de acessar
-o banco.
+o banco. Sob o bloqueio do pagamento, ela também compara `data.reference`,
+`data.amount` e `data.currency` com o pedido, valor e moeda locais antes de
+alterar qualquer estado.
 
 Um cliente pode solicitar o reembolso integral do próprio pedido pago, e um
 administrador pode reembolsar qualquer pedido, por meio de:

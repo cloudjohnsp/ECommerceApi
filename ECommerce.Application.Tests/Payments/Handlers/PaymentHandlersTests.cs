@@ -10,6 +10,7 @@ using ECommerce.Shared.Results;
 using ECommerce.Shared.Messaging;
 using FluentAssertions;
 using Moq;
+using System.Globalization;
 using System.Text.Json;
 
 namespace ECommerce.Application.Tests.Payments.Handlers;
@@ -350,7 +351,7 @@ public sealed class PaymentHandlersTests
 
         var result = await handler.Handle(
             new ProcessPaymentWebhookCommand(
-                "{\"event\":\"payment.approved\",\"data\":{\"id\":\"pay_123\",\"status\":\"approved\"}}",
+                CreateWebhookPayload("payment.approved", "approved", payment),
                 "valid"),
             CancellationToken.None);
 
@@ -386,7 +387,7 @@ public sealed class PaymentHandlersTests
 
         var result = await handler.Handle(
             new ProcessPaymentWebhookCommand(
-                "{\"event\":\"payment.declined\",\"data\":{\"id\":\"pay_123\",\"status\":\"declined\"}}",
+                CreateWebhookPayload("payment.declined", "declined", payment),
                 "valid"),
             CancellationToken.None);
 
@@ -423,7 +424,7 @@ public sealed class PaymentHandlersTests
 
         var result = await handler.Handle(
             new ProcessPaymentWebhookCommand(
-                "{\"event\":\"payment.refunded\",\"data\":{\"id\":\"pay_123\",\"status\":\"refunded\"}}",
+                CreateWebhookPayload("payment.refunded", "refunded", payment),
                 "valid"),
             CancellationToken.None);
 
@@ -502,6 +503,45 @@ public sealed class PaymentHandlersTests
             Times.Never);
     }
 
+    [Theory]
+    [InlineData("reference")]
+    [InlineData("amount")]
+    [InlineData("currency")]
+    public async Task Webhook_WhenPaymentIdentityDoesNotMatch_IsRejectedWithoutChangingState(
+        string mismatchedField)
+    {
+        var order = OrderFactory.Create();
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
+        payment.RegisterExternalPayment("pay_123");
+        SetupWebhook(payment, order);
+        var payload = CreateWebhookPayload(
+            "payment.approved",
+            "approved",
+            payment,
+            reference: mismatchedField == "reference" ? Guid.NewGuid().ToString() : null,
+            amount: mismatchedField == "amount" ? "0.01" : null,
+            currency: mismatchedField == "currency" ? "USD" : null);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(payload, "valid"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment webhook data does not match the local payment.");
+        payment.Status.Should().Be(PaymentStatus.Pending);
+        order.Status.Should().Be(OrderStatus.Pending);
+        _orders.Verify(
+            x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(
+            x => x.RollbackTransactionAsync(CancellationToken.None),
+            Times.Once);
+    }
+
     [Fact]
     public async Task Webhook_Declined_WhenOrderIsAlreadyCancelled_DoesNotRestoreStockAgain()
     {
@@ -514,7 +554,7 @@ public sealed class PaymentHandlersTests
 
         var result = await handler.Handle(
             new ProcessPaymentWebhookCommand(
-                "{\"event\":\"payment.declined\",\"data\":{\"id\":\"pay_123\",\"status\":\"declined\"}}",
+                CreateWebhookPayload("payment.declined", "declined", payment),
                 "valid"),
             CancellationToken.None);
 
@@ -531,6 +571,26 @@ public sealed class PaymentHandlersTests
         _payments.Setup(x => x.GetByExternalIdForUpdateAsync("pay_123", It.IsAny<CancellationToken>())).ReturnsAsync(payment);
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
     }
+
+    private static string CreateWebhookPayload(
+        string eventName,
+        string status,
+        Payment payment,
+        string? reference = null,
+        string? amount = null,
+        string? currency = null) =>
+        JsonSerializer.Serialize(new
+        {
+            @event = eventName,
+            data = new
+            {
+                id = "pay_123",
+                status,
+                reference = reference ?? payment.OrderId.ToString(),
+                amount = amount ?? payment.Amount.ToString(CultureInfo.InvariantCulture),
+                currency = currency ?? payment.Currency
+            }
+        });
 
     private ProcessPaymentWebhookHandler CreateWebhookHandler() => new(
         _signatureVerifier.Object,
