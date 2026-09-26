@@ -84,6 +84,8 @@ intenção disponível para diagnóstico e retry.
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
 externa.
+Uma resposta de reembolso só pode avançar o estado local quando confirma o mesmo
+`ExternalPaymentId` enviado na solicitação e o status `refunded`.
 Webhooks são autenticados por HMAC e o par `event`/`data.status` é validado antes
 de abrir a transação, evitando que um payload contraditório aplique uma transição
 financeira diferente da informada pelo gateway.

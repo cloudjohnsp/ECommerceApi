@@ -257,6 +257,48 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Refund_WhenGatewayReturnsDifferentPaymentId_DoesNotMutateLocalState()
+    {
+        var order = OrderFactory.Create();
+        order.MarkAsPaid();
+        var payment = Payment.Create(order.Id, order.Total, "ECommercePayment").Value!;
+        payment.MarkAsPaid("pay_123");
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        var gateway = new Mock<IPaymentGateway>();
+        gateway.Setup(x => x.RefundAsync(
+                It.IsAny<RefundGatewayPayment>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GatewayPayment>.Success(
+                new GatewayPayment("pay_other", "refunded")));
+        var handler = new RefundPaymentHandler(
+            _orders.Object,
+            _payments.Object,
+            _products.Object,
+            _outbox.Object,
+            gateway.Object,
+            _unitOfWork.Object,
+            _productCache.Object);
+
+        var result = await handler.Handle(
+            new RefundPaymentCommand(order.Id, null, order.CustomerId),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Payment gateway returned a mismatched payment identifier.");
+        payment.Status.Should().Be(PaymentStatus.Paid);
+        order.Status.Should().Be(OrderStatus.Paid);
+        _unitOfWork.Verify(
+            x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        _outbox.Verify(x => x.AddAsync(
+            It.IsAny<OutboxMessage>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Webhook_Approved_MarksPaymentAndOrderAsPaid()
     {
         var acquiredLocks = new List<string>();

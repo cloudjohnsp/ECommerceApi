@@ -49,8 +49,24 @@ public sealed class RefundPaymentHandler(
             cancellationToken);
         if (refundResult.IsFailure)
             return Result<PaymentDto>.Failure([.. refundResult.Errors]);
-        if (!string.Equals(refundResult.Value!.Status, "refunded", StringComparison.OrdinalIgnoreCase))
+
+        var gatewayPayment = refundResult.Value!;
+        if (!string.Equals(
+                gatewayPayment.ExternalPaymentId,
+                payment.ExternalPaymentId,
+                StringComparison.Ordinal))
+        {
+            return Result<PaymentDto>.Failure(
+                "Payment gateway returned a mismatched payment identifier.");
+        }
+
+        if (!string.Equals(
+                gatewayPayment.Status?.Trim(),
+                "refunded",
+                StringComparison.OrdinalIgnoreCase))
+        {
             return Result<PaymentDto>.Failure("Payment gateway returned an invalid refund status.");
+        }
 
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
