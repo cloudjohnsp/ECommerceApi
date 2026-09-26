@@ -9,7 +9,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)
     {
-        builder.ToTable("orders");
+        builder.ToTable("orders", table =>
+            table.HasCheckConstraint("ck_orders_status", "status IN (1, 2, 3, 4)"));
         builder.HasKey(order => order.Id);
         builder.Property(order => order.Id).ValueGeneratedNever();
         builder.Property(order => order.CustomerId).HasColumnName("customer_id").IsRequired();
@@ -41,12 +42,17 @@ public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
 {
     public void Configure(EntityTypeBuilder<OrderItem> builder)
     {
-        builder.ToTable("order_items");
+        builder.ToTable("order_items", table =>
+        {
+            table.HasCheckConstraint("ck_order_items_unit_price", "unit_price > 0");
+            table.HasCheckConstraint("ck_order_items_quantity", "quantity > 0");
+        });
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Id).ValueGeneratedNever();
         builder.Property(item => item.OrderId).HasColumnName("order_id").IsRequired();
         builder.Property(item => item.ProductId).HasColumnName("product_id").IsRequired();
-        builder.Property(item => item.ProductName).HasColumnName("product_name").HasMaxLength(150).IsRequired();
+        builder.Property(item => item.ProductName).HasColumnName("product_name")
+            .HasMaxLength(Order.ProductNameMaximumLength).IsRequired();
         builder.Property(item => item.UnitPrice).HasColumnName("unit_price")
             .HasPrecision(MoneyConstraints.Precision, MoneyConstraints.Scale).IsRequired();
         builder.Property(item => item.Quantity).HasColumnName("quantity").IsRequired();

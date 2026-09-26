@@ -10,9 +10,13 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     public void Configure(EntityTypeBuilder<Payment> builder)
     {
         builder.ToTable("payments", table =>
+        {
             table.HasCheckConstraint(
                 "ck_payments_currency",
-                "\"currency\" ~ '^[A-Z]{3}$'"));
+                "\"currency\" ~ '^[A-Z]{3}$'");
+            table.HasCheckConstraint("ck_payments_amount", "amount > 0");
+            table.HasCheckConstraint("ck_payments_status", "status IN (1, 2, 3, 4)");
+        });
         builder.HasKey(payment => payment.Id);
         builder.Property(payment => payment.Id).ValueGeneratedNever();
         builder.Property(payment => payment.OrderId).HasColumnName("order_id").IsRequired();

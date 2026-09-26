@@ -52,6 +52,19 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void AddItem_WithProductNameLongerThanPersistenceLimit_ReturnsFailure()
+    {
+        var order = OrderFactory.Create(withItem: false);
+
+        var result = order.AddItem(Guid.NewGuid(), new string('a', 151), 100m, 1);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(
+            "Product name must contain between 1 and 150 characters.");
+        order.Items.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AddItem_WhenSubtotalExceedsPersistablePaymentAmount_ReturnsFailure()
     {
         var order = OrderFactory.Create(withItem: false);

@@ -9,7 +9,8 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("products");
+        builder.ToTable("products", table =>
+            table.HasCheckConstraint("ck_products_price", "price > 0"));
         builder.HasKey(product => product.Id);
         builder.Property(product => product.Id).ValueGeneratedNever();
 

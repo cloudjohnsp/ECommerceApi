@@ -65,6 +65,41 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task InventoryConstraints_RejectReservationAbovePhysicalStock()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var product = Product.Create(
+            $"Constraint product {Guid.NewGuid():N}",
+            "PostgreSQL constraint test",
+            10m,
+            5).Value!;
+
+        await using (var context = new AppDbContext(options))
+        {
+            await context.Products.AddAsync(product);
+            await context.SaveChangesAsync();
+        }
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE inventories
+            SET reserved_stock = stock + 1
+            WHERE product_id = @productId;
+            """,
+            connection);
+        command.Parameters.AddWithValue("productId", product.Id);
+
+        var action = async () => await command.ExecuteNonQueryAsync();
+
+        var exception = await action.Should().ThrowAsync<PostgresException>();
+        exception.Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        exception.Which.ConstraintName.Should().Be("ck_inventories_reservation_capacity");
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task UserEmailDelivery_PersistsSanitizedEmailSentEventAtomically()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

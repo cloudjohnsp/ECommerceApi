@@ -7,6 +7,7 @@ namespace ECommerce.Domain.Entities;
 public sealed class Order : Entity
 {
     public const decimal MaximumTotal = MoneyConstraints.MaximumValue;
+    public const int ProductNameMaximumLength = 150;
 
     private readonly List<OrderItem> _items = [];
 
@@ -39,7 +40,12 @@ public sealed class Order : Entity
     {
         if (Status != OrderStatus.Pending) return Result.Failure("Items can only be added to pending orders.");
         if (productId == Guid.Empty) return Result.Failure("Product id is required.");
-        if (string.IsNullOrWhiteSpace(productName)) return Result.Failure("Product name is required.");
+        if (string.IsNullOrWhiteSpace(productName) ||
+            productName.Trim().Length > ProductNameMaximumLength)
+        {
+            return Result.Failure(
+                $"Product name must contain between 1 and {ProductNameMaximumLength} characters.");
+        }
         if (unitPrice <= 0) return Result.Failure("Unit price must be greater than zero.");
         if (unitPrice > MoneyConstraints.MaximumValue)
             return Result.Failure($"Unit price cannot exceed {MoneyConstraints.MaximumValue}.");

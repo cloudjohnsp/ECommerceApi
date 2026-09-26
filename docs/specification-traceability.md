@@ -36,7 +36,7 @@ auditoria do estado final repetível.
 | --- | --- |
 | PostgreSQL, EF Core e migrations | `AppDbContext`, configurações Fluent API e migrations versionadas em `ECommerce.Persistence` |
 | Seed | `DatabaseSeeder` idempotente e protegido por advisory lock |
-| Índices e constraints | Configurações EF e testes de integração PostgreSQL |
+| Índices e constraints | Configurações EF, `RelationalConstraintTests` e testes de integração PostgreSQL que exercitam violações reais |
 | Transações | `IUnitOfWork`, bloqueios pessimistas e ordem global de locks documentada em `architecture.md` |
 | Redis | Cache-aside resiliente para produtos e categorias, invalidação após commit e health check |
 | RabbitMQ | Outbox de integração, publisher com confirmação e Worker com fila quorum, inbox e dead-letter |

@@ -35,7 +35,9 @@ A validação não é repetida igualmente em todas as camadas:
 4. Configurações Fluent API definem tipos, relações, índices e constraints de
    persistência; elas não substituem regras de negócio.
 5. PostgreSQL é a última barreira para unicidade, integridade referencial e
-   concorrência.
+   concorrência. Check constraints também impedem estoque ou reserva negativos,
+   reserva acima do estoque físico, valores monetários não positivos, quantidades
+   inválidas e estados desconhecidos.
 
 Falhas esperadas retornam `Result`; exceções ficam reservadas para condições
 inesperadas e são convertidas em `ProblemDetails` sanitizado pelo middleware da
