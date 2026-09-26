@@ -4,6 +4,9 @@ Backend de e-commerce organizado com Clean Architecture.
 
 As fronteiras, garantias transacionais e decisões que diferem do esboço inicial
 estão registradas em [`docs/architecture.md`](docs/architecture.md).
+A relação entre cada requisito da especificação, sua implementação e a evidência
+automatizada está em
+[`docs/specification-traceability.md`](docs/specification-traceability.md).
 
 O cadastro público cria exclusivamente usuários com a role `Customer`. A
 alteração de roles exige `Administrator`; operações de perfil e desativação são
