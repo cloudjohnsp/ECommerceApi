@@ -56,6 +56,7 @@ public sealed class IntegrationEventOutboxProcessor(
         OutBoxMessageType.PaymentFailed => "payment.failed",
         OutBoxMessageType.OrderRefunded => "order.refunded",
         OutBoxMessageType.OrderCancelled => "order.cancelled",
+        OutBoxMessageType.StockUpdated => "stock.updated",
         _ => null
     };
 }

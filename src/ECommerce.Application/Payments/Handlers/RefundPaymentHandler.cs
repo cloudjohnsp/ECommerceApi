@@ -7,6 +7,8 @@ using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
 using ECommerce.Application.Orders;
+using ECommerce.Application.Products;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Payments.Handlers;
 
@@ -73,6 +75,7 @@ public sealed class RefundPaymentHandler(
             if (transitionResult.IsFailure)
                 return Result<PaymentDto>.Failure([.. transitionResult.Errors]);
 
+            var updatedProducts = new List<Product>();
             foreach (var item in order.Items.OrderBy(item => item.ProductId))
             {
                 var product = await productRepository.GetByIdForUpdateAsync(
@@ -86,6 +89,7 @@ public sealed class RefundPaymentHandler(
                 if (restoreResult.IsFailure)
                     return Result<PaymentDto>.Failure([.. restoreResult.Errors]);
                 productRepository.Update(product);
+                updatedProducts.Add(product);
             }
 
             paymentRepository.Update(payment);
@@ -93,6 +97,15 @@ public sealed class RefundPaymentHandler(
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderRefunded),
                 cancellationToken);
+            foreach (var product in updatedProducts)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(
+                        product,
+                        StockUpdateReasons.Restored,
+                        order.Id),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
         }

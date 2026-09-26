@@ -101,11 +101,16 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             .SingleAsync(item => item.CustomerId == customer.Id);
         var outboxMessage = await assertionContext.OutboxMessages
             .SingleAsync(message => message.Type == OutBoxMessageType.OrderCreated);
+        var stockMessage = await assertionContext.OutboxMessages
+            .SingleAsync(message => message.Type == OutBoxMessageType.StockUpdated);
 
         persistedProduct.AvailableStock.Should().Be(7);
         persistedOrder.Items.Should().ContainSingle(item =>
             item.ProductId == product.Id && item.Quantity == 3);
         outboxMessage.Status.Should().Be(OutBoxMessageStatus.Pending);
+        stockMessage.Status.Should().Be(OutBoxMessageStatus.Pending);
+        stockMessage.Payload.Should().Contain(product.Id.ToString());
+        stockMessage.Payload.Should().Contain("reserved");
     }
 
     [PostgreSqlIntegrationFact]
@@ -175,7 +180,9 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
         order.Items.Should().HaveCount(2);
         product.AvailableStock.Should().Be(6);
-        eventTypes.Should().Equal(OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated);
+        eventTypes.Where(type => type != OutBoxMessageType.StockUpdated)
+            .Should().Equal(OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated);
+        eventTypes.Count(type => type == OutBoxMessageType.StockUpdated).Should().Be(2);
     }
 
     [PostgreSqlIntegrationFact]

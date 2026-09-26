@@ -3,6 +3,9 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Shared.Results;
 using MediatR;
 using ECommerce.Domain.Enums;
+using ECommerce.Application.Products;
+using ECommerce.Domain.Entities;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -27,6 +30,7 @@ public sealed class DeleteOrderHandler(
             var result = order.Cancel();
             if (result.IsFailure) return result;
 
+            var updatedProducts = new List<Product>();
             foreach (var item in order.Items.OrderBy(item => item.ProductId))
             {
                 var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
@@ -36,12 +40,22 @@ public sealed class DeleteOrderHandler(
                 var releaseResult = product.ReleaseReservedStock(item.Quantity);
                 if (releaseResult.IsFailure) return releaseResult;
                 productRepository.Update(product);
+                updatedProducts.Add(product);
             }
 
             orderRepository.Update(order);
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderCancelled),
                 cancellationToken);
+            foreach (var product in updatedProducts)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(
+                        product,
+                        StockUpdateReasons.ReservationReleased,
+                        order.Id),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(order.Items.Select(item =>

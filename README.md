@@ -101,8 +101,8 @@ na trilha.
 
 Enquanto o pedido está pendente, o cliente pode acrescentar um produto por
 `POST /api/v1/orders/{orderId}/items`. A operação bloqueia pedido e produto,
-reserva o estoque e grava `order.updated` na outbox na mesma transação. Pedidos
-pagos, cancelados ou reembolsados não aceitam novos itens.
+reserva o estoque e grava `order.updated` e `stock.updated` na outbox na mesma
+transação. Pedidos pagos, cancelados ou reembolsados não aceitam novos itens.
 
 A consulta paginada fica em `GET /api/v1/orders/search` e aceita `status`,
 `createdFromUtc`, `createdToUtc`, `sortBy`, `descending`, `page` e `pageSize`.
@@ -337,8 +337,11 @@ schema `hangfire` do PostgreSQL. Cada job impede execuções concorrentes da mes
 tarefa, e falhas não tratadas ficam sob a política de retry durável do Hangfire.
 O dashboard técnico do Hangfire não é exposto pela API.
 
-Eventos de pedido armazenados na outbox são publicados no exchange durável
-`ecommerce.events` do RabbitMQ com uma routing key como `order.created`. A
+Eventos de pedido e estoque armazenados na outbox são publicados no exchange
+durável `ecommerce.events` do RabbitMQ com routing keys como `order.created` e
+`stock.updated`. O evento de estoque informa `ProductId`, `AvailableStock`,
+`OrderId` opcional, motivo e instante da mudança; o estoque físico e a reserva
+permanecem encapsulados no domínio. A
 publicação usa confirmação do broker e entrega persistente. Como o processamento
 é *at-least-once*, consumidores devem deduplicar pelo `MessageId`, que corresponde
 ao identificador da mensagem na outbox.

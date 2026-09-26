@@ -3,11 +3,13 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Products.Dtos;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Products.Handlers;
 
 public sealed class UpdateProductHandler(
     IProductRepository repository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache,
     ICategoryRepository categoryRepository)
@@ -21,6 +23,7 @@ public sealed class UpdateProductHandler(
         {
             var product = await repository.GetByIdForUpdateAsync(request.ProductId, cancellationToken);
             if (product is null) return Result<ProductDto>.Failure("Product not found.");
+            var previousAvailableStock = product.AvailableStock;
             if (request.CategoryId.HasValue &&
                 await categoryRepository.GetByIdAsync(request.CategoryId.Value, cancellationToken) is null)
             {
@@ -36,6 +39,12 @@ public sealed class UpdateProductHandler(
             if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
 
             repository.Update(product);
+            if (product.AvailableStock != previousAvailableStock)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(product, StockUpdateReasons.Adjusted),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             var productDto = product.ToDto();

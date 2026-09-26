@@ -9,6 +9,7 @@ using FluentAssertions;
 using Moq;
 using ECommerce.Application.Abstractions.Specifications;
 using ECommerce.Shared.Pagination;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Tests.Orders.Handlers;
 
@@ -43,6 +44,12 @@ public sealed class OrderHandlersTests
             It.Is<OutboxMessage>(message =>
                 message.Type == OutBoxMessageType.OrderCreated &&
                 message.Payload.Contains(result.Value.Id.ToString())),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(product.Id.ToString()) &&
+                message.Payload.Contains(StockUpdateReasons.Reserved)),
             It.IsAny<CancellationToken>()), Times.Once);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -190,6 +197,11 @@ public sealed class OrderHandlersTests
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderUpdated),
             It.IsAny<CancellationToken>()), Times.Once);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.Reserved)),
+            It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
@@ -274,6 +286,11 @@ public sealed class OrderHandlersTests
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderPaid),
             It.IsAny<CancellationToken>()), Times.Once);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.ReservationConsumed)),
+            It.IsAny<CancellationToken>()), Times.Once);
         product.ReleaseReservedStock(2).IsFailure.Should().BeTrue();
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
@@ -328,6 +345,11 @@ public sealed class OrderHandlersTests
         product.AvailableStock.Should().Be(10);
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderCancelled),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outboxMessages.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.ReservationReleased)),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);

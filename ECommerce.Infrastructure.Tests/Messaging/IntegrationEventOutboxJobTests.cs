@@ -34,7 +34,8 @@ public sealed class IntegrationEventOutboxJobTests
                 OutBoxMessageType.OrderPaid,
                 OutBoxMessageType.PaymentFailed,
                 OutBoxMessageType.OrderRefunded,
-                OutBoxMessageType.OrderCancelled
+                OutBoxMessageType.OrderCancelled,
+                OutBoxMessageType.StockUpdated
             ],
             repository.RequestedTypes);
         Assert.Equal([messageId], processor.ProcessedIds);

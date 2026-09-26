@@ -4,6 +4,9 @@ using ECommerce.Application.Orders.Dtos;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Products;
+using ECommerce.Domain.Entities;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -39,6 +42,7 @@ public sealed class UpdateOrderHandler(
                 : Result.Failure("Unsupported order status transition.");
             if (result.IsFailure) return Result<OrderDto>.Failure([.. result.Errors]);
 
+            var updatedProducts = new List<Product>();
             foreach (var item in order.Items.OrderBy(item => item.ProductId))
             {
                 var product = await productRepository.GetByIdForUpdateAsync(
@@ -52,12 +56,22 @@ public sealed class UpdateOrderHandler(
                 if (stockResult.IsFailure)
                     return Result<OrderDto>.Failure([.. stockResult.Errors]);
                 productRepository.Update(product);
+                updatedProducts.Add(product);
             }
 
             orderRepository.Update(order);
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderPaid),
                 cancellationToken);
+            foreach (var product in updatedProducts)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(
+                        product,
+                        StockUpdateReasons.ReservationConsumed,
+                        order.Id),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(order.Items.Select(item =>

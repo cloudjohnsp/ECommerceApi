@@ -5,6 +5,8 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Products;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -51,6 +53,12 @@ public sealed class AddOrderItemHandler(
             productRepository.Update(product);
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderUpdated),
+                cancellationToken);
+            await outboxMessageRepository.AddAsync(
+                StockIntegrationEventFactory.Create(
+                    product,
+                    StockUpdateReasons.Reserved,
+                    order.Id),
                 cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;

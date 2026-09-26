@@ -3,12 +3,14 @@ using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Products.Dtos;
 using ECommerce.Domain.Entities;
 using ECommerce.Shared.Results;
+using ECommerce.Shared.Messaging;
 using MediatR;
 
 namespace ECommerce.Application.Products.Handlers;
 
 public sealed class CreateProductHandler(
     IProductRepository repository,
+    IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache,
     ICategoryRepository categoryRepository)
@@ -30,9 +32,13 @@ public sealed class CreateProductHandler(
             request.CategoryId);
         if (result.IsFailure) return Result<ProductDto>.Failure([.. result.Errors]);
 
-        await repository.AddAsync(result.Value!, cancellationToken);
+        var product = result.Value!;
+        await repository.AddAsync(product, cancellationToken);
+        await outboxMessageRepository.AddAsync(
+            StockIntegrationEventFactory.Create(product, StockUpdateReasons.Created),
+            cancellationToken);
         await unitOfWork.Commit(cancellationToken);
-        var productDto = result.Value!.ToDto();
+        var productDto = product.ToDto();
         await productCache.SetAsync(productDto, CancellationToken.None);
         return Result<ProductDto>.Success(productDto);
     }

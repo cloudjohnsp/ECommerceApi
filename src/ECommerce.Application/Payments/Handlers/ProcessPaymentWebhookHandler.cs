@@ -7,6 +7,9 @@ using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
 using ECommerce.Application.Orders;
+using ECommerce.Application.Products;
+using ECommerce.Domain.Entities;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Payments.Handlers;
 
@@ -61,6 +64,7 @@ public sealed class ProcessPaymentWebhookHandler(
             if (order is null) return Result.Failure("Order not found.");
 
             Result transitionResult;
+            var updatedProducts = new List<(Product Product, string Reason)>();
             switch (webhook.Event)
             {
                 case "payment.approved":
@@ -77,6 +81,7 @@ public sealed class ProcessPaymentWebhookHandler(
                         var reduceResult = product.ReduceStock(item.Quantity);
                         if (reduceResult.IsFailure) return reduceResult;
                         productRepository.Update(product);
+                        updatedProducts.Add((product, StockUpdateReasons.ReservationConsumed));
                     }
                     break;
 
@@ -98,6 +103,7 @@ public sealed class ProcessPaymentWebhookHandler(
                             var releaseResult = product.ReleaseReservedStock(item.Quantity);
                             if (releaseResult.IsFailure) return releaseResult;
                             productRepository.Update(product);
+                            updatedProducts.Add((product, StockUpdateReasons.ReservationReleased));
                         }
                     }
                     break;
@@ -120,6 +126,7 @@ public sealed class ProcessPaymentWebhookHandler(
                         var restoreResult = product.RestoreStock(item.Quantity);
                         if (restoreResult.IsFailure) return restoreResult;
                         productRepository.Update(product);
+                        updatedProducts.Add((product, StockUpdateReasons.Restored));
                     }
                     break;
 
@@ -139,6 +146,12 @@ public sealed class ProcessPaymentWebhookHandler(
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, messageType),
                 cancellationToken);
+            foreach (var (product, reason) in updatedProducts)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(product, reason, order.Id),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(order.Items.Select(item =>

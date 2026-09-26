@@ -44,6 +44,12 @@ Criar um pedido ou adicionar um item bloqueia os produtos envolvidos, reserva
 estoque e persiste pedido e evento de outbox na mesma transação. Cancelar um
 pedido pendente libera a reserva.
 
+Cada criação de inventário e transição relevante de reserva, consumo, liberação,
+restauração ou ajuste também grava `stock.updated` na mesma transação. O contrato
+público contém somente `ProductId`, `AvailableStock`, o `OrderId` opcional, o
+motivo e o instante da alteração. `Stock` e `ReservedStock` continuam detalhes
+privados do agregado de inventário.
+
 O estoque não é decrementado de forma assíncrona pelo Worker. Essa decisão evita
 venda acima da disponibilidade: aprovação do webhook bloqueia pagamento, pedido
 e produtos e, atomicamente, confirma o pagamento, marca o pedido como pago,
@@ -71,6 +77,7 @@ externa.
 Eventos de integração são publicados cronologicamente a partir da outbox. O lote
 para no primeiro erro para preservar causalidade. A publicação é *at least once*:
 uma queda depois do publish e antes de marcar a outbox pode gerar redelivery.
+As routing keys incluem os eventos de ciclo de vida do pedido e `stock.updated`.
 
 O Worker usa:
 

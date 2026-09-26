@@ -7,6 +7,7 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Domain.Tests.Support;
 using ECommerce.Shared.Results;
+using ECommerce.Shared.Messaging;
 using FluentAssertions;
 using Moq;
 using System.Text.Json;
@@ -212,6 +213,11 @@ public sealed class PaymentHandlersTests
         _outbox.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderRefunded),
             It.IsAny<CancellationToken>()), Times.Once);
+        _outbox.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.Restored)),
+            It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
@@ -273,6 +279,11 @@ public sealed class PaymentHandlersTests
         _outbox.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderPaid),
             It.IsAny<CancellationToken>()), Times.Once);
+        _outbox.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.ReservationConsumed)),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -301,6 +312,11 @@ public sealed class PaymentHandlersTests
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
         _outbox.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.PaymentFailed),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outbox.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.ReservationReleased)),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -333,6 +349,11 @@ public sealed class PaymentHandlersTests
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
         _outbox.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderRefunded),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _outbox.Verify(x => x.AddAsync(
+            It.Is<OutboxMessage>(message =>
+                message.Type == OutBoxMessageType.StockUpdated &&
+                message.Payload.Contains(StockUpdateReasons.Restored)),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

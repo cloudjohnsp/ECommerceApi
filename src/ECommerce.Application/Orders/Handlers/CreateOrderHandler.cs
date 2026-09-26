@@ -5,6 +5,8 @@ using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Shared.Results;
 using MediatR;
+using ECommerce.Application.Products;
+using ECommerce.Shared.Messaging;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -65,6 +67,15 @@ public sealed class CreateOrderHandler(
 
             await orderRepository.AddAsync(order, cancellationToken);
             await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
+            foreach (var (product, _) in products)
+            {
+                await outboxMessageRepository.AddAsync(
+                    StockIntegrationEventFactory.Create(
+                        product,
+                        StockUpdateReasons.Reserved,
+                        order.Id),
+                    cancellationToken);
+            }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
             await Task.WhenAll(products.Select(item =>
