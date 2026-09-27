@@ -380,7 +380,7 @@ public sealed class OrderHandlersTests
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .Callback(() => acquiredLocks.Add("order"))
             .ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+        _payments.Setup(x => x.GetPaidByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .Callback(() => acquiredLocks.Add("payment"))
             .ReturnsAsync(payment);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
@@ -424,7 +424,7 @@ public sealed class OrderHandlersTests
         var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+        _payments.Setup(x => x.GetPaidByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(payment);
         var handler = new UpdateOrderHandler(
             _orders.Object,

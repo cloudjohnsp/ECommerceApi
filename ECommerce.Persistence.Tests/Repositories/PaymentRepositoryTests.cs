@@ -27,6 +27,27 @@ public sealed class PaymentRepositoryTests
     }
 
     [Fact]
+    public void Model_EnforcesAttemptIdempotencyAndSinglePendingOrPaidPayment()
+    {
+        using var context = CreateRelationalModelContext();
+        var entityType = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(Payment));
+
+        entityType.Should().NotBeNull();
+        entityType!.FindProperty(nameof(Payment.IdempotencyKey))!.IsNullable.Should().BeFalse();
+        entityType.GetIndexes().Should().Contain(index =>
+            index.GetDatabaseName() == "ux_payments_order_id_idempotency_key" &&
+            index.IsUnique);
+        entityType.GetIndexes().Should().Contain(index =>
+            index.GetDatabaseName() == "ux_payments_one_pending_per_order" &&
+            index.IsUnique &&
+            index.GetFilter() == "status = 1");
+        entityType.GetIndexes().Should().Contain(index =>
+            index.GetDatabaseName() == "ux_payments_one_paid_per_order" &&
+            index.IsUnique &&
+            index.GetFilter() == "status = 2");
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ReturnsPersistedPayment()
     {
         await using var context = CreateContext();
@@ -73,8 +94,8 @@ public sealed class PaymentRepositoryTests
 
         var persisted = await repository.GetByOrderIdAsync(payment.OrderId);
 
-        persisted.Should().NotBeNull();
-        context.Entry(persisted!).State.Should().Be(EntityState.Detached);
+        persisted.Should().ContainSingle();
+        context.Entry(persisted.Single()).State.Should().Be(EntityState.Detached);
     }
 
     private static AppDbContext CreateContext()

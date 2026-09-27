@@ -29,7 +29,9 @@ public sealed class RefundPaymentHandler(
         if (order is null || request.CustomerId is { } customerId && order.CustomerId != customerId)
             return Result<PaymentDto>.Failure("Payment not found.");
 
-        var payment = await paymentRepository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        var payment = await paymentRepository.GetPaidOrRefundedByOrderIdAsync(
+            request.OrderId,
+            cancellationToken);
         if (payment is null)
             return Result<PaymentDto>.Failure("Payment not found.");
 
@@ -72,7 +74,9 @@ public sealed class RefundPaymentHandler(
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            payment = await paymentRepository.GetByOrderIdForUpdateAsync(request.OrderId, cancellationToken);
+            payment = await paymentRepository.GetPaidOrRefundedByOrderIdForUpdateAsync(
+                request.OrderId,
+                cancellationToken);
             order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
             if (payment is null || order is null ||
                 request.CustomerId is { } scopedCustomerId && order.CustomerId != scopedCustomerId)

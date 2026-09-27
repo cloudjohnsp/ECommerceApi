@@ -6,7 +6,10 @@ namespace ECommerce.Domain.Entities;
 
 public sealed class Payment : Entity
 {
+    public const int IdempotencyKeyMaximumLength = 200;
+
     public Guid OrderId { get; private set; }
+    public string IdempotencyKey { get; private set; } = string.Empty;
     public decimal Amount { get; private set; }
     public string Currency { get; private set; } = string.Empty;
     public PaymentStatus Status { get; private set; }
@@ -21,9 +24,15 @@ public sealed class Payment : Entity
     {
     }
 
-    private Payment(Guid orderId, decimal amount, string currency, string provider)
+    private Payment(
+        Guid orderId,
+        string idempotencyKey,
+        decimal amount,
+        string currency,
+        string provider)
     {
         OrderId = orderId;
+        IdempotencyKey = idempotencyKey;
         Amount = amount;
         Currency = currency;
         Provider = provider;
@@ -35,7 +44,8 @@ public sealed class Payment : Entity
         Guid orderId,
         decimal amount,
         string? currency,
-        string? provider)
+        string? provider,
+        string? idempotencyKey = null)
     {
         var errors = new List<string>();
         var normalizedCurrency = currency?.Trim().ToUpperInvariant();
@@ -59,11 +69,19 @@ public sealed class Payment : Entity
         }
         if (string.IsNullOrWhiteSpace(provider) || provider.Trim().Length > 100)
             errors.Add("Payment provider must contain between 1 and 100 characters.");
+        var normalizedIdempotencyKey = idempotencyKey?.Trim() ?? Guid.NewGuid().ToString("N");
+        if (normalizedIdempotencyKey.Length == 0 ||
+            normalizedIdempotencyKey.Length > IdempotencyKeyMaximumLength)
+        {
+            errors.Add(
+                $"Payment idempotency key must contain between 1 and {IdempotencyKeyMaximumLength} characters.");
+        }
 
         return errors.Count > 0
             ? Result<Payment>.Failure([.. errors])
             : Result<Payment>.Success(new Payment(
                 orderId,
+                normalizedIdempotencyKey,
                 amount,
                 normalizedCurrency!,
                 provider!.Trim()));

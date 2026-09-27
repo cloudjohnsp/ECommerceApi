@@ -94,8 +94,9 @@ privados do agregado de inventário.
 O estoque não é decrementado de forma assíncrona pelo Worker. Essa decisão evita
 venda acima da disponibilidade: aprovação do webhook bloqueia pagamento, pedido
 e produtos e, atomicamente, confirma o pagamento, marca o pedido como pago,
-consome as reservas e grava `order.paid`. Recusa libera as reservas; reembolso
-restaura estoque físico.
+consome as reservas e grava `order.paid`. Uma recusa encerra apenas a tentativa
+de pagamento: o pedido e as reservas permanecem ativos para retry. Cancelamento
+ou expiração liberam as reservas; reembolso restaura estoque físico.
 
 O endpoint administrativo de atualização não aprova pagamentos. Ele somente
 reconcilia um pedido pendente quando já existe `PaymentStatus.Paid`, aplicando as
@@ -121,9 +122,11 @@ intenção disponível para diagnóstico e retry.
 O gateway é a autoridade de `ExternalPaymentId`; o e-commerce mantém seu próprio
 `Payment.Id` e nunca mantém uma transação PostgreSQL aberta durante uma chamada
 externa.
-O pagamento local preserva valor e moeda ISO normalizada. Como há apenas um
-pagamento por pedido, tentativas repetidas com outra moeda são rejeitadas antes
-de qualquer chamada ao gateway.
+O pagamento local preserva valor, moeda ISO normalizada e a chave de
+idempotência da tentativa. Um pedido mantém o histórico `1:N` de pagamentos,
+com índices parciais que permitem no máximo uma tentativa `Pending` e uma
+tentativa `Paid`. A mesma chave por pedido retorna a tentativa original; uma nova
+chave só é aceita depois que a anterior alcança estado terminal.
 Uma resposta de reembolso só pode avançar o estado local quando confirma o mesmo
 `ExternalPaymentId` enviado na solicitação e o status `refunded`.
 Respostas 2xx do gateway ainda precisam usar um media type JSON e conter

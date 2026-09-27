@@ -23,6 +23,30 @@ public sealed class PaymentTests
         result.Value.PaidAt.Should().BeNull();
     }
 
+    [Fact]
+    public void Create_WithIdempotencyKey_PersistsNormalizedAttemptIdentity()
+    {
+        var result = Payment.Create(
+            Guid.NewGuid(), 100m, "BRL", "Stripe", "  checkout-attempt-1  ");
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.IdempotencyKey.Should().Be("checkout-attempt-1");
+    }
+
+    [Fact]
+    public void Create_WithOversizedIdempotencyKey_ReturnsFailure()
+    {
+        var result = Payment.Create(
+            Guid.NewGuid(),
+            100m,
+            "BRL",
+            "Stripe",
+            new string('x', Payment.IdempotencyKeyMaximumLength + 1));
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(error => error.Contains("idempotency key"));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

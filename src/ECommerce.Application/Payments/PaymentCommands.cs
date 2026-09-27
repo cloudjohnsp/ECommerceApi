@@ -7,6 +7,7 @@ namespace ECommerce.Application.Payments;
 public sealed record CreatePaymentCommand(
     Guid OrderId,
     string Currency,
+    string IdempotencyKey,
     Guid? CustomerId = null) : IRequest<Result<PaymentDto>>;
 public sealed record RefundPaymentCommand(
     Guid OrderId,

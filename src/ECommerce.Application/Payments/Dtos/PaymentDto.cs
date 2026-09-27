@@ -6,6 +6,7 @@ namespace ECommerce.Application.Payments.Dtos;
 public sealed record PaymentDto(
     Guid Id,
     Guid OrderId,
+    string IdempotencyKey,
     decimal Amount,
     string Currency,
     string Provider,
@@ -21,6 +22,7 @@ internal static class PaymentMapping
     internal static PaymentDto ToDto(this Payment payment) => new(
         payment.Id,
         payment.OrderId,
+        payment.IdempotencyKey,
         payment.Amount,
         payment.Currency,
         payment.Provider,

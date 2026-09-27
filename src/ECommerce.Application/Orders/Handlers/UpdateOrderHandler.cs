@@ -26,7 +26,7 @@ public sealed class UpdateOrderHandler(
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            var payment = await paymentRepository.GetByOrderIdForUpdateAsync(
+            var payment = await paymentRepository.GetPaidByOrderIdForUpdateAsync(
                 request.OrderId,
                 cancellationToken);
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);

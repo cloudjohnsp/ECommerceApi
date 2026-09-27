@@ -20,6 +20,10 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.HasKey(payment => payment.Id);
         builder.Property(payment => payment.Id).ValueGeneratedNever();
         builder.Property(payment => payment.OrderId).HasColumnName("order_id").IsRequired();
+        builder.Property(payment => payment.IdempotencyKey)
+            .HasColumnName("idempotency_key")
+            .HasMaxLength(Payment.IdempotencyKeyMaximumLength)
+            .IsRequired();
         builder.Property(payment => payment.Amount).HasColumnName("amount")
             .HasPrecision(MoneyConstraints.Precision, MoneyConstraints.Scale).IsRequired();
         builder.Property(payment => payment.Currency).HasColumnName("currency")
@@ -33,11 +37,23 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(payment => payment.RefundedAt).HasColumnName("refunded_at");
 
         builder.HasOne<Order>()
-            .WithOne()
-            .HasForeignKey<Payment>(payment => payment.OrderId)
+            .WithMany()
+            .HasForeignKey(payment => payment.OrderId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(payment => payment.OrderId).IsUnique();
+        builder.HasIndex(payment => new { payment.OrderId, payment.IdempotencyKey })
+            .IsUnique()
+            .HasDatabaseName("ux_payments_order_id_idempotency_key");
+        builder.HasIndex(
+                payment => payment.OrderId,
+                "ux_payments_one_pending_per_order")
+            .IsUnique()
+            .HasFilter("status = 1");
+        builder.HasIndex(
+                payment => payment.OrderId,
+                "ux_payments_one_paid_per_order")
+            .IsUnique()
+            .HasFilter("status = 2");
         builder.HasIndex(payment => payment.ExternalPaymentId).IsUnique();
     }
 }

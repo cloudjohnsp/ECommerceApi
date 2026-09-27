@@ -351,7 +351,8 @@ Content-Type: application/json
 
 {
   "orderId": "00000000-0000-0000-0000-000000000000",
-  "currency": "BRL"
+  "currency": "BRL",
+  "idempotencyKey": "checkout-attempt-1"
 }
 ```
 
@@ -368,6 +369,12 @@ campo `data.status` corresponda à transição indicada por `event` antes de ace
 o banco. Sob o bloqueio do pagamento, ela também compara `data.reference`,
 `data.amount` e `data.currency` com o pedido, valor e moeda locais antes de
 alterar qualquer estado.
+
+Cada nova tentativa usa uma `idempotencyKey` diferente. Repetir a mesma chave
+retorna a mesma tentativa sem duplicá-la. Apenas uma tentativa pode permanecer
+`Pending` por pedido; depois de uma recusa, o pedido e a reserva continuam ativos
+e uma nova chave pode iniciar outra tentativa. `GET /api/v1/payments/{orderId}`
+retorna o histórico completo das tentativas, da mais recente para a mais antiga.
 
 Um cliente pode solicitar o reembolso integral do próprio pedido pago, e um
 administrador pode reembolsar qualquer pedido, por meio de:
@@ -390,7 +397,7 @@ executada imediatamente e um serviço em segundo plano reprocessa intenções qu
 continuarem pendentes, usando o `Payment.Id` como chave de idempotência no
 gateway.
 O valor e a moeda ISO de três letras ficam registrados no pagamento local. Uma
-repetição para o mesmo pedido precisa usar a moeda original; a API rejeita a
+repetição da mesma chave precisa usar a moeda original; a API rejeita a
 solicitação antes de reutilizar a intenção quando os códigos diferem.
 
 Os processadores de pagamentos, e-mails e eventos de integração são jobs

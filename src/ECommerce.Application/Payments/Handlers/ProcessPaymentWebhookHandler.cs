@@ -67,14 +67,17 @@ public sealed class ProcessPaymentWebhookHandler(
                 return Result.Success();
             if (webhook.Event == "payment.refunded" && payment.Status == PaymentStatus.Refunded)
                 return Result.Success();
+            if (webhook.Event == "payment.declined" && payment.Status == PaymentStatus.Paid)
+                return Result.Success();
+            if (payment.Status is PaymentStatus.Failed or PaymentStatus.Refunded)
+                return Result.Success();
 
             var order = await orderRepository.GetByIdForUpdateAsync(payment.OrderId, cancellationToken);
             if (order is null) return Result.Failure("Order not found.");
 
             IReadOnlyDictionary<Guid, InventoryReservation> activeReservations =
                 new Dictionary<Guid, InventoryReservation>();
-            if (webhook.Event == "payment.approved" ||
-                webhook.Event == "payment.declined" && order.Status != OrderStatus.Cancelled)
+            if (webhook.Event == "payment.approved")
             {
                 activeReservations = (await inventoryReservationRepository
                         .GetActiveByOrderIdForUpdateAsync(order.Id, cancellationToken))
@@ -115,33 +118,6 @@ public sealed class ProcessPaymentWebhookHandler(
                 case "payment.declined":
                     transitionResult = payment.MarkAsFailed();
                     if (transitionResult.IsFailure) return transitionResult;
-
-                    if (order.Status != OrderStatus.Cancelled)
-                    {
-                        transitionResult = order.Cancel();
-                        if (transitionResult.IsFailure) return transitionResult;
-
-                        foreach (var item in order.Items.OrderBy(item => item.ProductId))
-                        {
-                            if (!activeReservations.TryGetValue(item.ProductId, out var reservation))
-                                return Result.Failure(
-                                    $"Active inventory reservation for product '{item.ProductId}' was not found.");
-                            if (reservation.Quantity != item.Quantity)
-                                return Result.Failure(
-                                    $"Inventory reservation quantity for product '{item.ProductId}' does not match the order.");
-                            var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
-                            if (product is null)
-                                return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
-
-                            var releaseResult = product.ReleaseReservedStock(reservation.Quantity);
-                            if (releaseResult.IsFailure) return releaseResult;
-                            var reservationResult = reservation.Release(DateTimeOffset.UtcNow);
-                            if (reservationResult.IsFailure) return reservationResult;
-                            productRepository.Update(product);
-                            inventoryReservationRepository.Update(reservation);
-                            updatedProducts.Add((product, StockUpdateReasons.ReservationReleased));
-                        }
-                    }
                     break;
 
                 case "payment.refunded":
@@ -190,8 +166,11 @@ public sealed class ProcessPaymentWebhookHandler(
             }
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transactionCommitted = true;
-            await Task.WhenAll(order.Items.Select(item =>
-                productCache.RemoveAsync(item.ProductId, CancellationToken.None)));
+            if (updatedProducts.Count > 0)
+            {
+                await Task.WhenAll(updatedProducts.Select(item =>
+                    productCache.RemoveAsync(item.Product.Id, CancellationToken.None)));
+            }
             return Result.Success();
         }
         finally

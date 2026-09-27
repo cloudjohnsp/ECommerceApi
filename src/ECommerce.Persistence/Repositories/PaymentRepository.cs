@@ -20,16 +20,52 @@ public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentReposito
                 .SingleOrDefaultAsync(cancellationToken)
             : dbContext.Payments.SingleOrDefaultAsync(payment => payment.Id == id, cancellationToken);
 
-    public Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default) =>
-        dbContext.Payments
+    public async Task<IReadOnlyCollection<Payment>> GetByOrderIdAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Payments
             .AsNoTracking()
-            .FirstOrDefaultAsync(payment => payment.OrderId == orderId, cancellationToken);
+            .Where(payment => payment.OrderId == orderId)
+            .OrderByDescending(payment => payment.CreatedAt)
+            .ToListAsync(cancellationToken);
 
-    public Task<Payment?> GetByOrderIdForUpdateAsync(
+    public Task<Payment?> GetByOrderAndIdempotencyKeyAsync(
+        Guid orderId,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Payments.FirstOrDefaultAsync(
+            payment => payment.OrderId == orderId &&
+                       payment.IdempotencyKey == idempotencyKey,
+            cancellationToken);
+
+    public Task<Payment?> GetPendingByOrderIdForUpdateAsync(
         Guid orderId,
         CancellationToken cancellationToken = default) =>
         dbContext.Payments
-            .FromSqlInterpolated($"SELECT * FROM payments WHERE order_id = {orderId} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM payments WHERE order_id = {orderId} AND status = 1 FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public Task<Payment?> GetPaidByOrderIdForUpdateAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Payments
+            .FromSqlInterpolated($"SELECT * FROM payments WHERE order_id = {orderId} AND status = 2 FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public Task<Payment?> GetPaidOrRefundedByOrderIdAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Payments.AsNoTracking().SingleOrDefaultAsync(
+            payment => payment.OrderId == orderId &&
+                       (payment.Status == Domain.Enums.PaymentStatus.Paid ||
+                        payment.Status == Domain.Enums.PaymentStatus.Refunded),
+            cancellationToken);
+
+    public Task<Payment?> GetPaidOrRefundedByOrderIdForUpdateAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Payments
+            .FromSqlInterpolated($"SELECT * FROM payments WHERE order_id = {orderId} AND status IN (2, 4) FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
     public Task<Payment?> GetByExternalIdForUpdateAsync(

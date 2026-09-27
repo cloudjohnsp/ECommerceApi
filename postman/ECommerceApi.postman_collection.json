@@ -500,13 +500,13 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"currency\": \"BRL\"\n}"
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"currency\": \"BRL\",\n  \"idempotencyKey\": \"checkout-{{$randomInt}}\"\n}"
             },
             "url": "{{baseUrl}}/payments"
           }
         },
         {
-          "name": "Get payment",
+          "name": "Get payment attempts",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/payments/{{orderId}}"

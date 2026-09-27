@@ -1,5 +1,7 @@
 using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Email;
+using ECommerce.Application.Abstractions.Payments;
+using ECommerce.Application.Abstractions.Persistence;
 using ECommerce.Application.Abstractions.Security;
 using ECommerce.Application.Auth;
 using ECommerce.Application.Auth.Handlers;
@@ -7,6 +9,8 @@ using ECommerce.Application.Email;
 using ECommerce.Application.Orders;
 using ECommerce.Application.Orders.Handlers;
 using ECommerce.Application.Orders.Specifications;
+using ECommerce.Application.Payments;
+using ECommerce.Application.Payments.Handlers;
 using ECommerce.Application.Products.Dtos;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
@@ -435,6 +439,87 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         reservations.Should().ContainSingle();
         reservations[0].Quantity.Should().Be(4);
         reservations[0].Status.Should().Be(InventoryReservationStatus.Active);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task CreatePayment_ConcurrentAttemptsAllowOnePendingAndRetryAfterFailure()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Payment",
+            "Customer",
+            Email.Create($"payment-attempts-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var product = Product.Create(
+            $"Payment product {suffix}",
+            "Multiple payment attempts test",
+            25m,
+            10).Value!;
+        var order = Order.Create(customer.Id).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 2);
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(customer);
+            await seedContext.Products.AddAsync(product);
+            await seedContext.Orders.AddAsync(order);
+            await seedContext.SaveChangesAsync();
+        }
+
+        static CreatePaymentHandler CreateHandler(AppDbContext context)
+        {
+            var payments = new PaymentRepository(context);
+            return new CreatePaymentHandler(
+                new OrderRepository(context),
+                payments,
+                new OutboxMessageRepository(context),
+                new PersistedPaymentCreationProcessor(payments),
+                new UnitOfWork(context));
+        }
+
+        await using var firstContext = new AppDbContext(options);
+        await using var secondContext = new AppDbContext(options);
+        var attempts = await Task.WhenAll(
+            CreateHandler(firstContext).Handle(
+                new CreatePaymentCommand(order.Id, "BRL", "attempt-1", customer.Id),
+                CancellationToken.None),
+            CreateHandler(secondContext).Handle(
+                new CreatePaymentCommand(order.Id, "BRL", "attempt-2", customer.Id),
+                CancellationToken.None));
+
+        attempts.Count(result => result.IsSuccess).Should().Be(1);
+        attempts.Count(result => result.IsFailure).Should().Be(1);
+        attempts.Single(result => result.IsFailure).Errors.Should()
+            .Contain("A payment attempt is already pending for this order.");
+
+        await using (var failureContext = new AppDbContext(options))
+        {
+            var pending = await failureContext.Payments.SingleAsync(
+                payment => payment.OrderId == order.Id);
+            pending.MarkAsFailed().IsSuccess.Should().BeTrue();
+            await failureContext.SaveChangesAsync();
+        }
+
+        await using (var retryContext = new AppDbContext(options))
+        {
+            var retry = await CreateHandler(retryContext).Handle(
+                new CreatePaymentCommand(order.Id, "BRL", "attempt-3", customer.Id),
+                CancellationToken.None);
+            retry.IsSuccess.Should().BeTrue(string.Join("; ", retry.Errors));
+        }
+
+        await using var assertionContext = new AppDbContext(options);
+        var persistedAttempts = await assertionContext.Payments
+            .Where(payment => payment.OrderId == order.Id)
+            .OrderBy(payment => payment.CreatedAt)
+            .ToArrayAsync();
+        persistedAttempts.Should().HaveCount(2);
+        persistedAttempts.Count(payment => payment.Status == PaymentStatus.Failed).Should().Be(1);
+        persistedAttempts.Count(payment => payment.Status == PaymentStatus.Pending).Should().Be(1);
+        persistedAttempts.Select(payment => payment.IdempotencyKey)
+            .Should().OnlyHaveUniqueItems();
     }
 
     [PostgreSqlIntegrationFact]
@@ -995,6 +1080,20 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             UserEmailDelivery delivery,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Success());
+    }
+
+    private sealed class PersistedPaymentCreationProcessor(IPaymentRepository payments)
+        : IPaymentCreationProcessor
+    {
+        public async Task<Result<Payment>> ProcessAsync(
+            Guid outboxMessageId,
+            CancellationToken cancellationToken = default)
+        {
+            var payment = await payments.GetByIdAsync(outboxMessageId, cancellationToken);
+            return payment is null
+                ? Result<Payment>.Failure("Payment not found.")
+                : Result<Payment>.Success(payment);
+        }
     }
 
     private sealed class TestJwtTokenService : IJwtTokenService

@@ -1,6 +1,6 @@
 # ADR 0003: Múltiplas tentativas de pagamento por pedido
 
-- Status: aceito; implementação pendente
+- Status: aceito; implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -32,3 +32,22 @@ atômica. Webhooks e comandos repetidos continuarão idempotentes por tentativa.
 - Regras impedirão tentativas concorrentes incompatíveis e aprovação duplicada.
 - Histórico de recusas será preservado para auditoria e suporte.
 - Testes deverão cobrir retry, concorrência e webhooks fora de ordem.
+
+## Implementação
+
+- `Payment` passou a persistir `IdempotencyKey`; a migration
+  `SupportMultiplePaymentAttempts` preserva os registros existentes com chaves
+  `legacy:<PaymentId>` e remove a unicidade global de `order_id`.
+- O banco aplica unicidade por pedido/chave e índices parciais que permitem no
+  máximo uma tentativa `Pending` e uma tentativa `Paid` por pedido.
+- A criação bloqueia o pedido, devolve a mesma tentativa para a mesma chave e só
+  aceita uma chave nova quando não há outra tentativa pendente.
+- Uma recusa marca somente a tentativa como `Failed`; pedido e reservas
+  permanecem ativos. A aprovação consome as reservas e conclui o pedido na mesma
+  transação já protegida pelos locks existentes.
+- A consulta por pedido retorna o histórico completo de tentativas, enquanto o
+  reembolso seleciona especificamente a tentativa paga ou já reembolsada.
+- Webhooks repetidos ou atrasados para tentativas terminais são idempotentes e
+  não revertem o estado do pedido.
+- Testes de domínio, aplicação e PostgreSQL cobrem idempotência, retry,
+  concorrência, histórico e eventos fora de ordem.

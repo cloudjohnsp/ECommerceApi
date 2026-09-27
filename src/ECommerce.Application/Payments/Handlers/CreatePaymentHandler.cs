@@ -23,6 +23,7 @@ public sealed class CreatePaymentHandler(
         Payment payment;
         OutboxMessage? intention = null;
         var currency = request.Currency.Trim().ToUpperInvariant();
+        var idempotencyKey = request.IdempotencyKey.Trim();
         var transactionCommitted = false;
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -30,17 +31,27 @@ public sealed class CreatePaymentHandler(
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
             if (order is null || request.CustomerId is { } customerId && order.CustomerId != customerId)
                 return Result<PaymentDto>.Failure("Order not found.");
-            if (order.Status != OrderStatus.Pending)
-                return Result<PaymentDto>.Failure("Only pending orders can be sent for payment.");
-
-            var existingPayment = await paymentRepository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+            var existingPayment = await paymentRepository.GetByOrderAndIdempotencyKeyAsync(
+                request.OrderId,
+                idempotencyKey,
+                cancellationToken);
             if (existingPayment is null)
             {
+                if (order.Status != OrderStatus.Pending)
+                    return Result<PaymentDto>.Failure("Only pending orders can be sent for payment.");
+                var pendingPayment = await paymentRepository.GetPendingByOrderIdForUpdateAsync(
+                    request.OrderId,
+                    cancellationToken);
+                if (pendingPayment is not null)
+                    return Result<PaymentDto>.Failure(
+                        "A payment attempt is already pending for this order.");
+
                 var paymentResult = Payment.Create(
                     order.Id,
                     order.Total,
                     currency,
-                    "ECommercePayment");
+                    "ECommercePayment",
+                    idempotencyKey);
                 if (paymentResult.IsFailure)
                     return Result<PaymentDto>.Failure([.. paymentResult.Errors]);
 

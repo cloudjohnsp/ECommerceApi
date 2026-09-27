@@ -17,6 +17,7 @@ namespace ECommerce.Application.Tests.Payments.Handlers;
 
 public sealed class PaymentHandlersTests
 {
+    private const string IdempotencyKey = "attempt-1";
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IProductRepository> _products = new();
@@ -45,7 +46,9 @@ public sealed class PaymentHandlersTests
         var handler = new CreatePaymentHandler(
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
-        var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
+            CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.ExternalPaymentId.Should().Be("pay_123");
@@ -63,16 +66,18 @@ public sealed class PaymentHandlersTests
     public async Task Create_WhenExistingPaymentUsesAnotherCurrency_ReturnsFailureWithoutCallingGateway()
     {
         var order = OrderFactory.Create();
-        var payment = Payment.Create(order.Id, order.Total, "USD", "ECommercePayment").Value!;
+        var payment = Payment.Create(
+            order.Id, order.Total, "USD", "ECommercePayment", IdempotencyKey).Value!;
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+        _payments.Setup(x => x.GetByOrderAndIdempotencyKeyAsync(
+                order.Id, IdempotencyKey, It.IsAny<CancellationToken>()))
             .ReturnsAsync(payment);
         var handler = new CreatePaymentHandler(
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
-            new CreatePaymentCommand(order.Id, "BRL"),
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
             CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
@@ -92,20 +97,107 @@ public sealed class PaymentHandlersTests
     public async Task Create_WhenPaymentWasAlreadyRegistered_DoesNotCallGatewayAgain()
     {
         var order = OrderFactory.Create();
-        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
+        var payment = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", IdempotencyKey).Value!;
         payment.RegisterExternalPayment("pay_123");
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+        _payments.Setup(x => x.GetByOrderAndIdempotencyKeyAsync(
+                order.Id, IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
         var handler = new CreatePaymentHandler(
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
-        var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
+            CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.ExternalPaymentId.Should().Be("pay_123");
         _paymentProcessor.Verify(
             x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WithSameIdempotencyKey_ReturnsSameAttemptWithoutCreatingAnother()
+    {
+        var order = OrderFactory.Create();
+        var payment = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", IdempotencyKey).Value!;
+        payment.RegisterExternalPayment("pay_123");
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderAndIdempotencyKeyAsync(
+                order.Id, IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        var handler = new CreatePaymentHandler(
+            _orders.Object, _payments.Object, _outbox.Object,
+            _paymentProcessor.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Id.Should().Be(payment.Id);
+        result.Value.IdempotencyKey.Should().Be(IdempotencyKey);
+        _payments.Verify(x => x.AddAsync(
+            It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_AfterFailedAttempt_WithNewKey_CreatesIndependentAttempt()
+    {
+        var order = OrderFactory.Create();
+        Payment? createdPayment = null;
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.AddAsync(It.IsAny<Payment>(), It.IsAny<CancellationToken>()))
+            .Callback<Payment, CancellationToken>((payment, _) => createdPayment = payment)
+            .Returns(Task.CompletedTask);
+        _paymentProcessor.Setup(x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                createdPayment!.RegisterExternalPayment("pay_retry");
+                return Result<Payment>.Success(createdPayment);
+            });
+        var handler = new CreatePaymentHandler(
+            _orders.Object, _payments.Object, _outbox.Object,
+            _paymentProcessor.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", "attempt-2"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        createdPayment!.IdempotencyKey.Should().Be("attempt-2");
+        _payments.Verify(x => x.AddAsync(
+            It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_WithAnotherPendingAttempt_ReturnsConflictWithoutCreatingAttempt()
+    {
+        var order = OrderFactory.Create();
+        var pending = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", "attempt-1").Value!;
+        _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetPendingByOrderIdForUpdateAsync(
+                order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pending);
+        var handler = new CreatePaymentHandler(
+            _orders.Object, _payments.Object, _outbox.Object,
+            _paymentProcessor.Object, _unitOfWork.Object);
+
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", "attempt-2"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("A payment attempt is already pending for this order.");
+        _payments.Verify(x => x.AddAsync(
+            It.IsAny<Payment>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -130,7 +222,9 @@ public sealed class PaymentHandlersTests
         var handler = new CreatePaymentHandler(
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
-        var result = await handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None);
+        var result = await handler.Handle(
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
+            CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         intention.Should().NotBeNull();
@@ -156,7 +250,9 @@ public sealed class PaymentHandlersTests
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            handler.Handle(new CreatePaymentCommand(order.Id, "BRL"), CancellationToken.None));
+            handler.Handle(
+                new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey),
+                CancellationToken.None));
 
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -173,7 +269,8 @@ public sealed class PaymentHandlersTests
             _orders.Object, _payments.Object, _outbox.Object, _paymentProcessor.Object, _unitOfWork.Object);
 
         var result = await handler.Handle(
-            new CreatePaymentCommand(order.Id, "BRL", Guid.NewGuid()), CancellationToken.None);
+            new CreatePaymentCommand(order.Id, "BRL", IdempotencyKey, Guid.NewGuid()),
+            CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Order not found.");
@@ -187,10 +284,10 @@ public sealed class PaymentHandlersTests
     {
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        var handler = new GetPaymentByOrderIdHandler(_payments.Object, _orders.Object);
+        var handler = new GetPaymentsByOrderIdHandler(_payments.Object, _orders.Object);
 
         var result = await handler.Handle(
-            new GetPaymentByOrderIdQuery(order.Id, Guid.NewGuid()), CancellationToken.None);
+            new GetPaymentsByOrderIdQuery(order.Id, Guid.NewGuid()), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Payment not found.");
@@ -213,8 +310,9 @@ public sealed class PaymentHandlersTests
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .Callback(() => acquiredLocks.Add("order"))
             .ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
-        _payments.Setup(x => x.GetByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
+        _payments.Setup(x => x.GetPaidOrRefundedByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
+        _payments.Setup(x => x.GetPaidOrRefundedByOrderIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>()))
             .Callback(() => acquiredLocks.Add("payment"))
             .ReturnsAsync(payment);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
@@ -268,7 +366,8 @@ public sealed class PaymentHandlersTests
         payment.MarkAsPaid("pay_123");
         payment.MarkAsRefunded();
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+        _payments.Setup(x => x.GetPaidOrRefundedByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payment);
         var gateway = new Mock<IPaymentGateway>(MockBehavior.Strict);
         var handler = new RefundPaymentHandler(
             _orders.Object,
@@ -297,7 +396,7 @@ public sealed class PaymentHandlersTests
         payment.MarkAsPaid("pay_123");
         _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
-        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+        _payments.Setup(x => x.GetPaidOrRefundedByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(payment);
         var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(x => x.RefundAsync(
@@ -378,7 +477,7 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
-    public async Task Webhook_Declined_CancelsOrderAndRestoresStock()
+    public async Task Webhook_Declined_FailsAttemptAndKeepsOrderAndReservationActive()
     {
         var product = ProductFactory.Create(stock: 10);
         product.ReserveStock(3);
@@ -399,20 +498,42 @@ public sealed class PaymentHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.Failed);
-        order.Status.Should().Be(OrderStatus.Cancelled);
-        product.AvailableStock.Should().Be(10);
-        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
+        order.Status.Should().Be(OrderStatus.Pending);
+        product.AvailableStock.Should().Be(7);
+        _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Never);
         _outbox.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.PaymentFailed),
             It.IsAny<CancellationToken>()), Times.Once);
         _outbox.Verify(x => x.AddAsync(
-            It.Is<OutboxMessage>(message =>
-                message.Type == OutBoxMessageType.StockUpdated &&
-                message.Payload.Contains(StockUpdateReasons.ReservationReleased)),
-            It.IsAny<CancellationToken>()), Times.Once);
-        _reservations.Verify(x => x.Update(
-            It.Is<InventoryReservation>(reservation =>
-                reservation.Status == InventoryReservationStatus.Released)), Times.Once);
+            It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.StockUpdated),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _reservations.Verify(x => x.Update(It.IsAny<InventoryReservation>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Webhook_ApprovedAfterAttemptFailed_IsIgnoredAsOutOfOrder()
+    {
+        var order = OrderFactory.Create();
+        var payment = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", IdempotencyKey).Value!;
+        payment.RegisterExternalPayment("pay_123");
+        payment.MarkAsFailed();
+        SetupWebhook(payment, order);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                CreateWebhookPayload("payment.approved", "approved", payment),
+                "valid"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Failed);
+        order.Status.Should().Be(OrderStatus.Pending);
+        _reservations.Verify(x => x.GetActiveByOrderIdForUpdateAsync(
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _outbox.Verify(x => x.AddAsync(
+            It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -466,6 +587,31 @@ public sealed class PaymentHandlersTests
         _payments.Verify(
             x => x.GetByExternalIdForUpdateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPayments_ReturnsCompleteAttemptHistory()
+    {
+        var order = OrderFactory.Create();
+        var failed = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", "attempt-1").Value!;
+        failed.MarkAsFailed();
+        var pending = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", "attempt-2").Value!;
+        _orders.Setup(x => x.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _payments.Setup(x => x.GetByOrderIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pending, failed]);
+        var handler = new GetPaymentsByOrderIdHandler(_payments.Object, _orders.Object);
+
+        var result = await handler.Handle(
+            new GetPaymentsByOrderIdQuery(order.Id, order.CustomerId),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+        result.Value!.Select(item => item.IdempotencyKey)
+            .Should().Equal("attempt-2", "attempt-1");
     }
 
     [Fact]

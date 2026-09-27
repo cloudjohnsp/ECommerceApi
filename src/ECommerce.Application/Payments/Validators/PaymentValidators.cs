@@ -8,12 +8,15 @@ public sealed class CreatePaymentValidator : AbstractValidator<CreatePaymentComm
     {
         RuleFor(x => x.OrderId).NotEmpty();
         RuleFor(x => x.Currency).NotEmpty().Length(3).Matches("^[A-Za-z]{3}$");
+        RuleFor(x => x.IdempotencyKey)
+            .NotEmpty()
+            .MaximumLength(Domain.Entities.Payment.IdempotencyKeyMaximumLength);
     }
 }
 
-public sealed class GetPaymentByOrderIdValidator : AbstractValidator<GetPaymentByOrderIdQuery>
+public sealed class GetPaymentsByOrderIdValidator : AbstractValidator<GetPaymentsByOrderIdQuery>
 {
-    public GetPaymentByOrderIdValidator() => RuleFor(x => x.OrderId).NotEmpty();
+    public GetPaymentsByOrderIdValidator() => RuleFor(x => x.OrderId).NotEmpty();
 }
 
 public sealed class RefundPaymentValidator : AbstractValidator<RefundPaymentCommand>
