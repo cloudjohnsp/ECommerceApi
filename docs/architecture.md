@@ -153,14 +153,19 @@ mesma ordem para impedir ciclos de espera e deadlocks entre esses fluxos.
 
 ## Eventos e Worker
 
-Eventos de integração são publicados cronologicamente a partir da outbox. O lote
-para no primeiro erro para preservar causalidade. A publicação é *at least once*:
-uma queda depois do publish e antes de marcar a outbox pode gerar redelivery.
-As routing keys incluem os eventos de ciclo de vida do pedido, `stock.updated` e
-`email.sent`.
+A API apenas persiste os eventos de integração na mesma transação dos dados de
+negócio. O Worker independente consulta a tabela pública `OutboxMessages` em
+batches e faz claim com `FOR UPDATE SKIP LOCKED`. O lock do banco é liberado
+antes da chamada de rede; um lease identifica o proprietário enquanto ele
+publica com confirmação do RabbitMQ. `ProcessedAt`, tentativas,
+`NextAttemptAt`, `LockedUntil`, `LockId` e `LastError` tornam retry e retomada
+duráveis. A publicação é *at least once*: uma queda depois do publish e antes de
+marcar a outbox pode gerar redelivery. As routing keys incluem os eventos de
+ciclo de vida do pedido, `stock.updated` e `email.sent`.
 
 O Worker independente usa:
 
+- publisher da outbox da API com claim concorrente, lease e backoff exponencial;
 - fila quorum durável e ACK manual;
 - atraso antes de retry e limite de entregas;
 - dead-letter exchange e fila para mensagens inválidas ou esgotadas;

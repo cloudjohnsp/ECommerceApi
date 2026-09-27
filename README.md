@@ -408,11 +408,14 @@ reexecução é idempotente. As métricas `ecommerce.orders.expired`,
 `ecommerce.order_expiration.failures` e `ecommerce.order_expiration.delay` são
 exportadas junto das demais métricas da API.
 
-Os processadores de pagamentos, e-mails e eventos de integração são jobs
-recorrentes do Hangfire. O agendamento, o tamanho do lote e a quantidade de
-workers são configurados em `OutboxProcessor`; o estado do scheduler fica no
-schema `hangfire` do PostgreSQL. Cada job impede execuções concorrentes da mesma
-tarefa, e falhas não tratadas ficam sob a política de retry durável do Hangfire.
+Os processadores de pagamentos e e-mails continuam como jobs recorrentes do
+Hangfire na API. O Worker independente é o único publicador dos eventos de
+integração: ele consulta `OutboxMessages` em batches, faz claim concorrente com
+`FOR UPDATE SKIP LOCKED`, publica com confirmação do RabbitMQ e conclui a
+mensagem por lease. Tentativas, próximo retry, lease e último erro permanecem no
+PostgreSQL; uma instância pode retomar o trabalho abandonado por outra. O
+publisher legado da API permanece desativado por
+`OutboxProcessor:PublishIntegrationEvents=false`, evitando dois proprietários.
 O dashboard técnico do Hangfire não é exposto pela API.
 
 Eventos de pedido, estoque e entrega de e-mail armazenados na outbox são
@@ -421,7 +424,8 @@ como `order.created` e `stock.updated`; entregas de conta e pedido usam
 `email.sent`. O
 evento de estoque informa `ProductId`, `AvailableStock`,
 `OrderId` opcional, motivo e instante da mudança; o estoque físico e a reserva
-permanecem encapsulados no domínio. A publicação usa confirmação do broker e
-entrega persistente. Como o processamento é *at-least-once*, consumidores devem
+permanecem encapsulados no domínio. A publicação feita pelo Worker usa
+confirmação do broker e entrega persistente. Como o processamento é
+*at-least-once*, consumidores devem
 deduplicar pelo `MessageId`, que corresponde
 ao identificador da mensagem na outbox.

@@ -24,6 +24,7 @@ public sealed class BackgroundJobSchedulingExtensionsTests
                 Microsoft.Extensions.Options.Options.Create(new OutboxProcessorOptions
                 {
                     Enabled = true,
+                    PublishIntegrationEvents = true,
                     CronExpression = "*/5 * * * *"
                 }))
             .AddSingleton<IOptions<OrderExpirationOptions>>(
@@ -40,6 +41,38 @@ public sealed class BackgroundJobSchedulingExtensionsTests
         VerifyJob<UserEmailOutboxJob>(manager, "outbox:user-emails");
         VerifyJob<IntegrationEventOutboxJob>(manager, "outbox:integration-events");
         VerifyJob<OrderExpirationJob>(manager, "orders:expiration");
+    }
+
+    [Fact]
+    public void ScheduleBackgroundJobs_WhenWorkerOwnsPublishing_RemovesApiIntegrationPublisher()
+    {
+        var manager = new Mock<IRecurringJobManager>();
+        var services = new ServiceCollection()
+            .AddSingleton(manager.Object)
+            .AddSingleton<IOptions<OutboxProcessorOptions>>(
+                Microsoft.Extensions.Options.Options.Create(new OutboxProcessorOptions
+                {
+                    Enabled = true,
+                    PublishIntegrationEvents = false,
+                    CronExpression = "*/5 * * * *"
+                }))
+            .AddSingleton<IOptions<OrderExpirationOptions>>(
+                Microsoft.Extensions.Options.Options.Create(new OrderExpirationOptions
+                {
+                    Enabled = false
+                }))
+            .BuildServiceProvider();
+
+        services.ScheduleBackgroundJobs();
+
+        VerifyJob<PaymentOutboxJob>(manager, "outbox:payments");
+        VerifyJob<UserEmailOutboxJob>(manager, "outbox:user-emails");
+        manager.Verify(item => item.RemoveIfExists("outbox:integration-events"), Times.Once);
+        manager.Verify(item => item.AddOrUpdate(
+            "outbox:integration-events",
+            It.IsAny<Job>(),
+            It.IsAny<string>(),
+            It.IsAny<RecurringJobOptions>()), Times.Never);
     }
 
     [Fact]

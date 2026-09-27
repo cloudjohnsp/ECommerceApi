@@ -139,6 +139,7 @@ services:
       Email__Host: mailpit
       Email__Port: 1025
       Email__UseSsl: "false"
+      ApiOutboxPublisher__Enabled: "true"
       ASPNETCORE_URLS: http://+:8080
     ports:
       - "127.0.0.1:8082:8080"

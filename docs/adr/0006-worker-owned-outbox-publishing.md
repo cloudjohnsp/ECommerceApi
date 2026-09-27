@@ -1,6 +1,6 @@
 # ADR 0006: Publicação do Outbox sob responsabilidade do Worker
 
-- Status: aceito; migração pendente
+- Status: implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -33,3 +33,20 @@ ambiente e os testes de integração comprovarem a retomada após falhas.
 - Falha após publish e antes de `ProcessedAt` ainda pode causar redelivery.
 - Consumers deverão permanecer idempotentes.
 - A migração exige coordenação para nunca manter dois publishers ativos.
+
+## Implementação
+
+- A migration `AddOutboxDispatchLease` acrescenta `ProcessedAt`, tentativas,
+  `NextAttemptAt`, `LockId`, `LockedUntil` e `LastError` à Outbox da API.
+- A API mantém somente a gravação transacional dos eventos; seu job legado de
+  integração é removido do agendamento quando
+  `OutboxProcessor:PublishIntegrationEvents=false`, valor padrão.
+- O `ApiOutboxPublisher` do repositório `ECommerceWorker` faz claim em batches
+  com `FOR UPDATE SKIP LOCKED`, libera a transação antes da chamada de rede e
+  conclui ou reagenda apenas a mensagem que ainda possui seu lease.
+- O publisher RabbitMQ do Worker usa mensagens persistentes e publisher
+  confirms. Falhas usam backoff exponencial e leases vencidos são retomados.
+- O Compose principal habilita `ApiOutboxPublisher__Enabled=true` somente no
+  Worker, mantendo um único publisher ativo.
+- Testes com PostgreSQL real comprovam exclusão entre instâncias concorrentes e
+  retomada após abandono de lease.

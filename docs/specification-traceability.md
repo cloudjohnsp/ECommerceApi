@@ -40,9 +40,9 @@ auditoria do estado final repetível.
 | Índices e constraints | Configurações EF, `RelationalConstraintTests` e testes PostgreSQL de violações reais, incluindo reserva acima do estoque e produto duplicado no pedido |
 | Transações | `IUnitOfWork`, bloqueios pessimistas e ordem global de locks documentada em `architecture.md` |
 | Redis | Cache-aside resiliente para produtos e categorias, invalidação após commit e health check |
-| RabbitMQ | Outbox de integração e publisher com confirmação na API; Worker independente com fila quorum, inbox e dead-letter |
+| RabbitMQ | API grava a Outbox atomicamente; Worker independente faz claim com `SKIP LOCKED`, lease, retry e publicação com confirmação, além de fila quorum, inbox e dead-letter |
 | Eventos | Ciclo do pedido, falha/reembolso de pagamento, estoque e confirmação sanitizada de e-mail |
-| Background jobs | Hangfire para processadores da API; consumidores e outboxes duráveis no Worker |
+| Background jobs | Hangfire para pagamento, e-mail e expiração na API; publicação de eventos, consumidores e outboxes duráveis no Worker |
 | Armazenamento de imagens | Azure Blob SDK com Azurite local; somente metadados são persistidos no PostgreSQL |
 
 ## Operação e segurança

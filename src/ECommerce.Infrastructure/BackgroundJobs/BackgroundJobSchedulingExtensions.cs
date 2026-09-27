@@ -32,11 +32,18 @@ public static class BackgroundJobSchedulingExtensions
                 job => job.ExecuteAsync(CancellationToken.None),
                 options.CronExpression,
                 recurringOptions);
-            recurringJobs.AddOrUpdate<IntegrationEventOutboxJob>(
-                "outbox:integration-events",
-                job => job.ExecuteAsync(CancellationToken.None),
-                options.CronExpression,
-                recurringOptions);
+            if (options.PublishIntegrationEvents)
+            {
+                recurringJobs.AddOrUpdate<IntegrationEventOutboxJob>(
+                    "outbox:integration-events",
+                    job => job.ExecuteAsync(CancellationToken.None),
+                    options.CronExpression,
+                    recurringOptions);
+            }
+            else
+            {
+                recurringJobs.RemoveIfExists("outbox:integration-events");
+            }
         }
         if (expirationOptions.Enabled)
         {

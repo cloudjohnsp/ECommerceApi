@@ -42,7 +42,10 @@ public static class DependencyInjection
         services.AddSingleton<IFeatureFlagService, ConfigurationFeatureFlagService>();
 
         services.AddJwtAuthentication(configuration);
-        services.AddRabbitMq(configuration);
+        var outboxOptions = configuration.GetSection(OutboxProcessorOptions.SectionName)
+            .Get<OutboxProcessorOptions>() ?? new OutboxProcessorOptions();
+        if (outboxOptions.PublishIntegrationEvents)
+            services.AddRabbitMq(configuration);
         services.AddRedisCache(configuration);
         services.AddProductImageStorage(configuration);
         services.AddEmailDelivery(configuration);

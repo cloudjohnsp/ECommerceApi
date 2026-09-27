@@ -32,5 +32,16 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
             .HasColumnName("Status")
             .HasConversion<int>()
             .IsRequired();
+
+        builder.Property(x => x.ProcessedAt);
+        builder.Property(x => x.Attempts).IsRequired();
+        builder.Property(x => x.NextAttemptAt).IsRequired();
+        builder.Property(x => x.LockId);
+        builder.Property(x => x.LockedUntil);
+        builder.Property(x => x.LastError).HasMaxLength(2000);
+
+        builder.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt })
+            .HasDatabaseName("IX_OutboxMessages_PendingDispatch")
+            .HasFilter("\"Status\" = 1");
     }
 }

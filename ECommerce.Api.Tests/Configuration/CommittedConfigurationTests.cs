@@ -55,6 +55,7 @@ public sealed class CommittedConfigurationTests
         compose.Should().NotContain("RabbitMq__Password: guest");
         compose.Should().NotContain(":-development-secret");
         compose.Should().Contain("image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}");
+        compose.Should().Contain("ApiOutboxPublisher__Enabled: \"true\"");
         compose.Should().NotContain("dockerfile: Dockerfile.worker");
         environmentTemplate.Should().Contain("POSTGRES_PASSWORD=");
         environmentTemplate.Should().Contain("RABBITMQ_PASSWORD=");
@@ -62,6 +63,20 @@ public sealed class CommittedConfigurationTests
         environmentTemplate.Should().Contain("PAYMENT_GATEWAY_WEBHOOK_SECRET=");
         environmentTemplate.Should().Contain("GRAFANA_ADMIN_PASSWORD=");
         environmentTemplate.Should().Contain("SEED_ADMIN_PASSWORD=");
+    }
+
+    [Fact]
+    public void IntegrationEventPublisher_IsOwnedByIndependentWorker()
+    {
+        var root = FindSolutionRoot();
+        using var document = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(root, "src", "ECommerce.Api", "appsettings.json")));
+
+        document.RootElement
+            .GetProperty("OutboxProcessor")
+            .GetProperty("PublishIntegrationEvents")
+            .GetBoolean()
+            .Should().BeFalse();
     }
 
     [Fact]

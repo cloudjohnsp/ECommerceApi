@@ -10,6 +10,12 @@ public sealed class OutboxMessage
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; set; }
     public OutBoxMessageStatus Status { get; private set; }
+    public DateTime? ProcessedAt { get; private set; }
+    public int Attempts { get; private set; }
+    public DateTime NextAttemptAt { get; private set; }
+    public Guid? LockId { get; private set; }
+    public DateTime? LockedUntil { get; private set; }
+    public string? LastError { get; private set; }
 
     private OutboxMessage() { }
 
@@ -25,14 +31,19 @@ public sealed class OutboxMessage
         Type = type;
         Payload = data;
         CreatedAt = DateTime.UtcNow;
+        NextAttemptAt = CreatedAt;
         Status = OutBoxMessageStatus.Pending;
     }
 
     public void MarkProcessed(bool clearPayload = false)
     {
         Status = OutBoxMessageStatus.Processed;
+        ProcessedAt = DateTime.UtcNow;
+        LockId = null;
+        LockedUntil = null;
+        LastError = null;
         if (clearPayload)
             Payload = "{}";
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = ProcessedAt;
     }
 }
