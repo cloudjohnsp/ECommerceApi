@@ -56,7 +56,7 @@ auditoria do estado final repetível.
 | Rate limiting e CORS | Políticas configuráveis e testes HTTP com `WebApplicationFactory` |
 | CSRF | Não aplicável: a autenticação usa Bearer header e não cookies |
 | SQL injection | Consultas EF parametrizadas e SQL explícito interpolado pelo provider |
-| Segredos | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado e opções validadas na inicialização |
+| Segredos e callbacks | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado, opções validadas na inicialização e callbacks do gateway restritos a origens HTTP(S) explicitamente autorizadas |
 | CI | Restore, formato, build, testes, Testcontainers, cobertura e build das imagens em `.github/workflows/ci.yml` |
 | Cobertura | `scripts/verify-unit-coverage.ps1` exige mais de 80% em Domain e Application |
 | Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers e HTTP com `WebApplicationFactory` |

@@ -354,7 +354,10 @@ Content-Type: application/json
 O gateway retorna um identificador `pay_...`. A aprovação ou recusa feita no
 simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segredo
 `PaymentGateway:WebhookSecret` deve ser igual ao `WEBHOOK_SECRET` configurado no
-gateway e conter ao menos 32 bytes UTF-8. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
+gateway e conter ao menos 32 bytes UTF-8. A origem de
+`PaymentGateway:CallbackUrl` também deve constar em
+`ALLOWED_CALLBACK_ORIGINS` no gateway; essa allowlist impede callbacks para
+destinos arbitrários. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
 campo `data.status` corresponda à transição indicada por `event` antes de acessar
 o banco. Sob o bloqueio do pagamento, ela também compara `data.reference`,
 `data.amount` e `data.currency` com o pedido, valor e moeda locais antes de

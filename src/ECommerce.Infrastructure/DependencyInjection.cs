@@ -204,10 +204,10 @@ public static class DependencyInjection
     {
         services.AddOptions<PaymentGatewayOptions>()
             .Bind(configuration.GetSection(PaymentGatewayOptions.SectionName))
-            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
-                "PaymentGateway:BaseUrl must be an absolute URL.")
-            .Validate(options => Uri.TryCreate(options.CallbackUrl, UriKind.Absolute, out _),
-                "PaymentGateway:CallbackUrl must be an absolute URL.")
+            .Validate(options => IsHttpUrl(options.BaseUrl, allowQuery: false),
+                "PaymentGateway:BaseUrl must be an absolute HTTP or HTTPS URL without credentials, query, or fragment.")
+            .Validate(options => IsHttpUrl(options.CallbackUrl, allowQuery: true),
+                "PaymentGateway:CallbackUrl must be an absolute HTTP or HTTPS URL without credentials or fragment.")
             .Validate(options => Encoding.UTF8.GetByteCount(options.WebhookSecret) >= 32,
                 "PaymentGateway:WebhookSecret must contain at least 32 UTF-8 bytes.")
             .Validate(options => options.TimeoutSeconds > 0,
@@ -234,6 +234,17 @@ public static class DependencyInjection
         services.AddSingleton<IPaymentWebhookSignatureVerifier, PaymentWebhookSignatureVerifier>();
 
         return services;
+    }
+
+    private static bool IsHttpUrl(string value, bool allowQuery)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
+
+        return (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+               !string.IsNullOrWhiteSpace(uri.Host) &&
+               string.IsNullOrEmpty(uri.UserInfo) &&
+               string.IsNullOrEmpty(uri.Fragment) &&
+               (allowQuery || string.IsNullOrEmpty(uri.Query));
     }
 
     private static IServiceCollection AddRabbitMq(
