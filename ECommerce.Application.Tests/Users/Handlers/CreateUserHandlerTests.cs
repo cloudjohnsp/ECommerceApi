@@ -62,6 +62,9 @@ public sealed class CreateUserHandlerTests
         _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
             "jane.doe@example.com",
             It.IsAny<CancellationToken>()), Times.Once);
+        _userRepository.Verify(repository => repository.ExistsByEmailAsync(
+            "jane.doe@example.com",
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -121,12 +124,40 @@ public sealed class CreateUserHandlerTests
         result.Errors.Should().Contain("E-mail is already registered.");
         _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
             "jane.doe@example.com",
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Never);
         _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(
+            CancellationToken.None), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenEmailIsClaimedBeforeLockedCheck_ReturnsControlledFailure()
+    {
+        var command = new CreateUserCommand(
+            "Jane", "Doe", "jane.doe@example.com", "Password1!");
+        _userRepository.SetupSequence(repository => repository.ExistsByEmailAsync(
+                "jane.doe@example.com",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false)
+            .ReturnsAsync(true);
+        _passwordHasher.Setup(hasher => hasher.HashPassword(command.Password))
+            .Returns("hashed-password");
+        var handler = CreateHandler();
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("E-mail is already registered.");
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            "jane.doe@example.com",
+            It.IsAny<CancellationToken>()), Times.Once);
+        _userRepository.Verify(repository => repository.AddAsync(
+            It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(
             CancellationToken.None), Times.Once);
