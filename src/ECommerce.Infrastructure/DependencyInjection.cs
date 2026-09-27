@@ -208,8 +208,8 @@ public static class DependencyInjection
                 "PaymentGateway:BaseUrl must be an absolute URL.")
             .Validate(options => Uri.TryCreate(options.CallbackUrl, UriKind.Absolute, out _),
                 "PaymentGateway:CallbackUrl must be an absolute URL.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.WebhookSecret),
-                "PaymentGateway:WebhookSecret is required.")
+            .Validate(options => Encoding.UTF8.GetByteCount(options.WebhookSecret) >= 32,
+                "PaymentGateway:WebhookSecret must contain at least 32 UTF-8 bytes.")
             .Validate(options => options.TimeoutSeconds > 0,
                 "PaymentGateway:TimeoutSeconds must be greater than zero.")
             .ValidateOnStart();

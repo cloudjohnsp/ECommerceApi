@@ -12,7 +12,7 @@ internal static class ApiTestConfiguration
             .UseSetting("Jwt:SecretKey", "test-only-signing-key-with-at-least-32-characters")
             .UseSetting("RabbitMq:UserName", "test")
             .UseSetting("RabbitMq:Password", "test-password")
-            .UseSetting("PaymentGateway:WebhookSecret", "test-webhook-secret")
+            .UseSetting("PaymentGateway:WebhookSecret", "test-webhook-secret-with-32-bytes")
             .UseSetting("Redis:Enabled", "false")
             .UseSetting("ProductImageStorage:Enabled", "false")
             .UseSetting("Email:Enabled", "false")
