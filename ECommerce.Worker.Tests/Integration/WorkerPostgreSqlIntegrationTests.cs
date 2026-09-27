@@ -16,6 +16,46 @@ namespace ECommerce.Worker.Tests.Integration;
 public sealed class WorkerPostgreSqlIntegrationTests
 {
     [WorkerPostgreSqlIntegrationFact]
+    public async Task InboxMessageLock_SerializesConcurrentConsumers()
+    {
+        await using var container = new PostgreSqlBuilder("postgres:18.6-alpine3.23")
+            .WithDatabase("ecommerce_worker_lock_tests")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+        await container.StartAsync();
+        var options = new DbContextOptionsBuilder<WorkerDbContext>()
+            .UseNpgsql(container.GetConnectionString())
+            .Options;
+        var messageId = Guid.NewGuid();
+
+        await using var firstContext = new WorkerDbContext(options);
+        await using var firstTransaction = await firstContext.Database.BeginTransactionAsync();
+        await firstContext.AcquireInboxMessageLockAsync(messageId);
+
+        var secondAttemptStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondClaim = Task.Run(async () =>
+        {
+            await using var secondContext = new WorkerDbContext(options);
+            await using var secondTransaction =
+                await secondContext.Database.BeginTransactionAsync();
+            secondAttemptStarted.SetResult();
+            await secondContext.AcquireInboxMessageLockAsync(messageId);
+            await secondTransaction.CommitAsync();
+        });
+
+        await secondAttemptStarted.Task;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        var secondClaimWasBlocked = !secondClaim.IsCompleted;
+
+        await firstTransaction.CommitAsync();
+        await secondClaim;
+
+        secondClaimWasBlocked.Should().BeTrue();
+    }
+
+    [WorkerPostgreSqlIntegrationFact]
     public async Task MigrationsAndEventProcessing_PersistAtomicWorkerState()
     {
         await using var container = new PostgreSqlBuilder("postgres:18.6-alpine3.23")

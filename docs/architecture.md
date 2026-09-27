@@ -164,6 +164,9 @@ enviar uma notificação, o Worker marca a entrega e cria `email.sent` na mesma
 transação local; outra etapa publica o evento com confirmação, lease e retry. O
 SMTP continua sendo *at least once*: uma falha depois da aceitação pelo servidor
 e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocolo.
+Consumidores concorrentes do mesmo `MessageId` são serializados por advisory lock
+transacional antes da segunda consulta à inbox. A constraint única permanece como
+barreira final, sem transformar uma redelivery simultânea em falha e novo retry.
 
 ## Segurança
 

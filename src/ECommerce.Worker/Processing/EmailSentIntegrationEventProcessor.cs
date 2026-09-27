@@ -40,6 +40,7 @@ public sealed class EmailSentIntegrationEventProcessor(WorkerDbContext dbContext
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
         try
         {
+            await dbContext.AcquireInboxMessageLockAsync(messageId, cancellationToken);
             if (await IsConsumedAsync(messageId, cancellationToken))
                 return IntegrationEventProcessingResult.AlreadyProcessed;
 

@@ -43,6 +43,7 @@ public sealed class OrderIntegrationEventProcessor(WorkerDbContext dbContext)
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
         try
         {
+            await dbContext.AcquireInboxMessageLockAsync(messageId, cancellationToken);
             if (await dbContext.ConsumedIntegrationEvents.AnyAsync(
                     message => message.MessageId == messageId,
                     cancellationToken))
