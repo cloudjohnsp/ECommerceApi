@@ -21,13 +21,6 @@ public sealed class CommittedConfigurationTests
         Read(configuration, "PaymentGateway", "WebhookSecret").Should().BeEmpty();
         Read(configuration, "DatabaseSeed", "AdministratorPassword").Should().BeEmpty();
 
-        using var workerDocument = JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(root, "src", "ECommerce.Worker", "appsettings.json")));
-        var workerConfiguration = workerDocument.RootElement;
-        Read(workerConfiguration, "ConnectionStrings", "WorkerDatabase").Should().BeEmpty();
-        Read(workerConfiguration, "RabbitMq", "UserName").Should().BeEmpty();
-        Read(workerConfiguration, "RabbitMq", "Password").Should().BeEmpty();
-        Read(workerConfiguration, "Email", "Password").Should().BeEmpty();
     }
 
     [Fact]
@@ -40,18 +33,8 @@ public sealed class CommittedConfigurationTests
             "ECommerce.Persistence",
             "Contexts",
             "DesignTimeDbContextFactory.cs"));
-        var workerFactory = File.ReadAllText(Path.Combine(
-            root,
-            "src",
-            "ECommerce.Worker",
-            "Persistence",
-            "WorkerDbContextFactory.cs"));
-
         apiFactory.Should().Contain("ECOMMERCE_DESIGN_TIME_CONNECTION_STRING");
-        workerFactory.Should().Contain(
-            "ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING");
         apiFactory.Should().NotContain("Password=");
-        workerFactory.Should().NotContain("Password=");
     }
 
     [Fact]
@@ -71,6 +54,8 @@ public sealed class CommittedConfigurationTests
         compose.Should().NotContain("Password=postgres");
         compose.Should().NotContain("RabbitMq__Password: guest");
         compose.Should().NotContain(":-development-secret");
+        compose.Should().Contain("image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}");
+        compose.Should().NotContain("dockerfile: Dockerfile.worker");
         environmentTemplate.Should().Contain("POSTGRES_PASSWORD=");
         environmentTemplate.Should().Contain("RABBITMQ_PASSWORD=");
         environmentTemplate.Should().Contain("JWT_SECRET_KEY=");
@@ -107,12 +92,10 @@ public sealed class CommittedConfigurationTests
         dockerIgnore.Should().NotContain(line => line.StartsWith("!.git", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("Dockerfile")]
-    [InlineData("Dockerfile.worker")]
-    public void RuntimeImages_UseNonRootUserAndCopyOnlyApplicationSources(string dockerfileName)
+    [Fact]
+    public void ApiRuntimeImage_UsesNonRootUserAndCopiesOnlyApplicationSources()
     {
-        var dockerfile = File.ReadAllText(Path.Combine(FindSolutionRoot(), dockerfileName));
+        var dockerfile = File.ReadAllText(Path.Combine(FindSolutionRoot(), "Dockerfile"));
 
         dockerfile.Should().Contain("USER $APP_UID");
         dockerfile.Should().Contain("COPY [\"src/\", \"src/\"]");
@@ -173,9 +156,8 @@ public sealed class CommittedConfigurationTests
         workflow.Should().Contain("uses: azure/login@v3");
         workflow.Should().Contain("uses: azure/webapps-deploy@v3");
         workflow.Should().Contain("ecommerce-api:sha-${GITHUB_SHA}");
-        workflow.Should().Contain("ecommerce-worker:sha-${GITHUB_SHA}");
-        workflow.Should().Contain("az containerapp update");
-        workflow.Should().Contain("AZURE_WORKER_CONTAINER_APP_NAME");
+        workflow.Should().NotContain("ecommerce-worker:");
+        workflow.Should().NotContain("AZURE_WORKER_CONTAINER_APP_NAME");
         workflow.Should().Contain("/api/health/live");
         workflow.Should().NotContain("creds:");
         workflow.Should().NotContain("publish-profile:");

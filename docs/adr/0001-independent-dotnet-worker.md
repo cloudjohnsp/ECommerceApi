@@ -1,6 +1,6 @@
 # ADR 0001: Worker .NET independente
 
-- Status: aceito; migração pendente
+- Status: aceito; implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -32,9 +32,9 @@ Entidades de domínio e comandos internos não serão usados como contratos de
 integração. Pequenos DTOs de transporte poderão ser representados em ambos os
 repositórios; testes de compatibilidade protegerão seus formatos serializados.
 
-O Worker atualmente contido na solução `ECommerceApi` é transitório. Suas
-responsabilidades serão migradas incrementalmente para o repositório independente
-e ele só será removido depois que testes de integração comprovarem equivalência.
+As responsabilidades do antigo Worker contido na solução `ECommerceApi` foram
+migradas para o repositório independente e o projeto duplicado foi removido após
+testes unitários, integração PostgreSQL e validação da imagem no Compose principal.
 
 ## Consequências
 
@@ -42,4 +42,5 @@ e ele só será removido depois que testes de integração comprovarem equivalê
 - Alterações internas da API não forçam uma nova versão do Worker.
 - Mudanças em contratos exigem versão, documentação e testes de compatibilidade.
 - Alguma duplicação deliberada de DTOs de transporte é aceitável.
-- A migração deve evitar dois publishers processando a mesma mensagem do Outbox.
+- O Compose executa somente a imagem do Worker independente, evitando duas
+  instâncias proprietárias da mesma responsabilidade.

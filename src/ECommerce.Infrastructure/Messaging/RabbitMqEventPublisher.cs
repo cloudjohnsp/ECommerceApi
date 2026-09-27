@@ -11,6 +11,9 @@ public sealed class RabbitMqEventPublisher(
     ConnectionFactory connectionFactory,
     IOptions<RabbitMqOptions> options) : IIntegrationEventPublisher, IAsyncDisposable
 {
+    internal const string ContractVersionHeaderName = "x-contract-version";
+    internal const string ContractVersion = "1";
+
     private readonly RabbitMqOptions _options = options.Value;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private IConnection? _connection;
@@ -34,14 +37,7 @@ public sealed class RabbitMqEventPublisher(
                 arguments: null,
                 cancellationToken: cancellationToken);
 
-            var properties = new BasicProperties
-            {
-                ContentType = "application/json",
-                DeliveryMode = DeliveryModes.Persistent,
-                MessageId = integrationEvent.Id.ToString(),
-                Type = integrationEvent.Type,
-                Timestamp = new AmqpTimestamp(new DateTimeOffset(integrationEvent.OccurredAt).ToUnixTimeSeconds())
-            };
+            var properties = CreateProperties(integrationEvent);
             var body = Encoding.UTF8.GetBytes(integrationEvent.Payload);
             await channel.BasicPublishAsync(
                 _options.ExchangeName,
@@ -61,6 +57,19 @@ public sealed class RabbitMqEventPublisher(
             return Result.Failure($"RabbitMQ publication failed: {exception.Message}");
         }
     }
+
+    internal static BasicProperties CreateProperties(IntegrationEvent integrationEvent) => new()
+    {
+        ContentType = "application/json",
+        DeliveryMode = DeliveryModes.Persistent,
+        MessageId = integrationEvent.Id.ToString(),
+        Type = integrationEvent.Type,
+        Timestamp = new AmqpTimestamp(new DateTimeOffset(integrationEvent.OccurredAt).ToUnixTimeSeconds()),
+        Headers = new Dictionary<string, object?>
+        {
+            [ContractVersionHeaderName] = Encoding.UTF8.GetBytes(ContractVersion)
+        }
+    };
 
     public async ValueTask DisposeAsync()
     {

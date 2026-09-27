@@ -74,13 +74,3 @@ jobs:
           tags: ecommerce-api:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build worker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: false
-          tags: ecommerce-worker:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

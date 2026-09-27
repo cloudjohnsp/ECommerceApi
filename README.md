@@ -140,8 +140,9 @@ pelo webhook assinado do gateway.
 - `ECommerce.Persistence`: implementações de acesso a dados.
 - `ECommerce.Infrastructure`: integrações externas.
 - `ECommerce.Shared`: tipos reutilizáveis.
-- `ECommerce.Worker`: consumidor RabbitMQ, inbox idempotente, notificações e
-  geração simulada de notas fiscais.
+- `ECommerceWorker` (repositório independente): consumidor RabbitMQ, inbox
+  idempotente, notificações e geração simulada de notas fiscais. Ele não faz
+  parte desta solução nem referencia seus assemblies internos.
 
 ## Executar
 
@@ -159,9 +160,9 @@ dotnet user-secrets set "PaymentGateway:WebhookSecret" "<shared-secret-with-at-l
 dotnet run --project src/ECommerce.Api
 ```
 
-O Worker usa seu próprio schema `worker` no PostgreSQL e aplica as migrations
-dele ao iniciar. Para executá-lo fora do Compose, configure os segredos e inicie
-o processo separadamente:
+O Worker canônico está no repositório independente `ECommerceWorker`, usa seu
+próprio schema `worker` no PostgreSQL e aplica as migrations dele ao iniciar.
+Execute os comandos abaixo a partir daquele repositório:
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:WorkerDatabase" "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>" --project src/ECommerce.Worker
@@ -191,9 +192,10 @@ segredos da plataforma; a validação de opções interrompe a inicialização q
 uma configuração obrigatória estiver ausente.
 
 Para inicializar os segredos locais e subir todo o ambiente Docker com um único
-comando, execute:
+comando, primeiro construa a imagem no repositório independente e depois execute:
 
 ```powershell
+docker build --tag ecommerce-worker:local <caminho-para-ECommerceWorker>
 .\scripts\start-local.ps1
 ```
 
@@ -212,8 +214,8 @@ publicados. Todas as portas do Compose são vinculadas exclusivamente a
 `127.0.0.1`; os serviços de desenvolvimento não ficam expostos à rede local. O
 perfil local `https` do `launchSettings.json` habilita o
 redirecionamento porque também inicia `https://localhost:5001`.
-As imagens da API e do Worker executam com o usuário não privilegiado fornecido
-pelas imagens oficiais do .NET e copiam somente `src/` para o estágio de build.
+A imagem da API e a imagem criada no repositório independente do Worker executam
+com o usuário não privilegiado fornecido pelas imagens oficiais do .NET.
 
 Se a política de execução do PowerShell bloquear scripts locais, execute apenas
 para este processo:
@@ -245,9 +247,8 @@ dotnet ef database update --project src/ECommerce.Persistence --startup-project 
 Remove-Item Env:ECOMMERCE_DESIGN_TIME_CONNECTION_STRING
 ```
 
-O Worker segue a mesma regra e não possui senha de fallback na factory de
-design-time. Para aplicar migrations do schema `worker`, forneça a conexão
-somente ao processo do comando:
+O Worker segue a mesma regra em seu próprio repositório. Para aplicar migrations
+do schema `worker`, execute ali:
 
 ```powershell
 $env:ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING = "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>"
@@ -263,10 +264,9 @@ essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
 publicá-la.
 
 Tags no formato `v*.*.*` acionam `.github/workflows/release.yml`: o candidato é
-novamente validado, as imagens da API e do Worker são publicadas no Azure
-Container Registry com tags imutáveis baseadas no commit, a API é implantada no
-Azure App Service e o Worker em Azure Container Apps. Ambos são verificados pelo
-pipeline.
+novamente validado, a imagem da API é publicada no Azure Container Registry com
+tag imutável baseada no commit e implantada no Azure App Service. O Worker possui
+build, testes, imagem e versionamento no repositório `ECommerceWorker`.
 O login no Azure usa OIDC, sem credencial de longa duração. A preparação dos
 recursos, das permissões e do GitHub Environment `production` está documentada
 em [`docs/azure-deployment.md`](docs/azure-deployment.md).

@@ -12,8 +12,7 @@ public sealed class ProjectDependencyTests
         "ECommerce.Domain",
         "ECommerce.Infrastructure",
         "ECommerce.Persistence",
-        "ECommerce.Shared",
-        "ECommerce.Worker"
+        "ECommerce.Shared"
     ];
 
     [Theory]
@@ -133,10 +132,6 @@ public sealed class ProjectDependencyTests
         {
             Path.Combine("src", "ECommerce.Api", "ECommerce.Api.csproj"),
             ["ECommerce.Application", "ECommerce.Domain", "ECommerce.Infrastructure", "ECommerce.Persistence", "ECommerce.Shared"]
-        },
-        {
-            Path.Combine("src", "ECommerce.Worker", "ECommerce.Worker.csproj"),
-            ["ECommerce.Shared"]
         }
     };
 
@@ -147,8 +142,7 @@ public sealed class ProjectDependencyTests
         { Path.Combine("src", "ECommerce.Application", "ECommerce.Application.csproj"), "ECommerce.Application" },
         { Path.Combine("src", "ECommerce.Persistence", "ECommerce.Persistence.csproj"), "ECommerce.Persistence" },
         { Path.Combine("src", "ECommerce.Infrastructure", "ECommerce.Infrastructure.csproj"), "ECommerce.Infrastructure" },
-        { Path.Combine("src", "ECommerce.Api", "ECommerce.Api.csproj"), "ECommerce.Api" },
-        { Path.Combine("src", "ECommerce.Worker", "ECommerce.Worker.csproj"), "ECommerce.Worker" }
+        { Path.Combine("src", "ECommerce.Api", "ECommerce.Api.csproj"), "ECommerce.Api" }
     };
 
     private static bool IsGeneratedPath(string path) =>

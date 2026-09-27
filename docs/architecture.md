@@ -14,14 +14,17 @@ ECommerce.Application
 
 ECommerce.Infrastructure ──► contratos da Application
 ECommerce.Persistence    ──► contratos da Application
-ECommerce.Worker         ──► ECommerce.Shared
+
+ECommerceWorker (repositório independente)
+    └── sem referências aos projetos da API
 ```
 
 O domínio não referencia ASP.NET Core, EF Core, RabbitMQ, Redis ou serviços
 externos. Application descreve casos de uso e portas; Persistence e
-Infrastructure implementam essas portas. O Worker possui armazenamento próprio
-no schema PostgreSQL `worker` e compartilha somente o contrato serializado dos
-eventos.
+Infrastructure implementam essas portas. O Worker canônico vive no repositório
+independente `ECommerceWorker`, possui armazenamento próprio no schema PostgreSQL
+`worker` e compartilha somente contratos de transporte versionados por PostgreSQL
+e RabbitMQ. Ele não referencia assemblies desta solução.
 
 As rotas operacionais `/api/health`, `/api/health/live` e `/api/health/ready`
 são atendidas pelo middleware de health checks. O alias `/api/v1/health` é uma
@@ -146,7 +149,7 @@ uma queda depois do publish e antes de marcar a outbox pode gerar redelivery.
 As routing keys incluem os eventos de ciclo de vida do pedido, `stock.updated` e
 `email.sent`.
 
-O Worker usa:
+O Worker independente usa:
 
 - fila quorum durável e ACK manual;
 - atraso antes de retry e limite de entregas;

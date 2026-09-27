@@ -125,9 +125,7 @@ services:
     restart: unless-stopped
 
   ecommerce-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+    image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__WorkerDatabase: Host=postgres-db;Port=5432;Database=ecommerce;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}

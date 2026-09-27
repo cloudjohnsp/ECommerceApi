@@ -21,7 +21,7 @@ auditoria do estado final repetível.
 
 | Requisito | Evidência |
 | --- | --- |
-| Clean Architecture | Projetos separados em `Api`, `Application`, `Domain`, `Persistence`, `Infrastructure`, `Shared` e `Worker`; `ProjectDependencyTests` protege a direção das referências declaradas nos `.csproj` |
+| Clean Architecture | Projetos separados em `Api`, `Application`, `Domain`, `Persistence`, `Infrastructure` e `Shared`; `ProjectDependencyTests` protege a direção das referências. O Worker canônico está no repositório independente `ECommerceWorker` e não referencia assemblies da API |
 | CQRS e MediatR | Commands, queries e handlers organizados por feature em `ECommerce.Application` |
 | FluentValidation | Validators por feature e `ValidationBehaviour` registrado no pipeline do MediatR |
 | Result Pattern | Primitivas em `ECommerce.Shared/Results` usadas pelo domínio e pelos casos de uso para falhas esperadas |
@@ -39,7 +39,7 @@ auditoria do estado final repetível.
 | Índices e constraints | Configurações EF, `RelationalConstraintTests` e testes PostgreSQL de violações reais, incluindo reserva acima do estoque e produto duplicado no pedido |
 | Transações | `IUnitOfWork`, bloqueios pessimistas e ordem global de locks documentada em `architecture.md` |
 | Redis | Cache-aside resiliente para produtos e categorias, invalidação após commit e health check |
-| RabbitMQ | Outbox de integração, publisher com confirmação e Worker com fila quorum, inbox e dead-letter |
+| RabbitMQ | Outbox de integração e publisher com confirmação na API; Worker independente com fila quorum, inbox e dead-letter |
 | Eventos | Ciclo do pedido, falha/reembolso de pagamento, estoque e confirmação sanitizada de e-mail |
 | Background jobs | Hangfire para processadores da API; consumidores e outboxes duráveis no Worker |
 | Armazenamento de imagens | Azure Blob SDK com Azurite local; somente metadados são persistidos no PostgreSQL |
@@ -48,7 +48,7 @@ auditoria do estado final repetível.
 
 | Requisito | Evidência |
 | --- | --- |
-| Docker | Imagens não-root da API e do Worker com contexto restrito a `src/`; Compose com PostgreSQL, RabbitMQ, Redis, Azurite, Mailpit, Prometheus e Grafana e portas locais somente no loopback |
+| Docker | Imagem não-root da API e imagem independente do Worker; Compose com PostgreSQL, RabbitMQ, Redis, Azurite, Mailpit, Prometheus e Grafana e portas locais somente no loopback |
 | Observabilidade | Serilog JSON, correlation id, OpenTelemetry, Prometheus, Grafana, métricas do Worker e health checks |
 | OpenAPI | Documento OpenAPI e Swagger UI configurados pela API com esquema Bearer |
 | Versionamento | Rotas `/api/v1`, compatibilidade das rotas legadas e headers de versões suportadas |
@@ -57,14 +57,14 @@ auditoria do estado final repetível.
 | CSRF | Não aplicável: a autenticação usa Bearer header e não cookies |
 | SQL injection | Consultas EF parametrizadas e SQL explícito interpolado pelo provider |
 | Segredos e callbacks | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado, opções validadas na inicialização, callbacks restritos a origens HTTP(S) autorizadas e redirects desabilitados nos dois sentidos |
-| CI | Restore, formato, build, testes, Testcontainers, cobertura e build das imagens em `.github/workflows/ci.yml` |
+| CI | Restore, formato, build, testes, Testcontainers, cobertura e imagem da API neste repositório; o Worker possui workflow próprio no repositório independente |
 | Cobertura | `scripts/verify-unit-coverage.ps1` exige mais de 80% em Domain e Application |
 | Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers e HTTP com `WebApplicationFactory` |
 
 ## Implantação Azure
 
 O repositório contém um workflow de release e um guia para uma possível
-implantação futura em Azure App Service, Azure Container Apps e ACR. Nenhuma
+implantação futura da API em Azure App Service e ACR. Nenhuma
 conta, assinatura ou credencial Azure é versionada. O ambiente GitHub
 `production` não está configurado por decisão do mantenedor, portanto o fluxo
 não efetua implantação nem cria custos atualmente.
