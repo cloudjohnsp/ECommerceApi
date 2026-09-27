@@ -61,6 +61,11 @@ Criação e renomeação também adquirem um advisory lock pelo slug normalizado
 da consulta autoritativa de unicidade, evitando que requisições concorrentes
 convertam uma disputa de nome esperada em violação de índice.
 
+O upload de imagem não mantém transação PostgreSQL aberta durante a chamada ao
+Blob Storage. Depois do upload, uma transação curta bloqueia e revalida o produto
+antes de gravar os metadados. Se ele tiver sido desativado ou a persistência
+falhar, o blob recém-criado é removido de forma compensatória.
+
 ## Pedidos, estoque e pagamentos
 
 Criar um pedido ou adicionar um item bloqueia os produtos envolvidos, reserva

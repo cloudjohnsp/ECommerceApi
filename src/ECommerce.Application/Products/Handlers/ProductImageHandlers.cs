@@ -55,18 +55,40 @@ public sealed class UploadProductImageHandler(
             return Result<ProductImageDto>.Failure([.. imageResult.Errors]);
         }
 
+        var metadataPersisted = false;
         try
         {
-            await imageRepository.AddAsync(imageResult.Value!, cancellationToken);
-            await unitOfWork.Commit(cancellationToken);
-        }
-        catch
-        {
-            await storage.DeleteAsync(storedImage.StorageKey, CancellationToken.None);
-            throw;
-        }
+            var transactionCommitted = false;
+            await unitOfWork.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var lockedProduct = await productRepository.GetByIdForUpdateAsync(
+                    product.Id,
+                    cancellationToken);
+                if (lockedProduct is null)
+                {
+                    return Result<ProductImageDto>.Failure(
+                        "Product is no longer available.");
+                }
 
-        return Result<ProductImageDto>.Success(imageResult.Value!.ToDto());
+                await imageRepository.AddAsync(imageResult.Value!, cancellationToken);
+                await unitOfWork.CommitTransactionAsync(cancellationToken);
+                transactionCommitted = true;
+                metadataPersisted = true;
+            }
+            finally
+            {
+                if (!transactionCommitted)
+                    await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+            }
+
+            return Result<ProductImageDto>.Success(imageResult.Value!.ToDto());
+        }
+        finally
+        {
+            if (!metadataPersisted)
+                await storage.DeleteAsync(storedImage.StorageKey, CancellationToken.None);
+        }
     }
 
     private static async Task<bool> HasExpectedSignatureAsync(

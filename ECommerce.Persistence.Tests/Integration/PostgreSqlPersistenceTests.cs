@@ -100,6 +100,35 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task ProductForUpdate_DoesNotReturnSoftDeletedProduct()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var product = Product.Create(
+            $"Inactive product {Guid.NewGuid():N}",
+            "PostgreSQL query-filter test",
+            10m,
+            1).Value!;
+        product.Deactivate().IsSuccess.Should().BeTrue();
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Products.AddAsync(product);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = new AppDbContext(options);
+        var unitOfWork = new UnitOfWork(context);
+        await unitOfWork.BeginTransactionAsync();
+
+        var lockedProduct = await new ProductRepository(context)
+            .GetByIdForUpdateAsync(product.Id);
+
+        lockedProduct.Should().BeNull();
+        await unitOfWork.CommitTransactionAsync();
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task OrderItemConstraint_RejectsDuplicateProductWithinOrder()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

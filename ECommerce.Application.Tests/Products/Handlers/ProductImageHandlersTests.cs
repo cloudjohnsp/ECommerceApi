@@ -23,6 +23,9 @@ public sealed class ProductImageHandlersTests
         _products.Setup(repository => repository.GetByIdAsync(
                 product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
+        _products.Setup(repository => repository.GetByIdForUpdateAsync(
+                product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
         _storage.Setup(storage => storage.UploadAsync(
                 product.Id, It.IsAny<Stream>(), "image/png", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<StoredProductImage>.Success(new StoredProductImage(
@@ -41,7 +44,12 @@ public sealed class ProductImageHandlersTests
         _images.Verify(repository => repository.AddAsync(
             It.Is<ProductImage>(image => image.ProductId == product.Id),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.BeginTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
+        _storage.Verify(storage => storage.DeleteAsync(
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -74,6 +82,9 @@ public sealed class ProductImageHandlersTests
         _products.Setup(repository => repository.GetByIdAsync(
                 product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
+        _products.Setup(repository => repository.GetByIdForUpdateAsync(
+                product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
         _storage.Setup(storage => storage.UploadAsync(
                 product.Id, It.IsAny<Stream>(), "image/png", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<StoredProductImage>.Success(new StoredProductImage(
@@ -81,7 +92,7 @@ public sealed class ProductImageHandlersTests
                 $"https://storage.example/{storageKey}")));
         _storage.Setup(storage => storage.DeleteAsync(storageKey, CancellationToken.None))
             .ReturnsAsync(Result.Success());
-        _unitOfWork.Setup(unit => unit.Commit(It.IsAny<CancellationToken>()))
+        _unitOfWork.Setup(unit => unit.CommitTransactionAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Database unavailable"));
         var handler = CreateUploadHandler();
         await using var content = CreatePngStream();
@@ -93,6 +104,42 @@ public sealed class ProductImageHandlersTests
 
         await action.Should().ThrowAsync<InvalidOperationException>();
         _storage.Verify(storage => storage.DeleteAsync(storageKey, CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task Upload_WhenProductIsDeactivatedDuringBlobUpload_DeletesUploadedBlob()
+    {
+        var product = Product.Create("Mouse", "Wireless", 100m, 2).Value!;
+        var storageKey = $"products/{product.Id:N}/image.png";
+        _products.Setup(repository => repository.GetByIdAsync(
+                product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        _products.Setup(repository => repository.GetByIdForUpdateAsync(
+                product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Product?)null);
+        _storage.Setup(storage => storage.UploadAsync(
+                product.Id, It.IsAny<Stream>(), "image/png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<StoredProductImage>.Success(new StoredProductImage(
+                storageKey,
+                $"https://storage.example/{storageKey}")));
+        _storage.Setup(storage => storage.DeleteAsync(storageKey, CancellationToken.None))
+            .ReturnsAsync(Result.Success());
+        var handler = CreateUploadHandler();
+        await using var content = CreatePngStream();
+
+        var result = await handler.Handle(
+            new UploadProductImageCommand(
+                product.Id, content, "image.png", "image/png", content.Length),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain("Product is no longer available.");
+        _images.Verify(repository => repository.AddAsync(
+            It.IsAny<ProductImage>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(
+            CancellationToken.None), Times.Once);
+        _storage.Verify(storage => storage.DeleteAsync(
+            storageKey, CancellationToken.None), Times.Once);
     }
 
     [Fact]
