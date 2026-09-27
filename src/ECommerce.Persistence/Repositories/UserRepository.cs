@@ -28,7 +28,7 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
         Guid id,
         CancellationToken cancellationToken = default) => _dbContext.Database.IsRelational()
             ? _dbContext.Users
-                .FromSqlInterpolated($"SELECT * FROM users WHERE id = {id} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT * FROM users WHERE \"Id\" = {id} FOR UPDATE")
                 .SingleOrDefaultAsync(cancellationToken)
             : _dbContext.Users.SingleOrDefaultAsync(user => user.Id == id, cancellationToken);
 

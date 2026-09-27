@@ -154,7 +154,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         await using var command = new NpgsqlCommand(
             """
             INSERT INTO order_items
-                (id, order_id, product_id, product_name, unit_price, quantity)
+                ("Id", order_id, product_id, product_name, unit_price, quantity)
             VALUES
                 (@id, @orderId, @productId, @productName, @unitPrice, @quantity);
             """,
@@ -756,7 +756,12 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     {
         var connectionString = await fixture.GetConnectionStringAsync();
         var options = CreateOptions(connectionString);
-        var order = Order.Create(Guid.NewGuid()).Value!;
+        var customer = User.Create(
+            "Payment",
+            "Customer",
+            Email.Create($"payment-lock-{Guid.NewGuid():N}@example.com").Value!,
+            "hash").Value!;
+        var order = Order.Create(customer.Id).Value!;
         var payment = Payment.Create(order.Id, 100m, "BRL", "ECommercePayment").Value!;
         var intention = new OutboxMessage(
             payment.Id,
@@ -765,7 +770,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
         await using (var seedContext = new AppDbContext(options))
         {
-            await seedContext.AddRangeAsync(order, payment, intention);
+            await seedContext.AddRangeAsync(customer, order, payment, intention);
             await seedContext.SaveChangesAsync();
         }
 
@@ -905,13 +910,15 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
     private sealed class TestJwtTokenService : IJwtTokenService
     {
+        private readonly string _instanceId = Guid.NewGuid().ToString("N");
         private int _sequence;
 
         public int AccessTokenExpiresInSeconds => 900;
 
         public string GenerateAccessToken(User user) => $"access-{user.Id}";
 
-        public string GenerateRefreshToken() => $"rotated-{Interlocked.Increment(ref _sequence)}";
+        public string GenerateRefreshToken() =>
+            $"rotated-{_instanceId}-{Interlocked.Increment(ref _sequence)}";
 
         public string HashRefreshToken(string refreshToken) => Convert.ToHexStringLower(
             SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));

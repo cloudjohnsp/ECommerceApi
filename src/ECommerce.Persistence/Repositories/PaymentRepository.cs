@@ -16,7 +16,7 @@ public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentReposito
         Guid id,
         CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
             ? dbContext.Payments
-                .FromSqlInterpolated($"SELECT * FROM payments WHERE id = {id} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT * FROM payments WHERE \"Id\" = {id} FOR UPDATE")
                 .SingleOrDefaultAsync(cancellationToken)
             : dbContext.Payments.SingleOrDefaultAsync(payment => payment.Id == id, cancellationToken);
 

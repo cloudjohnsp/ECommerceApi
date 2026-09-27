@@ -14,7 +14,7 @@ public sealed class CategoryRepository(AppDbContext dbContext) : ICategoryReposi
         Guid id,
         CancellationToken cancellationToken = default) => dbContext.Database.IsRelational()
             ? dbContext.Categories
-                .FromSqlInterpolated($"SELECT * FROM categories WHERE id = {id} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT * FROM categories WHERE \"Id\" = {id} FOR UPDATE")
                 .SingleOrDefaultAsync(cancellationToken)
             : dbContext.Categories.SingleOrDefaultAsync(
                 category => category.Id == id,

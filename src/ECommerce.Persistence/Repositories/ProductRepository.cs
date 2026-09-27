@@ -16,7 +16,7 @@ public sealed class ProductRepository(AppDbContext dbContext) : IProductReposito
     public async Task<Product?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var product = await dbContext.Products
-            .FromSqlInterpolated($"SELECT * FROM products WHERE id = {id} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM products WHERE \"Id\" = {id} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
         if (product is not null)
             await dbContext.Entry(product).Reference(item => item.Inventory).LoadAsync(cancellationToken);
