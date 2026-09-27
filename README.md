@@ -357,7 +357,9 @@ simulador envia um webhook assinado para `POST /api/webhooks/payments`. O segred
 gateway e conter ao menos 32 bytes UTF-8. A origem de
 `PaymentGateway:CallbackUrl` também deve constar em
 `ALLOWED_CALLBACK_ORIGINS` no gateway; essa allowlist impede callbacks para
-destinos arbitrários. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
+destinos arbitrários. Nenhum dos dois serviços segue redirects nas comunicações
+de pagamento, evitando o reenvio de payloads assinados ou chaves de idempotência
+para outro host. Além da assinatura, a API rejeita eventos desconhecidos e exige que o
 campo `data.status` corresponda à transição indicada por `event` antes de acessar
 o banco. Sob o bloqueio do pagamento, ela também compara `data.reference`,
 `data.amount` e `data.currency` com o pedido, valor e moeda locais antes de

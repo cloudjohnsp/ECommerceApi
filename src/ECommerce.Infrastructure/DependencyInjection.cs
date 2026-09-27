@@ -219,13 +219,13 @@ public static class DependencyInjection
             var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentGatewayOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(PaymentGatewayHttpMessageHandlerFactory.Create);
         services.AddHttpClient(PaymentGatewayHealthCheck.HttpClientName, (serviceProvider, client) =>
         {
             var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentGatewayOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(PaymentGatewayHttpMessageHandlerFactory.Create);
         services.AddHealthChecks()
             .AddCheck<PaymentGatewayHealthCheck>(
                 "payment-gateway",

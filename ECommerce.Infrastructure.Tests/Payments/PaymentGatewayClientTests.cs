@@ -11,6 +11,16 @@ namespace ECommerce.Infrastructure.Tests.Payments;
 public sealed class PaymentGatewayClientTests
 {
     [Fact]
+    public void HttpHandler_ShouldDisableRedirectsAndCookies()
+    {
+        using var handler = PaymentGatewayHttpMessageHandlerFactory.Create();
+
+        handler.Should().BeOfType<HttpClientHandler>()
+            .Which.Should().Match<HttpClientHandler>(configured =>
+                !configured.AllowAutoRedirect && !configured.UseCookies);
+    }
+
+    [Fact]
     public async Task CreateAsync_SendsGatewayContractAndParsesResponse()
     {
         HttpRequestMessage? capturedRequest = null;
@@ -51,6 +61,25 @@ public sealed class PaymentGatewayClientTests
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("Payment gateway is unavailable.");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenGatewayRedirects_ReturnsFailureWithoutTreatingItAsSuccess()
+    {
+        var handler = new StubHttpMessageHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.TemporaryRedirect)
+            {
+                Headers = { Location = new Uri("http://untrusted.example/payments") }
+            }));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("http://gateway/") };
+        var sut = new PaymentGatewayClient(client, CreateOptions());
+
+        var result = await sut.CreateAsync(
+            new CreateGatewayPayment(Guid.NewGuid(), Guid.NewGuid(), 10m, "BRL"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(
+            $"Payment gateway rejected the request with status {(int)HttpStatusCode.TemporaryRedirect}.");
     }
 
     [Theory]
