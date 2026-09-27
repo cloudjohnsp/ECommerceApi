@@ -80,6 +80,21 @@ public sealed class CommittedConfigurationTests
     }
 
     [Fact]
+    public void DockerCompose_PublishesDevelopmentPortsOnlyOnLoopback()
+    {
+        var compose = File.ReadAllText(Path.Combine(FindSolutionRoot(), "docker-compose.yml"));
+        var publishedPorts = Regex.Matches(
+                compose,
+                "(?m)^\\s*-\\s*\"(?<binding>(?:127\\.0\\.0\\.1:)?\\d+:\\d+)\"\\s*$")
+            .Select(match => match.Groups["binding"].Value)
+            .ToArray();
+
+        publishedPorts.Should().NotBeEmpty();
+        publishedPorts.Should().OnlyContain(binding =>
+            binding.StartsWith("127.0.0.1:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void DockerBuildContext_ExcludesSecretsGitMetadataAndTestArtifacts()
     {
         var dockerIgnore = File.ReadAllLines(Path.Combine(FindSolutionRoot(), ".dockerignore"));

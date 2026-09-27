@@ -208,7 +208,9 @@ as imagens locais sem reconstruí-las. O arquivo `.env` é ignorado pelo Git. O 
 O Compose publica somente HTTP em `http://localhost:8080` e desabilita o
 middleware de redirecionamento HTTPS, evitando redirecionamentos para uma porta
 inexistente. TLS deve ser terminado pelo ingress ou reverse proxy nos ambientes
-publicados. O perfil local `https` do `launchSettings.json` habilita o
+publicados. Todas as portas do Compose são vinculadas exclusivamente a
+`127.0.0.1`; os serviços de desenvolvimento não ficam expostos à rede local. O
+perfil local `https` do `launchSettings.json` habilita o
 redirecionamento porque também inicia `https://localhost:5001`.
 
 Se a política de execução do PowerShell bloquear scripts locais, execute apenas

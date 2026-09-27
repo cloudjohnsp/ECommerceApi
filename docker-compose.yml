@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
       POSTGRES_DB: ecommerce
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql
@@ -24,8 +24,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ecommerce}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Create .env from .env.example and set RABBITMQ_PASSWORD}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     restart: unless-stopped
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -40,7 +40,7 @@ services:
     container_name: redis
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -55,7 +55,7 @@ services:
     container_name: azurite
     command: azurite-blob --blobHost 0.0.0.0 --location /data --debug /data/debug.log
     ports:
-      - "10000:10000"
+      - "127.0.0.1:10000:10000"
     restart: unless-stopped
     volumes:
       - azurite-data:/data
@@ -69,8 +69,8 @@ services:
     image: axllent/mailpit:v1.31.1
     container_name: mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8025/livez"]
@@ -110,7 +110,7 @@ services:
       ApiProtection__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
       ApiProtection__UseHttpsRedirection: "false"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -143,7 +143,7 @@ services:
       Email__UseSsl: "false"
       ASPNETCORE_URLS: http://+:8080
     ports:
-      - "8082:8080"
+      - "127.0.0.1:8082:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -160,7 +160,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -176,7 +176,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Create .env from .env.example and set GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro

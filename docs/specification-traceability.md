@@ -48,7 +48,7 @@ auditoria do estado final repetível.
 
 | Requisito | Evidência |
 | --- | --- |
-| Docker | Dockerfiles da API e do Worker e Compose com PostgreSQL, RabbitMQ, Redis, Azurite, Mailpit, Prometheus e Grafana |
+| Docker | Dockerfiles da API e do Worker e Compose com PostgreSQL, RabbitMQ, Redis, Azurite, Mailpit, Prometheus e Grafana; portas locais vinculadas somente ao loopback |
 | Observabilidade | Serilog JSON, correlation id, OpenTelemetry, Prometheus, Grafana, métricas do Worker e health checks |
 | OpenAPI | Documento OpenAPI e Swagger UI configurados pela API com esquema Bearer |
 | Versionamento | Rotas `/api/v1`, compatibilidade das rotas legadas e headers de versões suportadas |
