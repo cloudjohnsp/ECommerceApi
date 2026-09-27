@@ -19,6 +19,7 @@ public sealed class ProcessPaymentWebhookHandler(
     IPaymentRepository paymentRepository,
     IOrderRepository orderRepository,
     IProductRepository productRepository,
+    IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<ProcessPaymentWebhookCommand, Result>
@@ -70,6 +71,16 @@ public sealed class ProcessPaymentWebhookHandler(
             var order = await orderRepository.GetByIdForUpdateAsync(payment.OrderId, cancellationToken);
             if (order is null) return Result.Failure("Order not found.");
 
+            IReadOnlyDictionary<Guid, InventoryReservation> activeReservations =
+                new Dictionary<Guid, InventoryReservation>();
+            if (webhook.Event == "payment.approved" ||
+                webhook.Event == "payment.declined" && order.Status != OrderStatus.Cancelled)
+            {
+                activeReservations = (await inventoryReservationRepository
+                        .GetActiveByOrderIdForUpdateAsync(order.Id, cancellationToken))
+                    .ToDictionary(item => item.ProductId);
+            }
+
             Result transitionResult;
             var updatedProducts = new List<(Product Product, string Reason)>();
             switch (webhook.Event)
@@ -82,12 +93,21 @@ public sealed class ProcessPaymentWebhookHandler(
                     if (transitionResult.IsFailure) return transitionResult;
                     foreach (var item in order.Items.OrderBy(item => item.ProductId))
                     {
+                        if (!activeReservations.TryGetValue(item.ProductId, out var reservation))
+                            return Result.Failure(
+                                $"Active inventory reservation for product '{item.ProductId}' was not found.");
+                        if (reservation.Quantity != item.Quantity)
+                            return Result.Failure(
+                                $"Inventory reservation quantity for product '{item.ProductId}' does not match the order.");
                         var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
                         if (product is null)
                             return Result.Failure($"Product '{item.ProductId}' not found while reducing stock.");
-                        var reduceResult = product.ReduceStock(item.Quantity);
+                        var reduceResult = product.ReduceStock(reservation.Quantity);
                         if (reduceResult.IsFailure) return reduceResult;
+                        var reservationResult = reservation.Consume(DateTimeOffset.UtcNow);
+                        if (reservationResult.IsFailure) return reservationResult;
                         productRepository.Update(product);
+                        inventoryReservationRepository.Update(reservation);
                         updatedProducts.Add((product, StockUpdateReasons.ReservationConsumed));
                     }
                     break;
@@ -103,13 +123,22 @@ public sealed class ProcessPaymentWebhookHandler(
 
                         foreach (var item in order.Items.OrderBy(item => item.ProductId))
                         {
+                            if (!activeReservations.TryGetValue(item.ProductId, out var reservation))
+                                return Result.Failure(
+                                    $"Active inventory reservation for product '{item.ProductId}' was not found.");
+                            if (reservation.Quantity != item.Quantity)
+                                return Result.Failure(
+                                    $"Inventory reservation quantity for product '{item.ProductId}' does not match the order.");
                             var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
                             if (product is null)
                                 return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
 
-                            var releaseResult = product.ReleaseReservedStock(item.Quantity);
+                            var releaseResult = product.ReleaseReservedStock(reservation.Quantity);
                             if (releaseResult.IsFailure) return releaseResult;
+                            var reservationResult = reservation.Release(DateTimeOffset.UtcNow);
+                            if (reservationResult.IsFailure) return reservationResult;
                             productRepository.Update(product);
+                            inventoryReservationRepository.Update(reservation);
                             updatedProducts.Add((product, StockUpdateReasons.ReservationReleased));
                         }
                     }

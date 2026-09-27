@@ -1,6 +1,6 @@
 # ADR 0002: Reservas de estoque persistidas
 
-- Status: aceito; implementação pendente
+- Status: aceito; implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -33,3 +33,19 @@ vencidas. `PhysicalStock` e `ReservedStock` continuarão privados no contrato HT
 - Consultas e migrations existentes de pedidos e estoque precisarão ser ajustadas.
 - Bloqueios pessimistas e constraints continuam necessários para evitar overselling.
 - A mudança exige testes de concorrência com PostgreSQL real.
+
+## Implementação
+
+- `InventoryReservation` persiste pedido, produto, inventário, quantidade,
+  criação, expiração, conclusão e o estado da reserva.
+- As transições `Active` para `Consumed`, `Released` ou `Expired` são protegidas
+  pelo domínio e são idempotentes quando o estado final já foi alcançado.
+- Criação de pedido e inclusão de item bloqueiam produto e inventário em ordem de
+  `ProductId` e gravam pedido, reserva, contadores e Outbox na mesma transação.
+- Aprovação, recusa e cancelamento bloqueiam as reservas ativas e alteram reserva
+  e inventário na mesma transação.
+- A migration `AddPersistedInventoryReservations` cria constraints, unicidade por
+  pedido/produto, índice parcial por expiração ativa e realiza backfill dos
+  pedidos pendentes existentes.
+- Testes de domínio, aplicação e PostgreSQL cobrem as transições, a atomicidade e
+  duas reservas concorrentes disputando o mesmo inventário sem overselling.

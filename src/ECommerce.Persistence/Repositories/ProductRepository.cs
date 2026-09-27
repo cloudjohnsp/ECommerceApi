@@ -19,7 +19,11 @@ public sealed class ProductRepository(AppDbContext dbContext) : IProductReposito
             .FromSqlInterpolated($"SELECT * FROM products WHERE \"Id\" = {id} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
         if (product is not null)
-            await dbContext.Entry(product).Reference(item => item.Inventory).LoadAsync(cancellationToken);
+        {
+            await dbContext.Inventories
+                .FromSqlInterpolated($"SELECT * FROM inventories WHERE product_id = {id} FOR UPDATE")
+                .SingleAsync(cancellationToken);
+        }
         return product;
     }
 

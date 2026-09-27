@@ -14,6 +14,7 @@ public sealed class UpdateOrderHandler(
     IOrderRepository orderRepository,
     IPaymentRepository paymentRepository,
     IProductRepository productRepository,
+    IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache)
@@ -42,9 +43,18 @@ public sealed class UpdateOrderHandler(
                 : Result.Failure("Unsupported order status transition.");
             if (result.IsFailure) return Result<OrderDto>.Failure([.. result.Errors]);
 
+            var reservations = await inventoryReservationRepository
+                .GetActiveByOrderIdForUpdateAsync(order.Id, cancellationToken);
+            var reservationsByProduct = reservations.ToDictionary(item => item.ProductId);
             var updatedProducts = new List<Product>();
             foreach (var item in order.Items.OrderBy(item => item.ProductId))
             {
+                if (!reservationsByProduct.TryGetValue(item.ProductId, out var reservation))
+                    return Result<OrderDto>.Failure(
+                        $"Active inventory reservation for product '{item.ProductId}' was not found.");
+                if (reservation.Quantity != item.Quantity)
+                    return Result<OrderDto>.Failure(
+                        $"Inventory reservation quantity for product '{item.ProductId}' does not match the order.");
                 var product = await productRepository.GetByIdForUpdateAsync(
                     item.ProductId,
                     cancellationToken);
@@ -52,10 +62,14 @@ public sealed class UpdateOrderHandler(
                     return Result<OrderDto>.Failure(
                         $"Product '{item.ProductId}' not found while reducing stock.");
 
-                var stockResult = product.ReduceStock(item.Quantity);
+                var stockResult = product.ReduceStock(reservation.Quantity);
                 if (stockResult.IsFailure)
                     return Result<OrderDto>.Failure([.. stockResult.Errors]);
+                var reservationResult = reservation.Consume(DateTimeOffset.UtcNow);
+                if (reservationResult.IsFailure)
+                    return Result<OrderDto>.Failure([.. reservationResult.Errors]);
                 productRepository.Update(product);
+                inventoryReservationRepository.Update(reservation);
                 updatedProducts.Add(product);
             }
 

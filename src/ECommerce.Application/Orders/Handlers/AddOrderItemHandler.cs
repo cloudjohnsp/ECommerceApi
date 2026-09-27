@@ -13,6 +13,7 @@ namespace ECommerce.Application.Orders.Handlers;
 public sealed class AddOrderItemHandler(
     IOrderRepository orderRepository,
     IProductRepository productRepository,
+    IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<AddOrderItemCommand, Result<OrderDto>>
@@ -49,8 +50,22 @@ public sealed class AddOrderItemHandler(
             if (reserveResult.IsFailure)
                 return Result<OrderDto>.Failure([.. reserveResult.Errors]);
 
+            var reservationCreatedAt = DateTimeOffset.UtcNow;
+            var reservationResult = InventoryReservation.Create(
+                order.Id,
+                product.Id,
+                product.Inventory.Id,
+                request.Quantity,
+                reservationCreatedAt,
+                reservationCreatedAt.Add(InventoryReservation.DefaultLifetime));
+            if (reservationResult.IsFailure)
+                return Result<OrderDto>.Failure([.. reservationResult.Errors]);
+
             orderRepository.Update(order);
             productRepository.Update(product);
+            await inventoryReservationRepository.AddAsync(
+                reservationResult.Value!,
+                cancellationToken);
             await outboxMessageRepository.AddAsync(
                 OrderIntegrationEventFactory.Create(order, OutBoxMessageType.OrderUpdated),
                 cancellationToken);

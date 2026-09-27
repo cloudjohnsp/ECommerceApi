@@ -12,6 +12,7 @@ namespace ECommerce.Application.Orders.Handlers;
 public sealed class DeleteOrderHandler(
     IOrderRepository orderRepository,
     IProductRepository productRepository,
+    IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<DeleteOrderCommand, Result>
@@ -30,16 +31,28 @@ public sealed class DeleteOrderHandler(
             var result = order.Cancel();
             if (result.IsFailure) return result;
 
+            var reservations = await inventoryReservationRepository
+                .GetActiveByOrderIdForUpdateAsync(order.Id, cancellationToken);
+            var reservationsByProduct = reservations.ToDictionary(item => item.ProductId);
             var updatedProducts = new List<Product>();
             foreach (var item in order.Items.OrderBy(item => item.ProductId))
             {
+                if (!reservationsByProduct.TryGetValue(item.ProductId, out var reservation))
+                    return Result.Failure(
+                        $"Active inventory reservation for product '{item.ProductId}' was not found.");
+                if (reservation.Quantity != item.Quantity)
+                    return Result.Failure(
+                        $"Inventory reservation quantity for product '{item.ProductId}' does not match the order.");
                 var product = await productRepository.GetByIdForUpdateAsync(item.ProductId, cancellationToken);
                 if (product is null)
                     return Result.Failure($"Product '{item.ProductId}' not found while restoring stock.");
 
-                var releaseResult = product.ReleaseReservedStock(item.Quantity);
+                var releaseResult = product.ReleaseReservedStock(reservation.Quantity);
                 if (releaseResult.IsFailure) return releaseResult;
+                var reservationResult = reservation.Release(DateTimeOffset.UtcNow);
+                if (reservationResult.IsFailure) return reservationResult;
                 productRepository.Update(product);
+                inventoryReservationRepository.Update(reservation);
                 updatedProducts.Add(product);
             }
 

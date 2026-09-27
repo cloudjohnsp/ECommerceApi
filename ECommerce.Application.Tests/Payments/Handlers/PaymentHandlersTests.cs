@@ -20,6 +20,7 @@ public sealed class PaymentHandlersTests
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IProductRepository> _products = new();
+    private readonly Mock<IInventoryReservationRepository> _reservations = new();
     private readonly Mock<IProductCache> _productCache = new();
     private readonly Mock<IPaymentCreationProcessor> _paymentProcessor = new();
     private readonly Mock<IPaymentWebhookSignatureVerifier> _signatureVerifier = new();
@@ -347,6 +348,7 @@ public sealed class PaymentHandlersTests
             .Callback(() => acquiredLocks.Add("order"))
             .ReturnsAsync(order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        SetupActiveReservation(order, product, 3);
         var handler = CreateWebhookHandler();
 
         var result = await handler.Handle(
@@ -370,6 +372,9 @@ public sealed class PaymentHandlersTests
                 message.Type == OutBoxMessageType.StockUpdated &&
                 message.Payload.Contains(StockUpdateReasons.ReservationConsumed)),
             It.IsAny<CancellationToken>()), Times.Once);
+        _reservations.Verify(x => x.Update(
+            It.Is<InventoryReservation>(reservation =>
+                reservation.Status == InventoryReservationStatus.Consumed)), Times.Once);
     }
 
     [Fact]
@@ -383,6 +388,7 @@ public sealed class PaymentHandlersTests
         payment.RegisterExternalPayment("pay_123");
         SetupWebhook(payment, order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        SetupActiveReservation(order, product, 3);
         var handler = CreateWebhookHandler();
 
         var result = await handler.Handle(
@@ -404,6 +410,9 @@ public sealed class PaymentHandlersTests
                 message.Type == OutBoxMessageType.StockUpdated &&
                 message.Payload.Contains(StockUpdateReasons.ReservationReleased)),
             It.IsAny<CancellationToken>()), Times.Once);
+        _reservations.Verify(x => x.Update(
+            It.Is<InventoryReservation>(reservation =>
+                reservation.Status == InventoryReservationStatus.Released)), Times.Once);
     }
 
     [Fact]
@@ -572,6 +581,22 @@ public sealed class PaymentHandlersTests
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
     }
 
+    private void SetupActiveReservation(Order order, Product product, int quantity)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var reservation = InventoryReservation.Create(
+            order.Id,
+            product.Id,
+            product.Inventory.Id,
+            quantity,
+            now,
+            now.AddMinutes(30)).Value!;
+        _reservations.Setup(x => x.GetActiveByOrderIdForUpdateAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reservation]);
+    }
+
     private static string CreateWebhookPayload(
         string eventName,
         string status,
@@ -597,6 +622,7 @@ public sealed class PaymentHandlersTests
         _payments.Object,
         _orders.Object,
         _products.Object,
+        _reservations.Object,
         _outbox.Object,
         _unitOfWork.Object,
         _productCache.Object);

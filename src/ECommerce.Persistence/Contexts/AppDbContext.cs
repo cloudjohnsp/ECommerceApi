@@ -24,6 +24,7 @@ namespace ECommerce.Persistence.Contexts
         public DbSet<ProductImage> ProductImages => Set<ProductImage>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Inventory> Inventories => Set<Inventory>();
+        public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
         public DbSet<Order> Orders => Set<Order>();
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();

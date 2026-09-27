@@ -14,6 +14,7 @@ public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUserRepository userRepository,
     IProductRepository productRepository,
+    IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
     IProductCache productCache) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
@@ -58,6 +59,8 @@ public sealed class CreateOrderHandler(
             var orderResult = Order.Create(request.CustomerId);
             if (orderResult.IsFailure) return Result<OrderDto>.Failure([.. orderResult.Errors]);
             var order = orderResult.Value!;
+            var reservationCreatedAt = DateTimeOffset.UtcNow;
+            var reservations = new List<InventoryReservation>();
 
             foreach (var (product, quantity) in products)
             {
@@ -66,6 +69,17 @@ public sealed class CreateOrderHandler(
 
                 var stockResult = product.ReserveStock(quantity);
                 if (stockResult.IsFailure) return Result<OrderDto>.Failure([.. stockResult.Errors]);
+
+                var reservationResult = InventoryReservation.Create(
+                    order.Id,
+                    product.Id,
+                    product.Inventory.Id,
+                    quantity,
+                    reservationCreatedAt,
+                    reservationCreatedAt.Add(InventoryReservation.DefaultLifetime));
+                if (reservationResult.IsFailure)
+                    return Result<OrderDto>.Failure([.. reservationResult.Errors]);
+                reservations.Add(reservationResult.Value!);
                 productRepository.Update(product);
             }
 
@@ -76,6 +90,8 @@ public sealed class CreateOrderHandler(
                 customer.Email.Value);
 
             await orderRepository.AddAsync(order, cancellationToken);
+            foreach (var reservation in reservations)
+                await inventoryReservationRepository.AddAsync(reservation, cancellationToken);
             await outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
             foreach (var (product, _) in products)
             {

@@ -57,6 +57,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             "product_images",
             "categories",
             "inventories",
+            "inventory_reservations",
             "orders",
             "order_items",
             "payments",
@@ -244,6 +245,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
                 new OrderRepository(commandContext),
                 new UserRepository(commandContext),
                 new ProductRepository(commandContext),
+                new InventoryReservationRepository(commandContext),
                 new OutboxMessageRepository(commandContext),
                 new UnitOfWork(commandContext),
                 new NoOpProductCache());
@@ -262,6 +264,8 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         var persistedOrder = await assertionContext.Orders
             .Include(item => item.Items)
             .SingleAsync(item => item.CustomerId == customer.Id);
+        var persistedReservation = await assertionContext.InventoryReservations
+            .SingleAsync(item => item.OrderId == persistedOrder.Id);
         var outboxMessage = await assertionContext.OutboxMessages
             .SingleAsync(message => message.Type == OutBoxMessageType.OrderCreated);
         var stockMessage = await assertionContext.OutboxMessages
@@ -270,6 +274,11 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         persistedProduct.AvailableStock.Should().Be(7);
         persistedOrder.Items.Should().ContainSingle(item =>
             item.ProductId == product.Id && item.Quantity == 3);
+        persistedReservation.ProductId.Should().Be(product.Id);
+        persistedReservation.InventoryId.Should().Be(persistedProduct.Inventory.Id);
+        persistedReservation.Quantity.Should().Be(3);
+        persistedReservation.Status.Should().Be(InventoryReservationStatus.Active);
+        persistedReservation.ExpiresAt.Should().BeAfter(persistedReservation.CreatedAt);
         outboxMessage.Status.Should().Be(OutBoxMessageStatus.Pending);
         stockMessage.Status.Should().Be(OutBoxMessageStatus.Pending);
         stockMessage.Payload.Should().Contain(product.Id.ToString());
@@ -304,6 +313,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
                 new OrderRepository(createContext),
                 new UserRepository(createContext),
                 new ProductRepository(createContext),
+                new InventoryReservationRepository(createContext),
                 new OutboxMessageRepository(createContext),
                 new UnitOfWork(createContext),
                 new NoOpProductCache());
@@ -319,6 +329,7 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             var addHandler = new AddOrderItemHandler(
                 new OrderRepository(addContext),
                 new ProductRepository(addContext),
+                new InventoryReservationRepository(addContext),
                 new OutboxMessageRepository(addContext),
                 new UnitOfWork(addContext),
                 new NoOpProductCache());
@@ -335,6 +346,10 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         var product = await assertionContext.Products
             .Include(item => item.Inventory)
             .SingleAsync(item => item.Id == secondProduct.Id);
+        var reservations = await assertionContext.InventoryReservations
+            .Where(item => item.OrderId == orderId)
+            .OrderBy(item => item.ProductId)
+            .ToArrayAsync();
         var eventTypes = await assertionContext.OutboxMessages
             .Where(message => message.Payload.Contains(orderId.ToString()))
             .OrderBy(message => message.CreatedAt)
@@ -342,10 +357,84 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             .ToArrayAsync();
 
         order.Items.Should().HaveCount(2);
+        reservations.Should().HaveCount(2);
+        reservations.Should().OnlyContain(item => item.Status == InventoryReservationStatus.Active);
         product.AvailableStock.Should().Be(6);
         eventTypes.Where(type => type != OutBoxMessageType.StockUpdated)
             .Should().Equal(OutBoxMessageType.OrderCreated, OutBoxMessageType.OrderUpdated);
         eventTypes.Count(type => type == OutBoxMessageType.StockUpdated).Should().Be(2);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task CreateOrder_ConcurrentReservations_DoNotOversellInventory()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var suffix = Guid.NewGuid().ToString("N");
+        var firstCustomer = User.Create(
+            "First",
+            "Customer",
+            Email.Create($"first-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var secondCustomer = User.Create(
+            "Second",
+            "Customer",
+            Email.Create($"second-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var product = Product.Create(
+            $"Concurrent product {suffix}",
+            "Inventory lock test",
+            10m,
+            5).Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddRangeAsync(firstCustomer, secondCustomer);
+            await seedContext.Products.AddAsync(product);
+            await seedContext.SaveChangesAsync();
+        }
+
+        static CreateOrderHandler CreateHandler(AppDbContext context) => new(
+            new OrderRepository(context),
+            new UserRepository(context),
+            new ProductRepository(context),
+            new InventoryReservationRepository(context),
+            new OutboxMessageRepository(context),
+            new UnitOfWork(context),
+            new NoOpProductCache());
+
+        await using var firstContext = new AppDbContext(options);
+        await using var secondContext = new AppDbContext(options);
+        var firstTask = CreateHandler(firstContext).Handle(
+            new CreateOrderCommand(
+                firstCustomer.Id,
+                [new CreateOrderItem(product.Id, 4)]),
+            CancellationToken.None);
+        var secondTask = CreateHandler(secondContext).Handle(
+            new CreateOrderCommand(
+                secondCustomer.Id,
+                [new CreateOrderItem(product.Id, 4)]),
+            CancellationToken.None);
+
+        var results = await Task.WhenAll(firstTask, secondTask);
+
+        results.Count(result => result.IsSuccess).Should().Be(1);
+        results.Count(result => result.IsFailure).Should().Be(1);
+        results.Single(result => result.IsFailure).Errors
+            .Should().Contain(error => error.Contains("Insufficient available stock"));
+
+        await using var assertionContext = new AppDbContext(options);
+        var persistedProduct = await assertionContext.Products
+            .Include(item => item.Inventory)
+            .SingleAsync(item => item.Id == product.Id);
+        var reservations = await assertionContext.InventoryReservations
+            .Where(item => item.ProductId == product.Id)
+            .ToArrayAsync();
+
+        persistedProduct.AvailableStock.Should().Be(1);
+        reservations.Should().ContainSingle();
+        reservations[0].Quantity.Should().Be(4);
+        reservations[0].Status.Should().Be(InventoryReservationStatus.Active);
     }
 
     [PostgreSqlIntegrationFact]

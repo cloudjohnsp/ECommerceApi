@@ -18,6 +18,7 @@ public sealed class OrderHandlersTests
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<IProductRepository> _products = new();
+    private readonly Mock<IInventoryReservationRepository> _reservations = new();
     private readonly Mock<IPaymentRepository> _payments = new();
     private readonly Mock<IOutboxMessageRepository> _outboxMessages = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
@@ -31,7 +32,7 @@ public sealed class OrderHandlersTests
         _users.Setup(x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -52,6 +53,14 @@ public sealed class OrderHandlersTests
                 message.Payload.Contains(StockUpdateReasons.Reserved)),
             It.IsAny<CancellationToken>()), Times.Once);
         _orders.Verify(x => x.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Once);
+        _reservations.Verify(x => x.AddAsync(
+            It.Is<InventoryReservation>(reservation =>
+                reservation.OrderId == result.Value.Id &&
+                reservation.ProductId == product.Id &&
+                reservation.InventoryId == product.Inventory.Id &&
+                reservation.Quantity == 3 &&
+                reservation.Status == InventoryReservationStatus.Active),
+            It.IsAny<CancellationToken>()), Times.Once);
         _users.Verify(
             x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>()),
             Times.Once);
@@ -67,7 +76,7 @@ public sealed class OrderHandlersTests
     public async Task Create_WithUnknownCustomer_ReturnsFailureWithoutChangingStock()
     {
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -88,7 +97,7 @@ public sealed class OrderHandlersTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(administrator);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -117,7 +126,7 @@ public sealed class OrderHandlersTests
         _users.Setup(x => x.GetByIdForUpdateAsync(customer.Id, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -141,7 +150,7 @@ public sealed class OrderHandlersTests
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -173,7 +182,7 @@ public sealed class OrderHandlersTests
         _users.Setup(x => x.GetByIdForUpdateAsync(customerId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(sensitiveInfrastructureDetail));
         var handler = new CreateOrderHandler(
-            _orders.Object, _users.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var action = () => handler.Handle(
@@ -275,6 +284,7 @@ public sealed class OrderHandlersTests
         var handler = new AddOrderItemHandler(
             _orders.Object,
             _products.Object,
+            _reservations.Object,
             _outboxMessages.Object,
             _unitOfWork.Object,
             _productCache.Object);
@@ -295,6 +305,13 @@ public sealed class OrderHandlersTests
                 message.Payload.Contains(StockUpdateReasons.Reserved)),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _reservations.Verify(x => x.AddAsync(
+            It.Is<InventoryReservation>(reservation =>
+                reservation.OrderId == order.Id &&
+                reservation.ProductId == product.Id &&
+                reservation.Quantity == 2 &&
+                reservation.Status == InventoryReservationStatus.Active),
+            It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
 
@@ -307,6 +324,7 @@ public sealed class OrderHandlersTests
         var handler = new AddOrderItemHandler(
             _orders.Object,
             _products.Object,
+            _reservations.Object,
             _outboxMessages.Object,
             _unitOfWork.Object,
             _productCache.Object);
@@ -333,6 +351,7 @@ public sealed class OrderHandlersTests
         var handler = new AddOrderItemHandler(
             _orders.Object,
             _products.Object,
+            _reservations.Object,
             _outboxMessages.Object,
             _unitOfWork.Object,
             _productCache.Object);
@@ -366,10 +385,15 @@ public sealed class OrderHandlersTests
             .ReturnsAsync(payment);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
+        var reservation = CreateReservation(order, product, 2);
+        _reservations.Setup(x => x.GetActiveByOrderIdForUpdateAsync(
+                order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reservation]);
         var handler = new UpdateOrderHandler(
             _orders.Object,
             _payments.Object,
             _products.Object,
+            _reservations.Object,
             _outboxMessages.Object,
             _unitOfWork.Object,
             _productCache.Object);
@@ -388,6 +412,7 @@ public sealed class OrderHandlersTests
                 message.Payload.Contains(StockUpdateReasons.ReservationConsumed)),
             It.IsAny<CancellationToken>()), Times.Once);
         product.ReleaseReservedStock(2).IsFailure.Should().BeTrue();
+        reservation.Status.Should().Be(InventoryReservationStatus.Consumed);
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _productCache.Verify(x => x.RemoveAsync(product.Id, CancellationToken.None), Times.Once);
     }
@@ -405,6 +430,7 @@ public sealed class OrderHandlersTests
             _orders.Object,
             _payments.Object,
             _products.Object,
+            _reservations.Object,
             _outboxMessages.Object,
             _unitOfWork.Object,
             _productCache.Object);
@@ -430,8 +456,12 @@ public sealed class OrderHandlersTests
         var order = orderResult.Value;
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+        var reservation = CreateReservation(order, product, 3);
+        _reservations.Setup(x => x.GetActiveByOrderIdForUpdateAsync(
+                order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reservation]);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
@@ -439,6 +469,7 @@ public sealed class OrderHandlersTests
         result.IsSuccess.Should().BeTrue();
         order.Status.Should().Be(OrderStatus.Cancelled);
         product.AvailableStock.Should().Be(10);
+        reservation.Status.Should().Be(InventoryReservationStatus.Released);
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message => message.Type == OutBoxMessageType.OrderCancelled),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -458,7 +489,7 @@ public sealed class OrderHandlersTests
         order.MarkAsPaid();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
@@ -474,7 +505,7 @@ public sealed class OrderHandlersTests
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(
@@ -492,8 +523,20 @@ public sealed class OrderHandlersTests
     {
         var order = OrderFactory.Create();
         _orders.Setup(x => x.GetByIdForUpdateAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        var item = order.Items.Single();
+        var now = DateTimeOffset.UtcNow;
+        var reservation = InventoryReservation.Create(
+            order.Id,
+            item.ProductId,
+            Guid.NewGuid(),
+            item.Quantity,
+            now,
+            now.AddMinutes(30)).Value!;
+        _reservations.Setup(x => x.GetActiveByOrderIdForUpdateAsync(
+                order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reservation]);
         var handler = new DeleteOrderHandler(
-            _orders.Object, _products.Object, _outboxMessages.Object,
+            _orders.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
             _unitOfWork.Object, _productCache.Object);
 
         var result = await handler.Handle(new DeleteOrderCommand(order.Id), CancellationToken.None);
@@ -501,5 +544,20 @@ public sealed class OrderHandlersTests
         result.IsFailure.Should().BeTrue();
         _unitOfWork.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    private static InventoryReservation CreateReservation(
+        Order order,
+        Product product,
+        int quantity)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return InventoryReservation.Create(
+            order.Id,
+            product.Id,
+            product.Inventory.Id,
+            quantity,
+            now,
+            now.AddMinutes(30)).Value!;
     }
 }
