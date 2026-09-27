@@ -107,6 +107,18 @@ public sealed class CommittedConfigurationTests
         dockerIgnore.Should().NotContain(line => line.StartsWith("!.git", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("Dockerfile")]
+    [InlineData("Dockerfile.worker")]
+    public void RuntimeImages_UseNonRootUserAndCopyOnlyApplicationSources(string dockerfileName)
+    {
+        var dockerfile = File.ReadAllText(Path.Combine(FindSolutionRoot(), dockerfileName));
+
+        dockerfile.Should().Contain("USER $APP_UID");
+        dockerfile.Should().Contain("COPY [\"src/\", \"src/\"]");
+        dockerfile.Should().NotContain("COPY . .");
+    }
+
     [Fact]
     public void LocalStartupScript_InitializesSecretsAndUsesExplicitComposeFiles()
     {

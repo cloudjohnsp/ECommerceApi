@@ -212,6 +212,8 @@ publicados. Todas as portas do Compose são vinculadas exclusivamente a
 `127.0.0.1`; os serviços de desenvolvimento não ficam expostos à rede local. O
 perfil local `https` do `launchSettings.json` habilita o
 redirecionamento porque também inicia `https://localhost:5001`.
+As imagens da API e do Worker executam com o usuário não privilegiado fornecido
+pelas imagens oficiais do .NET e copiam somente `src/` para o estágio de build.
 
 Se a política de execução do PowerShell bloquear scripts locais, execute apenas
 para este processo:

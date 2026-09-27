@@ -10,7 +10,7 @@ COPY ["Directory.Build.props", "./"]
 COPY ["src/ECommerce.Shared/ECommerce.Shared.csproj", "src/ECommerce.Shared/"]
 COPY ["src/ECommerce.Worker/ECommerce.Worker.csproj", "src/ECommerce.Worker/"]
 RUN dotnet restore "./src/ECommerce.Worker/ECommerce.Worker.csproj"
-COPY . .
+COPY ["src/", "src/"]
 WORKDIR "/src/src/ECommerce.Worker"
 RUN dotnet publish "./ECommerce.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 

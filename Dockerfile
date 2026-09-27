@@ -20,7 +20,7 @@ COPY ["src/ECommerce.Infrastructure/ECommerce.Infrastructure.csproj", "src/EComm
 COPY ["src/ECommerce.Persistence/ECommerce.Persistence.csproj", "src/ECommerce.Persistence/"]
 COPY ["src/ECommerce.Shared/ECommerce.Shared.csproj", "src/ECommerce.Shared/"]
 RUN dotnet restore "./src/ECommerce.Api/ECommerce.Api.csproj"
-COPY . .
+COPY ["src/", "src/"]
 WORKDIR "/src/src/ECommerce.Api"
 RUN dotnet build "./ECommerce.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
