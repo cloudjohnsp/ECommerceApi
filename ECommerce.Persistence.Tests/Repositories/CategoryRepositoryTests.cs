@@ -54,6 +54,17 @@ public sealed class CategoryRepositoryTests
         exists.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task AcquireSlugLockAsync_WithInMemoryProvider_CompletesWithoutDatabaseSql()
+    {
+        await using var context = CreateContext();
+        var repository = new CategoryRepository(context);
+
+        var action = () => repository.AcquireSlugLockAsync("  AUDIO  ");
+
+        await action.Should().NotThrowAsync();
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

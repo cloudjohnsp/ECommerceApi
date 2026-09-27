@@ -24,10 +24,16 @@ public sealed class CategoryHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Slug.Should().Be("audio-e-video");
+        _repository.Verify(repository => repository.AcquireSlugLockAsync(
+            "audio-e-video",
+            It.IsAny<CancellationToken>()), Times.Once);
         _repository.Verify(repository => repository.AddAsync(
             It.Is<Category>(category => category.Slug == "audio-e-video"),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.BeginTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
         _cache.Verify(cache => cache.SetAsync(
             It.Is<CategoryDto>(category => category.Slug == "audio-e-video"),
             CancellationToken.None), Times.Once);
@@ -47,9 +53,15 @@ public sealed class CategoryHandlersTests
         var result = await handler.Handle(new CreateCategoryCommand("Audio"), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
+        _repository.Verify(repository => repository.AcquireSlugLockAsync(
+            "audio",
+            It.IsAny<CancellationToken>()), Times.Once);
         _repository.Verify(repository => repository.AddAsync(
             It.IsAny<Category>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unit => unit.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unit => unit.RollbackTransactionAsync(
+            CancellationToken.None), Times.Once);
         _cache.VerifyNoOtherCalls();
     }
 
@@ -68,6 +80,9 @@ public sealed class CategoryHandlersTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Slug.Should().Be("casa-e-jardim");
+        _repository.Verify(repository => repository.AcquireSlugLockAsync(
+            "casa-e-jardim",
+            It.IsAny<CancellationToken>()), Times.Once);
         _repository.Verify(repository => repository.Update(category), Times.Once);
         _unitOfWork.Verify(
             unit => unit.BeginTransactionAsync(It.IsAny<CancellationToken>()),

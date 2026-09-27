@@ -57,6 +57,9 @@ de nome concorrente reative ou sobrescreva uma desativação e mantém a invalid
 do cache estritamente posterior ao commit. A criação ou atualização de produto
 também bloqueia a categoria escolhida até o commit, portanto um vínculo novo não
 pode ser confirmado enquanto a categoria é desativada concorrentemente.
+Criação e renomeação também adquirem um advisory lock pelo slug normalizado antes
+da consulta autoritativa de unicidade, evitando que requisições concorrentes
+convertam uma disputa de nome esperada em violação de índice.
 
 ## Pedidos, estoque e pagamentos
 

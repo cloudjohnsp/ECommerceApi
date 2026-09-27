@@ -7,6 +7,7 @@ public interface ICategoryRepository
     Task<Category?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Category?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Category>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task AcquireSlugLockAsync(string slug, CancellationToken cancellationToken = default);
     Task<bool> ExistsBySlugAsync(
         string slug,
         Guid? excludedId = null,

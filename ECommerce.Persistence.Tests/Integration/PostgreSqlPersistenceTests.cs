@@ -687,6 +687,42 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task CategorySlugLock_ConcurrentClaimWaitsForFirstTransaction()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var slug = $"category-lock-{Guid.NewGuid():N}";
+
+        await using var firstContext = new AppDbContext(options);
+        var firstUnitOfWork = new UnitOfWork(firstContext);
+        var firstRepository = new CategoryRepository(firstContext);
+        await firstUnitOfWork.BeginTransactionAsync();
+        await firstRepository.AcquireSlugLockAsync(slug);
+
+        var secondAttemptStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondClaim = Task.Run(async () =>
+        {
+            await using var secondContext = new AppDbContext(options);
+            var secondUnitOfWork = new UnitOfWork(secondContext);
+            var secondRepository = new CategoryRepository(secondContext);
+            await secondUnitOfWork.BeginTransactionAsync();
+            secondAttemptStarted.SetResult();
+            await secondRepository.AcquireSlugLockAsync(slug.ToUpperInvariant());
+            await secondUnitOfWork.CommitTransactionAsync();
+        });
+
+        await secondAttemptStarted.Task;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        var secondClaimWasBlocked = !secondClaim.IsCompleted;
+
+        await firstUnitOfWork.CommitTransactionAsync();
+        await secondClaim;
+
+        secondClaimWasBlocked.Should().BeTrue();
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task PaymentCreationLocks_LoadPaymentAndOutboxUsingPostgreSql()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

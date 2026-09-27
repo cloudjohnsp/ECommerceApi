@@ -21,15 +21,31 @@ public sealed class CreateCategoryHandler(
             return Result<CategoryDto>.Failure([.. categoryResult.Errors]);
 
         var category = categoryResult.Value!;
-        if (await repository.ExistsBySlugAsync(category.Slug, cancellationToken: cancellationToken))
-            return Result<CategoryDto>.Failure("A category with this name already exists.");
+        var transactionCommitted = false;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await repository.AcquireSlugLockAsync(category.Slug, cancellationToken);
+            if (await repository.ExistsBySlugAsync(
+                    category.Slug,
+                    cancellationToken: cancellationToken))
+            {
+                return Result<CategoryDto>.Failure("A category with this name already exists.");
+            }
 
-        await repository.AddAsync(category, cancellationToken);
-        await unitOfWork.Commit(cancellationToken);
-        var categoryDto = category.ToDto();
-        await categoryCache.SetAsync(categoryDto, CancellationToken.None);
-        await categoryCache.RemoveAllAsync(CancellationToken.None);
-        return Result<CategoryDto>.Success(categoryDto);
+            await repository.AddAsync(category, cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
+            var categoryDto = category.ToDto();
+            await categoryCache.SetAsync(categoryDto, CancellationToken.None);
+            await categoryCache.RemoveAllAsync(CancellationToken.None);
+            return Result<CategoryDto>.Success(categoryDto);
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }
 
@@ -52,15 +68,20 @@ public sealed class UpdateCategoryHandler(
             if (category is null)
                 return Result<CategoryDto>.Failure("Category not found.");
 
+            var previousSlug = category.Slug;
             var updateResult = category.Update(request.Name);
             if (updateResult.IsFailure)
                 return Result<CategoryDto>.Failure([.. updateResult.Errors]);
-            if (await repository.ExistsBySlugAsync(
-                    category.Slug,
-                    category.Id,
-                    cancellationToken))
+            if (category.Slug != previousSlug)
             {
-                return Result<CategoryDto>.Failure("A category with this name already exists.");
+                await repository.AcquireSlugLockAsync(category.Slug, cancellationToken);
+                if (await repository.ExistsBySlugAsync(
+                        category.Slug,
+                        category.Id,
+                        cancellationToken))
+                {
+                    return Result<CategoryDto>.Failure("A category with this name already exists.");
+                }
             }
 
             repository.Update(category);

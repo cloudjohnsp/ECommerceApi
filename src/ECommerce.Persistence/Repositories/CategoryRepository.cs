@@ -26,6 +26,20 @@ public sealed class CategoryRepository(AppDbContext dbContext) : ICategoryReposi
             .OrderBy(category => category.Name)
             .ToArrayAsync(cancellationToken);
 
+    public async Task AcquireSlugLockAsync(
+        string slug,
+        CancellationToken cancellationToken = default)
+    {
+        if (!dbContext.Database.IsRelational())
+            return;
+
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
+        var lockKey = $"category:{normalizedSlug}";
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))",
+            cancellationToken);
+    }
+
     public Task<bool> ExistsBySlugAsync(
         string slug,
         Guid? excludedId = null,
