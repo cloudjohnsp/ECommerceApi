@@ -603,6 +603,42 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task UserEmailLock_ConcurrentClaimWaitsForFirstTransaction()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var email = $"email-lock-{Guid.NewGuid():N}@example.com";
+
+        await using var firstContext = new AppDbContext(options);
+        var firstUnitOfWork = new UnitOfWork(firstContext);
+        var firstRepository = new UserRepository(firstContext);
+        await firstUnitOfWork.BeginTransactionAsync();
+        await firstRepository.AcquireEmailLockAsync(email);
+
+        var secondAttemptStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondClaim = Task.Run(async () =>
+        {
+            await using var secondContext = new AppDbContext(options);
+            var secondUnitOfWork = new UnitOfWork(secondContext);
+            var secondRepository = new UserRepository(secondContext);
+            await secondUnitOfWork.BeginTransactionAsync();
+            secondAttemptStarted.SetResult();
+            await secondRepository.AcquireEmailLockAsync(email.ToUpperInvariant());
+            await secondUnitOfWork.CommitTransactionAsync();
+        });
+
+        await secondAttemptStarted.Task;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        var secondClaimWasBlocked = !secondClaim.IsCompleted;
+
+        await firstUnitOfWork.CommitTransactionAsync();
+        await secondClaim;
+
+        secondClaimWasBlocked.Should().BeTrue();
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task CategoryForUpdate_ConcurrentMutationWaitsAndObservesCommittedState()
     {
         var connectionString = await fixture.GetConnectionStringAsync();

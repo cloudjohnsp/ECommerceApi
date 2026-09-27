@@ -49,6 +49,9 @@ public sealed class UpdateUserProfileHandlerTests
         result.Value!.FirstName.Should().Be("John");
         result.Value.LastName.Should().Be("Doe");
         result.Value.Email.Should().Be("john.doe@example.com");
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            "john.doe@example.com",
+            It.IsAny<CancellationToken>()), Times.Once);
         _userRepository.Verify(repository => repository.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
         _tokenRepository.Verify(repository => repository.AddAsync(
             It.Is<UserActionToken>(token => token.Type == UserActionTokenType.EmailConfirmation),
@@ -106,6 +109,8 @@ public sealed class UpdateUserProfileHandlerTests
             It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
         _refreshTokenRepository.Verify(repository => repository.RevokeAllForUserAsync(
             It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

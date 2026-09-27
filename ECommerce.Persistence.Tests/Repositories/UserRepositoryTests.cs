@@ -85,6 +85,17 @@ public sealed class UserRepositoryTests
     }
 
     [Fact]
+    public async Task AcquireEmailLockAsync_WithInMemoryProvider_CompletesWithoutDatabaseSql()
+    {
+        await using var context = CreateContext();
+        var repository = new UserRepository(context);
+
+        var action = () => repository.AcquireEmailLockAsync("  LOCKING@EXAMPLE.COM  ");
+
+        await action.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task ExistsByEmailAsync_ReturnsWhetherEmailExists()
     {
         await using var context = CreateContext();

@@ -27,38 +27,56 @@ public sealed class CreateUserHandler(
         Result<EmailValue> emailResult = EmailValue.Create(command.Email);
         if (emailResult.IsFailure) return Result<UserDto>.Failure([.. emailResult.Errors]);
 
-        if (await _userRepository.ExistsByEmailAsync(emailResult.Value!.Value, cancellationToken: cancellationToken))
-            return Result<UserDto>.Failure("E-mail is already registered.");
+        var transactionCommitted = false;
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _userRepository.AcquireEmailLockAsync(
+                emailResult.Value!.Value,
+                cancellationToken);
+            if (await _userRepository.ExistsByEmailAsync(
+                    emailResult.Value.Value,
+                    cancellationToken: cancellationToken))
+            {
+                return Result<UserDto>.Failure("E-mail is already registered.");
+            }
 
-        string hashedPassword = _passwordHasher.HashPassword(command.Password);
+            string hashedPassword = _passwordHasher.HashPassword(command.Password);
 
-        Result<User> userResult = User.Create(
-            command.FirstName,
-            command.LastName,
-            emailResult.Value,
-            hashedPassword,
-            command.Role
-        );
+            Result<User> userResult = User.Create(
+                command.FirstName,
+                command.LastName,
+                emailResult.Value,
+                hashedPassword,
+                command.Role
+            );
 
-        if (userResult.IsFailure) return Result<UserDto>.Failure([.. userResult.Errors]);
+            if (userResult.IsFailure) return Result<UserDto>.Failure([.. userResult.Errors]);
 
-        var pendingTokenResult = UserActionTokenFactory.Create(
-            userResult.Value!,
-            UserActionTokenType.EmailConfirmation,
-            userActionTokenService);
-        if (pendingTokenResult.IsFailure)
-            return Result<UserDto>.Failure([.. pendingTokenResult.Errors]);
+            var pendingTokenResult = UserActionTokenFactory.Create(
+                userResult.Value!,
+                UserActionTokenType.EmailConfirmation,
+                userActionTokenService);
+            if (pendingTokenResult.IsFailure)
+                return Result<UserDto>.Failure([.. pendingTokenResult.Errors]);
 
-        await _userRepository.AddAsync(userResult.Value!, cancellationToken);
-        await userActionTokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
-        await outboxMessageRepository.AddAsync(pendingTokenResult.Value.OutboxMessage, cancellationToken);
-        await auditRepository.AddAsync(
-            UserAuditEntryFactory.Created(userResult.Value!),
-            cancellationToken);
-        await _unitOfWork.Commit(cancellationToken);
+            await _userRepository.AddAsync(userResult.Value!, cancellationToken);
+            await userActionTokenRepository.AddAsync(pendingTokenResult.Value!.Token, cancellationToken);
+            await outboxMessageRepository.AddAsync(pendingTokenResult.Value.OutboxMessage, cancellationToken);
+            await auditRepository.AddAsync(
+                UserAuditEntryFactory.Created(userResult.Value!),
+                cancellationToken);
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            transactionCommitted = true;
 
-        UserDto userDto = userResult.Value!.Adapt<UserDto>();
+            UserDto userDto = userResult.Value!.Adapt<UserDto>();
 
-        return Result<UserDto>.Success(userDto);
+            return Result<UserDto>.Success(userDto);
+        }
+        finally
+        {
+            if (!transactionCommitted)
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        }
     }
 }

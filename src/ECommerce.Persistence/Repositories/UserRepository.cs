@@ -46,6 +46,19 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
                 cancellationToken);
     }
 
+    public async Task AcquireEmailLockAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_dbContext.Database.IsRelational())
+            return;
+
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({normalizedEmail}, 0))",
+            cancellationToken);
+    }
+
     public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();

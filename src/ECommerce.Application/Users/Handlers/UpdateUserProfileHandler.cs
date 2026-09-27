@@ -36,15 +36,24 @@ public sealed class UpdateUserProfileHandler(
                 return Result<UserDto>.Failure([.. emailResult.Errors]);
             }
 
-            if (await userRepository.ExistsByEmailAsync(emailResult.Value!.Value, user.Id, cancellationToken))
+            var previousEmail = user.Email.Value;
+            var emailChanged = previousEmail != emailResult.Value!.Value;
+            if (emailChanged)
             {
-                return Result<UserDto>.Failure("E-mail is already registered.");
+                await userRepository.AcquireEmailLockAsync(
+                    emailResult.Value.Value,
+                    cancellationToken);
+                if (await userRepository.ExistsByEmailAsync(
+                        emailResult.Value.Value,
+                        user.Id,
+                        cancellationToken))
+                {
+                    return Result<UserDto>.Failure("E-mail is already registered.");
+                }
             }
 
             var previousFirstName = user.FirstName;
             var previousLastName = user.LastName;
-            var previousEmail = user.Email.Value;
-            var emailChanged = previousEmail != emailResult.Value.Value;
             var updateResult = user.UpdateProfile(
                 request.FirstName ?? user.FirstName,
                 request.LastName ?? user.LastName,

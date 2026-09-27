@@ -176,6 +176,10 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
 - A solicitação de redefinição bloqueia o usuário por e-mail antes de invalidar o
   token anterior e gravar token + e-mail na outbox, deixando apenas um token
   utilizável mesmo quando duas solicitações chegam juntas.
+- Cadastro e troca de e-mail adquirem um advisory lock transacional pela forma
+  normalizada do endereço antes de consultar a unicidade. O índice único continua
+  sendo a barreira final, enquanto o lock transforma disputas normais pela mesma
+  identidade em uma decisão serializada e controlada na Application.
 - Quando um e-mail de conta é aceito pelo SMTP, a intenção original é concluída e
   um `email.sent` sanitizado é gravado atomicamente para publicação posterior.
   Destinatário, nome, conteúdo e token não fazem parte do evento de integração.

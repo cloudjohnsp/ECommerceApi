@@ -59,6 +59,9 @@ public sealed class CreateUserHandlerTests
         result.Value.IsActive.Should().BeTrue();
 
         _passwordHasher.Verify(hasher => hasher.HashPassword(command.Password), Times.Once);
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            "jane.doe@example.com",
+            It.IsAny<CancellationToken>()), Times.Once);
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -72,7 +75,10 @@ public sealed class CreateUserHandlerTests
             It.Is<UserAuditEntry>(entry =>
                 entry.Action == UserAuditAction.Created && entry.UserId == result.Value.Id),
             It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.BeginTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -92,6 +98,9 @@ public sealed class CreateUserHandlerTests
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -110,11 +119,17 @@ public sealed class CreateUserHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain("E-mail is already registered.");
+        _userRepository.Verify(repository => repository.AcquireEmailLockAsync(
+            "jane.doe@example.com",
+            It.IsAny<CancellationToken>()), Times.Once);
         _passwordHasher.Verify(hasher => hasher.HashPassword(It.IsAny<string>()), Times.Never);
         _userRepository.Verify(repository => repository.AddAsync(
             It.IsAny<User>(),
             It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.Commit(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(
+            CancellationToken.None), Times.Once);
     }
 
     private CreateUserHandler CreateHandler() => new(
