@@ -241,6 +241,16 @@ dotnet ef database update --project src/ECommerce.Persistence --startup-project 
 Remove-Item Env:ECOMMERCE_DESIGN_TIME_CONNECTION_STRING
 ```
 
+O Worker segue a mesma regra e não possui senha de fallback na factory de
+design-time. Para aplicar migrations do schema `worker`, forneça a conexão
+somente ao processo do comando:
+
+```powershell
+$env:ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING = "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>"
+dotnet ef database update --project src/ECommerce.Worker --startup-project src/ECommerce.Worker --context WorkerDbContext
+Remove-Item Env:ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING
+```
+
 ## Integração contínua
 
 O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,

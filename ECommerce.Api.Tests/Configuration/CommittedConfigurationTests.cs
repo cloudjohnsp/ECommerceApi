@@ -31,6 +31,30 @@ public sealed class CommittedConfigurationTests
     }
 
     [Fact]
+    public void DesignTimeFactories_DoNotEmbedDatabasePasswords()
+    {
+        var root = FindSolutionRoot();
+        var apiFactory = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ECommerce.Persistence",
+            "Contexts",
+            "DesignTimeDbContextFactory.cs"));
+        var workerFactory = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ECommerce.Worker",
+            "Persistence",
+            "WorkerDbContextFactory.cs"));
+
+        apiFactory.Should().Contain("ECOMMERCE_DESIGN_TIME_CONNECTION_STRING");
+        workerFactory.Should().Contain(
+            "ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING");
+        apiFactory.Should().NotContain("Password=");
+        workerFactory.Should().NotContain("Password=");
+    }
+
+    [Fact]
     public void DockerCompose_RequiresSecretsFromEnvironment()
     {
         var root = FindSolutionRoot();
