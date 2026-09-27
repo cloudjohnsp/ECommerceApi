@@ -11,8 +11,10 @@ public sealed record OrderDto(
     OrderStatus Status,
     decimal Total,
     DateTimeOffset CreatedAt,
+    DateTimeOffset ExpiresAt,
     DateTimeOffset? UpdatedAt,
     DateTimeOffset? CancelledAt,
+    OrderCancellationReason? CancellationReason,
     IReadOnlyCollection<OrderItemDto> Items);
 
 internal static class OrderMapping
@@ -23,8 +25,10 @@ internal static class OrderMapping
         order.Status,
         order.Total,
         order.CreatedAt,
+        order.ExpiresAt,
         order.UpdatedAt,
         order.CancelledAt,
+        order.CancellationReason,
         [.. order.Items.Select(item => new OrderItemDto(
             item.Id, item.ProductId, item.ProductName, item.UnitPrice, item.Quantity, item.Subtotal))]);
 }

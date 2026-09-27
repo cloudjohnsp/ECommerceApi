@@ -19,6 +19,19 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
             .Include(order => order.Items)
             .SingleOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyCollection<ExpiredOrderCandidate>> GetExpiredPendingCandidatesAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Orders.AsNoTracking()
+            .Where(order => order.Status == Domain.Enums.OrderStatus.Pending &&
+                            order.ExpiresAt <= now)
+            .OrderBy(order => order.ExpiresAt)
+            .ThenBy(order => order.Id)
+            .Take(batchSize)
+            .Select(order => new ExpiredOrderCandidate(order.Id, order.ExpiresAt))
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyCollection<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Orders.AsNoTracking().Include(order => order.Items)
             .OrderByDescending(order => order.CreatedAt).ToListAsync(cancellationToken);

@@ -10,6 +10,7 @@ using Moq;
 using ECommerce.Application.Abstractions.Specifications;
 using ECommerce.Shared.Pagination;
 using ECommerce.Shared.Messaging;
+using ECommerce.Application.Abstractions.Orders;
 
 namespace ECommerce.Application.Tests.Orders.Handlers;
 
@@ -23,6 +24,9 @@ public sealed class OrderHandlersTests
     private readonly Mock<IOutboxMessageRepository> _outboxMessages = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IProductCache> _productCache = new();
+    private readonly IOrderExpirationPolicy _expirationPolicy =
+        Mock.Of<IOrderExpirationPolicy>(policy =>
+            policy.PaymentLifetime == TimeSpan.FromMinutes(30));
 
     [Fact]
     public async Task Create_WithValidData_CreatesOrderAndDecreasesStock()
@@ -33,13 +37,15 @@ public sealed class OrderHandlersTests
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var result = await handler.Handle(
             new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 3)]), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Total.Should().Be(product.Price * 3);
+        result.Value.ExpiresAt.Should().Be(
+            result.Value.CreatedAt.Add(_expirationPolicy.PaymentLifetime));
         product.AvailableStock.Should().Be(7);
         _outboxMessages.Verify(x => x.AddAsync(
             It.Is<OutboxMessage>(message =>
@@ -59,6 +65,7 @@ public sealed class OrderHandlersTests
                 reservation.ProductId == product.Id &&
                 reservation.InventoryId == product.Inventory.Id &&
                 reservation.Quantity == 3 &&
+                reservation.ExpiresAt == result.Value.ExpiresAt &&
                 reservation.Status == InventoryReservationStatus.Active),
             It.IsAny<CancellationToken>()), Times.Once);
         _users.Verify(
@@ -77,7 +84,7 @@ public sealed class OrderHandlersTests
     {
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var result = await handler.Handle(
             new CreateOrderCommand(Guid.NewGuid(), [new CreateOrderItem(Guid.NewGuid(), 1)]), CancellationToken.None);
@@ -98,7 +105,7 @@ public sealed class OrderHandlersTests
             .ReturnsAsync(administrator);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var result = await handler.Handle(
             new CreateOrderCommand(
@@ -127,7 +134,7 @@ public sealed class OrderHandlersTests
         _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>())).ReturnsAsync(product);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var result = await handler.Handle(
             new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 3)]), CancellationToken.None);
@@ -151,7 +158,7 @@ public sealed class OrderHandlersTests
             .ReturnsAsync(product);
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var result = await handler.Handle(
             new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 1)]),
@@ -183,7 +190,7 @@ public sealed class OrderHandlersTests
             .ThrowsAsync(new InvalidOperationException(sensitiveInfrastructureDetail));
         var handler = new CreateOrderHandler(
             _orders.Object, _users.Object, _products.Object, _reservations.Object, _outboxMessages.Object,
-            _unitOfWork.Object, _productCache.Object);
+            _unitOfWork.Object, _productCache.Object, _expirationPolicy);
 
         var action = () => handler.Handle(
             new CreateOrderCommand(customerId, [new CreateOrderItem(Guid.NewGuid(), 1)]),

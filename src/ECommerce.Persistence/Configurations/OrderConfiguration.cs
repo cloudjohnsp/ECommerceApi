@@ -10,14 +10,27 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
     public void Configure(EntityTypeBuilder<Order> builder)
     {
         builder.ToTable("orders", table =>
-            table.HasCheckConstraint("ck_orders_status", "status IN (1, 2, 3, 4)"));
+        {
+            table.HasCheckConstraint("ck_orders_status", "status IN (1, 2, 3, 4)");
+            table.HasCheckConstraint(
+                "ck_orders_expiration",
+                "expires_at > created_at");
+            table.HasCheckConstraint(
+                "ck_orders_cancellation_reason",
+                "(status = 3 AND cancellation_reason IS NOT NULL) OR " +
+                "(status <> 3 AND cancellation_reason IS NULL)");
+        });
         builder.HasKey(order => order.Id);
         builder.Property(order => order.Id).ValueGeneratedNever();
         builder.Property(order => order.CustomerId).HasColumnName("customer_id").IsRequired();
         builder.Property(order => order.Status).HasColumnName("status").HasConversion<int>().IsRequired();
         builder.Property(order => order.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(order => order.ExpiresAt).HasColumnName("expires_at").IsRequired();
         builder.Property(order => order.UpdatedAt).HasColumnName("updated_at");
         builder.Property(order => order.CancelledAt).HasColumnName("cancelled_at");
+        builder.Property(order => order.CancellationReason)
+            .HasColumnName("cancellation_reason")
+            .HasConversion<int?>();
         builder.Property(order => order.RefundedAt).HasColumnName("refunded_at");
         builder.Ignore(order => order.Total);
 
@@ -35,6 +48,9 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(order => order.CustomerId);
         builder.HasIndex(order => order.CreatedAt);
+        builder.HasIndex(order => order.ExpiresAt)
+            .HasFilter("status = 1")
+            .HasDatabaseName("ix_orders_pending_expires_at");
     }
 }
 

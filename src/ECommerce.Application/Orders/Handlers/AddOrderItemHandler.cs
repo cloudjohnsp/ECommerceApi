@@ -29,6 +29,9 @@ public sealed class AddOrderItemHandler(
             var order = await orderRepository.GetByIdForUpdateAsync(request.OrderId, cancellationToken);
             if (order is null || request.CustomerId is { } customerId && order.CustomerId != customerId)
                 return Result<OrderDto>.Failure("Order not found.");
+            var reservationCreatedAt = DateTimeOffset.UtcNow;
+            if (order.ExpiresAt <= reservationCreatedAt)
+                return Result<OrderDto>.Failure("Order has expired.");
 
             var product = await productRepository.GetByIdForUpdateAsync(
                 request.ProductId,
@@ -50,14 +53,13 @@ public sealed class AddOrderItemHandler(
             if (reserveResult.IsFailure)
                 return Result<OrderDto>.Failure([.. reserveResult.Errors]);
 
-            var reservationCreatedAt = DateTimeOffset.UtcNow;
             var reservationResult = InventoryReservation.Create(
                 order.Id,
                 product.Id,
                 product.Inventory.Id,
                 request.Quantity,
                 reservationCreatedAt,
-                reservationCreatedAt.Add(InventoryReservation.DefaultLifetime));
+                order.ExpiresAt);
             if (reservationResult.IsFailure)
                 return Result<OrderDto>.Failure([.. reservationResult.Errors]);
 

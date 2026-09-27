@@ -5,8 +5,6 @@ namespace ECommerce.Domain.Entities;
 
 public sealed class InventoryReservation : Entity
 {
-    public static readonly TimeSpan DefaultLifetime = TimeSpan.FromMinutes(30);
-
     public Guid OrderId { get; private set; }
     public Guid ProductId { get; private set; }
     public Guid InventoryId { get; private set; }

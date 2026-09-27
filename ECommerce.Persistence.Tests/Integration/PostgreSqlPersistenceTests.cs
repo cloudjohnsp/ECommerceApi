@@ -2,6 +2,7 @@ using ECommerce.Application.Abstractions.Caching;
 using ECommerce.Application.Abstractions.Email;
 using ECommerce.Application.Abstractions.Payments;
 using ECommerce.Application.Abstractions.Persistence;
+using ECommerce.Application.Abstractions.Orders;
 using ECommerce.Application.Abstractions.Security;
 using ECommerce.Application.Auth;
 using ECommerce.Application.Auth.Handlers;
@@ -252,7 +253,8 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
                 new InventoryReservationRepository(commandContext),
                 new OutboxMessageRepository(commandContext),
                 new UnitOfWork(commandContext),
-                new NoOpProductCache());
+                new NoOpProductCache(),
+                new FixedOrderExpirationPolicy());
 
             var result = await handler.Handle(
                 new CreateOrderCommand(customer.Id, [new CreateOrderItem(product.Id, 3)]),
@@ -320,7 +322,8 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
                 new InventoryReservationRepository(createContext),
                 new OutboxMessageRepository(createContext),
                 new UnitOfWork(createContext),
-                new NoOpProductCache());
+                new NoOpProductCache(),
+                new FixedOrderExpirationPolicy());
             var createResult = await createHandler.Handle(
                 new CreateOrderCommand(customer.Id, [new CreateOrderItem(firstProduct.Id, 1)]),
                 CancellationToken.None);
@@ -405,7 +408,8 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
             new InventoryReservationRepository(context),
             new OutboxMessageRepository(context),
             new UnitOfWork(context),
-            new NoOpProductCache());
+            new NoOpProductCache(),
+            new FixedOrderExpirationPolicy());
 
         await using var firstContext = new AppDbContext(options);
         await using var secondContext = new AppDbContext(options);
@@ -520,6 +524,191 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         persistedAttempts.Count(payment => payment.Status == PaymentStatus.Pending).Should().Be(1);
         persistedAttempts.Select(payment => payment.IdempotencyKey)
             .Should().OnlyHaveUniqueItems();
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task OrderExpiration_ReleasesReservationAndIsIdempotent()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var now = DateTimeOffset.UtcNow;
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Expired",
+            "Customer",
+            Email.Create($"expired-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var product = Product.Create(
+            $"Expired product {suffix}",
+            "Order expiration test",
+            25m,
+            10).Value!;
+        product.ReserveStock(3);
+        var order = Order.Create(
+            customer.Id, now.AddHours(-1), now.AddMinutes(-30)).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 3);
+        var reservation = InventoryReservation.Create(
+            order.Id, product.Id, product.Inventory.Id, 3,
+            order.CreatedAt, order.ExpiresAt).Value!;
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(customer);
+            await seedContext.Products.AddAsync(product);
+            await seedContext.Orders.AddAsync(order);
+            await seedContext.InventoryReservations.AddAsync(reservation);
+            await seedContext.SaveChangesAsync();
+        }
+
+        static OrderExpirationProcessor CreateProcessor(AppDbContext context) => new(
+            new OrderRepository(context),
+            new InventoryReservationRepository(context),
+            new ProductRepository(context),
+            new OutboxMessageRepository(context),
+            new UnitOfWork(context),
+            new NoOpProductCache());
+
+        await using (var firstContext = new AppDbContext(options))
+        {
+            var result = await CreateProcessor(firstContext).ProcessBatchAsync(10, now);
+            result.IsSuccess.Should().BeTrue(string.Join("; ", result.Errors));
+            result.Value!.ExpiredCount.Should().Be(1);
+        }
+        await using (var retryContext = new AppDbContext(options))
+        {
+            var retry = await CreateProcessor(retryContext).ProcessBatchAsync(10, now);
+            retry.IsSuccess.Should().BeTrue();
+            retry.Value!.CandidateCount.Should().Be(0);
+        }
+
+        await using var assertionContext = new AppDbContext(options);
+        var persistedOrder = await assertionContext.Orders.SingleAsync(item => item.Id == order.Id);
+        var persistedReservation = await assertionContext.InventoryReservations
+            .SingleAsync(item => item.Id == reservation.Id);
+        var persistedProduct = await assertionContext.Products
+            .Include(item => item.Inventory)
+            .SingleAsync(item => item.Id == product.Id);
+        var events = await assertionContext.OutboxMessages
+            .Where(message => message.Payload.Contains(order.Id.ToString()))
+            .ToArrayAsync();
+
+        persistedOrder.Status.Should().Be(OrderStatus.Cancelled);
+        persistedOrder.CancellationReason.Should().Be(OrderCancellationReason.Expired);
+        persistedReservation.Status.Should().Be(InventoryReservationStatus.Expired);
+        persistedProduct.AvailableStock.Should().Be(10);
+        events.Count(message => message.Type == OutBoxMessageType.OrderCancelled).Should().Be(1);
+        events.Count(message => message.Type == OutBoxMessageType.StockUpdated).Should().Be(1);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task OrderExpiration_ConcurrentWithPaymentApproval_ProducesOneConsistentOutcome()
+    {
+        var connectionString = await fixture.GetConnectionStringAsync();
+        var options = CreateOptions(connectionString);
+        var now = DateTimeOffset.UtcNow;
+        var suffix = Guid.NewGuid().ToString("N");
+        var customer = User.Create(
+            "Race",
+            "Customer",
+            Email.Create($"expiration-race-{suffix}@example.com").Value!,
+            "password-hash").Value!;
+        var product = Product.Create(
+            $"Race product {suffix}",
+            "Payment versus expiration test",
+            30m,
+            10).Value!;
+        product.ReserveStock(3);
+        var order = Order.Create(
+            customer.Id, now.AddHours(-1), now.AddSeconds(-1)).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 3);
+        var reservation = InventoryReservation.Create(
+            order.Id, product.Id, product.Inventory.Id, 3,
+            order.CreatedAt, order.ExpiresAt).Value!;
+        var payment = Payment.Create(
+            order.Id, order.Total, "BRL", "ECommercePayment", "race-attempt").Value!;
+        payment.RegisterExternalPayment("pay_race");
+
+        await using (var seedContext = new AppDbContext(options))
+        {
+            await seedContext.Users.AddAsync(customer);
+            await seedContext.Products.AddAsync(product);
+            await seedContext.Orders.AddAsync(order);
+            await seedContext.InventoryReservations.AddAsync(reservation);
+            await seedContext.Payments.AddAsync(payment);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var expirationContext = new AppDbContext(options);
+        await using var webhookContext = new AppDbContext(options);
+        var expirationProcessor = new OrderExpirationProcessor(
+            new OrderRepository(expirationContext),
+            new InventoryReservationRepository(expirationContext),
+            new ProductRepository(expirationContext),
+            new OutboxMessageRepository(expirationContext),
+            new UnitOfWork(expirationContext),
+            new NoOpProductCache());
+        var webhookHandler = new ProcessPaymentWebhookHandler(
+            new AlwaysValidPaymentWebhookSignatureVerifier(),
+            new PaymentRepository(webhookContext),
+            new OrderRepository(webhookContext),
+            new ProductRepository(webhookContext),
+            new InventoryReservationRepository(webhookContext),
+            new OutboxMessageRepository(webhookContext),
+            new UnitOfWork(webhookContext),
+            new NoOpProductCache());
+        var webhookPayload = JsonSerializer.Serialize(new
+        {
+            @event = "payment.approved",
+            data = new
+            {
+                id = "pay_race",
+                status = "approved",
+                reference = order.Id.ToString(),
+                amount = order.Total.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                currency = "BRL"
+            }
+        });
+
+        await Task.WhenAll(
+            expirationProcessor.ProcessBatchAsync(10, now),
+            WrapWebhookResultAsync(webhookHandler, webhookPayload));
+
+        await using var assertionContext = new AppDbContext(options);
+        var persistedOrder = await assertionContext.Orders.SingleAsync(item => item.Id == order.Id);
+        var persistedPayment = await assertionContext.Payments.SingleAsync(item => item.Id == payment.Id);
+        var persistedReservation = await assertionContext.InventoryReservations
+            .SingleAsync(item => item.Id == reservation.Id);
+        var persistedProduct = await assertionContext.Products
+            .Include(item => item.Inventory)
+            .SingleAsync(item => item.Id == product.Id);
+
+        if (persistedOrder.Status == OrderStatus.Paid)
+        {
+            persistedPayment.Status.Should().Be(PaymentStatus.Paid);
+            persistedReservation.Status.Should().Be(InventoryReservationStatus.Consumed);
+            persistedProduct.AvailableStock.Should().Be(7);
+        }
+        else
+        {
+            persistedOrder.Status.Should().Be(OrderStatus.Cancelled);
+            persistedOrder.CancellationReason.Should().Be(OrderCancellationReason.Expired);
+            persistedPayment.Status.Should().Be(PaymentStatus.Pending);
+            persistedReservation.Status.Should().Be(InventoryReservationStatus.Expired);
+            persistedProduct.AvailableStock.Should().Be(10);
+        }
+
+        static async Task<Result<OrderExpirationBatchResult>> WrapWebhookResultAsync(
+            ProcessPaymentWebhookHandler handler,
+            string payload)
+        {
+            var result = await handler.Handle(
+                new ProcessPaymentWebhookCommand(payload, "valid"),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? Result<OrderExpirationBatchResult>.Success(
+                    new OrderExpirationBatchResult(0, 0, 0, 0))
+                : Result<OrderExpirationBatchResult>.Failure([.. result.Errors]);
+        }
     }
 
     [PostgreSqlIntegrationFact]
@@ -1096,6 +1285,12 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
         }
     }
 
+    private sealed class AlwaysValidPaymentWebhookSignatureVerifier
+        : IPaymentWebhookSignatureVerifier
+    {
+        public bool IsValid(string payload, string? signature) => true;
+    }
+
     private sealed class TestJwtTokenService : IJwtTokenService
     {
         private readonly string _instanceId = Guid.NewGuid().ToString("N");
@@ -1138,5 +1333,10 @@ public sealed class PostgreSqlPersistenceTests(PostgreSqlContainerFixture fixtur
 
         public Task RemoveAsync(Guid productId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class FixedOrderExpirationPolicy : IOrderExpirationPolicy
+    {
+        public TimeSpan PaymentLifetime => TimeSpan.FromMinutes(30);
     }
 }

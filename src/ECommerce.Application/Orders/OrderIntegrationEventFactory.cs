@@ -18,6 +18,8 @@ internal static class OrderIntegrationEventFactory
             customerEmail,
             order.Status.ToString(),
             order.Total,
+            order.ExpiresAt,
+            order.CancellationReason?.ToString(),
             DateTimeOffset.UtcNow,
             [.. order.Items.Select(item => new OrderIntegrationEventItem(
                 item.ProductId,

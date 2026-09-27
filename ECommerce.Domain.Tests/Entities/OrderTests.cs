@@ -8,6 +8,32 @@ namespace ECommerce.Domain.Tests.Entities;
 public sealed class OrderTests
 {
     [Fact]
+    public void Create_WithDeadline_PersistsDurableExpiration()
+    {
+        var createdAt = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        var expiresAt = createdAt.AddMinutes(45);
+
+        var order = Order.Create(Guid.NewGuid(), createdAt, expiresAt).Value!;
+
+        order.CreatedAt.Should().Be(createdAt);
+        order.ExpiresAt.Should().Be(expiresAt);
+    }
+
+    [Fact]
+    public void Cancel_AsExpired_PersistsReasonAndTimestamp()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var order = Order.Create(
+            Guid.NewGuid(), now.AddHours(-1), now.AddMinutes(-30)).Value!;
+
+        var result = order.Cancel(OrderCancellationReason.Expired, now);
+
+        result.IsSuccess.Should().BeTrue();
+        order.CancellationReason.Should().Be(OrderCancellationReason.Expired);
+        order.CancelledAt.Should().Be(now);
+    }
+
+    [Fact]
     public void Create_WithValidCustomer_ReturnsPendingOrder()
     {
         var customerId = Guid.NewGuid();

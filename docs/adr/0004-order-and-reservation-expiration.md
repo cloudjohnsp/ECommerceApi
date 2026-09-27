@@ -1,6 +1,6 @@
 # ADR 0004: Expiração de pedidos e reservas
 
-- Status: aceito; implementação pendente
+- Status: implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -31,3 +31,19 @@ transação. Reexecuções sobre itens já concluídos não produzirão novos ef
 - Pagamento, cancelamento e expiração disputarão os mesmos locks e serão idempotentes.
 - Índices para estados ativos e `ExpiresAt` serão necessários.
 - Métricas deverão expor atrasos e falhas do processo de expiração.
+
+## Implementação
+
+- `Order.ExpiresAt` persiste o prazo calculado a partir da configuração no
+  momento da criação; reservas do pedido reutilizam o mesmo prazo.
+- `OrderExpirationJob`, agendado pelo Hangfire, processa candidatos em batches
+  por meio de `IOrderExpirationProcessor`.
+- Cada candidato é revalidado dentro de uma transação que bloqueia pedido,
+  reservas e inventários em ordem determinística.
+- A conclusão marca reservas como `Expired`, devolve o estoque reservado,
+  cancela o pedido com o motivo `Expired` e grava `order.cancelled` e
+  `stock.updated` no Outbox na mesma transação.
+- O índice parcial `ix_orders_pending_expires_at` dá suporte à busca de pedidos
+  vencidos, e métricas registram pedidos expirados, atraso e falhas do job.
+- Testes unitários e testes de concorrência com PostgreSQL real cobrem
+  idempotência e a disputa entre expiração e aprovação de pagamento.

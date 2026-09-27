@@ -44,6 +44,7 @@ public sealed class PaymentsController(ISender mediator) : BaseApiController
         if (result.Errors.Contains("Order not found.")) return NotFound(result.Errors);
         if (result.Errors.Any(error =>
                 error.StartsWith("Only pending orders", StringComparison.Ordinal) ||
+                error.Equals("Order has expired.", StringComparison.Ordinal) ||
                 error.Equals("A payment attempt is already pending for this order.", StringComparison.Ordinal) ||
                 error.Equals(
                     "Payment currency does not match the existing payment.",

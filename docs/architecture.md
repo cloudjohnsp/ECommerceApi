@@ -98,6 +98,13 @@ consome as reservas e grava `order.paid`. Uma recusa encerra apenas a tentativa
 de pagamento: o pedido e as reservas permanecem ativos para retry. Cancelamento
 ou expiração liberam as reservas; reembolso restaura estoque físico.
 
+O prazo de pagamento é calculado a partir de configuração no momento da criação
+e persistido tanto no pedido quanto nas reservas, portanto alterações futuras de
+configuração não mudam pedidos existentes. O job `orders:expiration` busca
+candidatos vencidos pelo índice parcial, processa cada pedido em uma transação
+curta e revalida seu estado após adquirir os locks de pedido, reservas e
+inventários. Reexecuções não publicam eventos nem liberam estoque novamente.
+
 O endpoint administrativo de atualização não aprova pagamentos. Ele somente
 reconcilia um pedido pendente quando já existe `PaymentStatus.Paid`, aplicando as
 mesmas alterações de estoque e outbox em uma transação.

@@ -14,6 +14,7 @@ auditoria do estado final repetível.
 | Perfil, senha, role, desativação lógica e auditoria de usuário | Casos de uso em `Application/Users`, regras em `Domain/User` e histórico `jsonb` | testes de handlers de usuário, `UserTests`, `UserAuditRepositoryTests` e testes de autorização da API |
 | Produtos, categorias, estoque e imagens | CRUDs, catálogo filtrável, agregado `Inventory`, metadados PostgreSQL e blobs via `IProductImageStorage` | `ProductHandlersTests`, `CategoryHandlersTests`, testes de domínio, repositórios e imagem |
 | Pedidos e itens | Criação, inclusão de item, consulta, reconciliação e cancelamento com reserva transacional | `OrderHandlersTests`, `OrderTests`, `OrderRepositoryTests` e integrações PostgreSQL |
+| Expiração de pedidos | Prazo persistido/configurável, job Hangfire em batches, cancelamento idempotente, liberação de reservas, Outbox e métricas | `OrderExpirationProcessorTests`, `OrderExpirationJobTests` e corridas reais no PostgreSQL |
 | Pagamento e reembolso | Tentativas 1:N por pedido, chave de idempotência, uma tentativa pendente por vez, gateway HTTP, webhook HMAC, Outbox de criação e restauração de estoque | `PaymentTests`, `PaymentHandlersTests`, `PaymentCreationProcessorTests`, `PaymentGatewayClientTests`, `PaymentWebhookSignatureVerifierTests` e integrações PostgreSQL de retry/concorrência |
 | Administração | Dashboard, relatório de vendas, estatísticas e feature flag | testes de handlers administrativos, `AdminReportingRepositoryTests` e `AdminControllerTests` |
 

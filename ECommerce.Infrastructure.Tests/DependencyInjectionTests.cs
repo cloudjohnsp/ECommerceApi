@@ -96,7 +96,8 @@ public sealed class DependencyInjectionTests
             ["PaymentGateway:BaseUrl"] = "http://localhost:5002",
             ["PaymentGateway:CallbackUrl"] = "http://localhost:5000/api/webhooks/payments",
             ["PaymentGateway:WebhookSecret"] = webhookSecret,
-            ["OutboxProcessor:Enabled"] = "false"
+            ["OutboxProcessor:Enabled"] = "false",
+            ["OrderExpiration:Enabled"] = "false"
         };
         if (overrideSetting is not null) values[overrideSetting] = overrideValue;
 

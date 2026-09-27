@@ -7,6 +7,7 @@ using ECommerce.Shared.Results;
 using MediatR;
 using ECommerce.Application.Products;
 using ECommerce.Shared.Messaging;
+using ECommerce.Application.Abstractions.Orders;
 
 namespace ECommerce.Application.Orders.Handlers;
 
@@ -17,7 +18,8 @@ public sealed class CreateOrderHandler(
     IInventoryReservationRepository inventoryReservationRepository,
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
-    IProductCache productCache) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
+    IProductCache productCache,
+    IOrderExpirationPolicy expirationPolicy) : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
@@ -56,10 +58,13 @@ public sealed class CreateOrderHandler(
                 products.Add((product, item.Quantity));
             }
 
-            var orderResult = Order.Create(request.CustomerId);
+            var orderCreatedAt = DateTimeOffset.UtcNow;
+            var orderResult = Order.Create(
+                request.CustomerId,
+                orderCreatedAt,
+                orderCreatedAt.Add(expirationPolicy.PaymentLifetime));
             if (orderResult.IsFailure) return Result<OrderDto>.Failure([.. orderResult.Errors]);
             var order = orderResult.Value!;
-            var reservationCreatedAt = DateTimeOffset.UtcNow;
             var reservations = new List<InventoryReservation>();
 
             foreach (var (product, quantity) in products)
@@ -75,8 +80,8 @@ public sealed class CreateOrderHandler(
                     product.Id,
                     product.Inventory.Id,
                     quantity,
-                    reservationCreatedAt,
-                    reservationCreatedAt.Add(InventoryReservation.DefaultLifetime));
+                    order.CreatedAt,
+                    order.ExpiresAt);
                 if (reservationResult.IsFailure)
                     return Result<OrderDto>.Failure([.. reservationResult.Errors]);
                 reservations.Add(reservationResult.Value!);

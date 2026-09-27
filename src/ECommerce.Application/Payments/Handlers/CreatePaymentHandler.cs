@@ -37,6 +37,8 @@ public sealed class CreatePaymentHandler(
                 cancellationToken);
             if (existingPayment is null)
             {
+                if (order.Status == OrderStatus.Pending && order.ExpiresAt <= DateTimeOffset.UtcNow)
+                    return Result<PaymentDto>.Failure("Order has expired.");
                 if (order.Status != OrderStatus.Pending)
                     return Result<PaymentDto>.Failure("Only pending orders can be sent for payment.");
                 var pendingPayment = await paymentRepository.GetPendingByOrderIdForUpdateAsync(

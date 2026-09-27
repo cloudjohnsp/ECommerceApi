@@ -12,6 +12,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
+using ECommerce.Infrastructure.BackgroundJobs;
 
 namespace ECommerce.Api;
 
@@ -82,7 +83,8 @@ public static class DependencyInjection
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(OrderExpirationJob.MeterName);
 
                 if (options.EnablePrometheus)
                     metrics.AddPrometheusExporter();

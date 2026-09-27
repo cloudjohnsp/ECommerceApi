@@ -12,10 +12,10 @@ using Moq;
 
 namespace ECommerce.Infrastructure.Tests.BackgroundJobs;
 
-public sealed class OutboxJobSchedulingExtensionsTests
+public sealed class BackgroundJobSchedulingExtensionsTests
 {
     [Fact]
-    public void ScheduleOutboxJobs_WhenEnabled_RegistersAllRecurringJobs()
+    public void ScheduleBackgroundJobs_WhenEnabled_RegistersAllRecurringJobs()
     {
         var manager = new Mock<IRecurringJobManager>();
         var services = new ServiceCollection()
@@ -26,25 +26,35 @@ public sealed class OutboxJobSchedulingExtensionsTests
                     Enabled = true,
                     CronExpression = "*/5 * * * *"
                 }))
+            .AddSingleton<IOptions<OrderExpirationOptions>>(
+                Microsoft.Extensions.Options.Options.Create(new OrderExpirationOptions
+                {
+                    Enabled = true,
+                    CronExpression = "*/5 * * * *"
+                }))
             .BuildServiceProvider();
 
-        services.ScheduleOutboxJobs();
+        services.ScheduleBackgroundJobs();
 
         VerifyJob<PaymentOutboxJob>(manager, "outbox:payments");
         VerifyJob<UserEmailOutboxJob>(manager, "outbox:user-emails");
         VerifyJob<IntegrationEventOutboxJob>(manager, "outbox:integration-events");
+        VerifyJob<OrderExpirationJob>(manager, "orders:expiration");
     }
 
     [Fact]
-    public void ScheduleOutboxJobs_WhenDisabled_DoesNotRequireHangfireServices()
+    public void ScheduleBackgroundJobs_WhenDisabled_DoesNotRequireHangfireServices()
     {
         var services = new ServiceCollection()
             .AddSingleton<IOptions<OutboxProcessorOptions>>(
                 Microsoft.Extensions.Options.Options.Create(
                     new OutboxProcessorOptions { Enabled = false }))
+            .AddSingleton<IOptions<OrderExpirationOptions>>(
+                Microsoft.Extensions.Options.Options.Create(
+                    new OrderExpirationOptions { Enabled = false }))
             .BuildServiceProvider();
 
-        var action = () => services.ScheduleOutboxJobs();
+        var action = () => services.ScheduleBackgroundJobs();
 
         action.Should().NotThrow();
     }

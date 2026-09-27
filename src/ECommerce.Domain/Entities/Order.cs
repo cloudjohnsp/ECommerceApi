@@ -6,6 +6,7 @@ namespace ECommerce.Domain.Entities;
 
 public sealed class Order : Entity
 {
+    public static readonly TimeSpan DefaultPaymentLifetime = TimeSpan.FromMinutes(30);
     public const decimal MaximumTotal = MoneyConstraints.MaximumValue;
     public const int ProductNameMaximumLength = 150;
 
@@ -16,24 +17,37 @@ public sealed class Order : Entity
     public IReadOnlyCollection<OrderItem> Items => _items;
     public decimal Total => _items.Sum(item => item.Subtotal);
     public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? CancelledAt { get; private set; }
+    public OrderCancellationReason? CancellationReason { get; private set; }
     public DateTimeOffset? RefundedAt { get; private set; }
 
     private Order() { }
 
-    private Order(Guid customerId)
+    private Order(Guid customerId, DateTimeOffset createdAt, DateTimeOffset expiresAt)
     {
         CustomerId = customerId;
         Status = OrderStatus.Pending;
-        CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = createdAt;
+        ExpiresAt = expiresAt;
     }
 
-    public static Result<Order> Create(Guid customerId)
+    public static Result<Order> Create(
+        Guid customerId,
+        DateTimeOffset? createdAt = null,
+        DateTimeOffset? expiresAt = null)
     {
-        return customerId == Guid.Empty
-            ? Result<Order>.Failure("Customer id is required.")
-            : Result<Order>.Success(new Order(customerId));
+        var effectiveCreatedAt = createdAt ?? DateTimeOffset.UtcNow;
+        var effectiveExpiresAt = expiresAt ?? effectiveCreatedAt.Add(DefaultPaymentLifetime);
+        var errors = new List<string>();
+        if (customerId == Guid.Empty) errors.Add("Customer id is required.");
+        if (effectiveExpiresAt <= effectiveCreatedAt)
+            errors.Add("Order expiration must be after its creation.");
+
+        return errors.Count == 0
+            ? Result<Order>.Success(new Order(customerId, effectiveCreatedAt, effectiveExpiresAt))
+            : Result<Order>.Failure([.. errors]);
     }
 
     public Result AddItem(Guid productId, string productName, decimal unitPrice, int quantity)
@@ -78,13 +92,16 @@ public sealed class Order : Entity
         return Result.Success();
     }
 
-    public Result Cancel()
+    public Result Cancel(
+        OrderCancellationReason reason = OrderCancellationReason.CustomerRequested,
+        DateTimeOffset? cancelledAt = null)
     {
         if (Status == OrderStatus.Cancelled) return Result.Success();
         if (Status != OrderStatus.Pending) return Result.Failure("Only a pending order can be cancelled.");
 
         Status = OrderStatus.Cancelled;
-        CancelledAt = DateTimeOffset.UtcNow;
+        CancelledAt = cancelledAt ?? DateTimeOffset.UtcNow;
+        CancellationReason = reason;
         UpdatedAt = CancelledAt;
         return Result.Success();
     }

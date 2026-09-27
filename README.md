@@ -400,6 +400,14 @@ O valor e a moeda ISO de três letras ficam registrados no pagamento local. Uma
 repetição da mesma chave precisa usar a moeda original; a API rejeita a
 solicitação antes de reutilizar a intenção quando os códigos diferem.
 
+Pedidos pendentes e suas reservas recebem o mesmo prazo durável, configurado em
+`OrderExpiration:PaymentLifetimeMinutes` (30 minutos por padrão). Um job Hangfire
+busca vencimentos em lotes, cancela cada pedido com o motivo `Expired`, libera as
+reservas e grava `order.cancelled` e `stock.updated` na mesma transação. A
+reexecução é idempotente. As métricas `ecommerce.orders.expired`,
+`ecommerce.order_expiration.failures` e `ecommerce.order_expiration.delay` são
+exportadas junto das demais métricas da API.
+
 Os processadores de pagamentos, e-mails e eventos de integração são jobs
 recorrentes do Hangfire. O agendamento, o tamanho do lote e a quantidade de
 workers são configurados em `OutboxProcessor`; o estado do scheduler fica no

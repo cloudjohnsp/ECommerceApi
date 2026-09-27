@@ -26,6 +26,8 @@ using ECommerce.Application.Abstractions.Features;
 using ECommerce.Infrastructure.Features;
 using Hangfire;
 using Hangfire.PostgreSql;
+using ECommerce.Application.Abstractions.Orders;
+using ECommerce.Infrastructure.BackgroundJobs;
 
 namespace ECommerce.Infrastructure;
 
@@ -170,13 +172,27 @@ public static class DependencyInjection
                 "OutboxProcessor:WorkerCount must be greater than zero.")
             .ValidateOnStart();
 
+        services.AddOptions<OrderExpirationOptions>()
+            .Bind(configuration.GetSection(OrderExpirationOptions.SectionName))
+            .Validate(options => options.PaymentLifetimeMinutes > 0,
+                "OrderExpiration:PaymentLifetimeMinutes must be greater than zero.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.CronExpression),
+                "OrderExpiration:CronExpression is required.")
+            .Validate(options => options.BatchSize > 0,
+                "OrderExpiration:BatchSize must be greater than zero.")
+            .ValidateOnStart();
+
         services.AddScoped<PaymentOutboxJob>();
         services.AddScoped<UserEmailOutboxJob>();
         services.AddScoped<IntegrationEventOutboxJob>();
+        services.AddScoped<OrderExpirationJob>();
+        services.AddSingleton<IOrderExpirationPolicy, ConfiguredOrderExpirationPolicy>();
 
         var options = configuration.GetSection(OutboxProcessorOptions.SectionName)
             .Get<OutboxProcessorOptions>() ?? new OutboxProcessorOptions();
-        if (!options.Enabled)
+        var expirationOptions = configuration.GetSection(OrderExpirationOptions.SectionName)
+            .Get<OrderExpirationOptions>() ?? new OrderExpirationOptions();
+        if (!options.Enabled && !expirationOptions.Enabled)
             return services;
 
         var connectionString = configuration.GetConnectionString("DefaultConnection");

@@ -12,6 +12,8 @@ using ECommerce.Application.Abstractions.Messaging;
 using ECommerce.Application.Messaging;
 using ECommerce.Application.Abstractions.Email;
 using ECommerce.Application.Email;
+using ECommerce.Application.Abstractions.Orders;
+using ECommerce.Application.Orders;
 
 namespace ECommerce.Application;
 
@@ -29,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentCreationProcessor, PaymentCreationProcessor>();
         services.AddScoped<IIntegrationEventOutboxProcessor, IntegrationEventOutboxProcessor>();
         services.AddScoped<IUserEmailOutboxProcessor, UserEmailOutboxProcessor>();
+        services.AddScoped<IOrderExpirationProcessor, OrderExpirationProcessor>();
         services.RegisterMapsterConfiguration();
         return services;
     }

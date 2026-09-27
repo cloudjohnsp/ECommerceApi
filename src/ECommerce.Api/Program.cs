@@ -26,7 +26,7 @@ builder.Services.AddApi(builder.Configuration);
 var app = builder.Build();
 
 await app.Services.ApplyDatabaseMigrationsAsync();
-app.Services.ScheduleOutboxJobs();
+app.Services.ScheduleBackgroundJobs();
 
 if (app.Services.GetRequiredService<IOptions<ApiProtectionOptions>>().Value.UseForwardedHeaders)
     app.UseForwardedHeaders();
