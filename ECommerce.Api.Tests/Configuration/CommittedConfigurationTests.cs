@@ -92,7 +92,7 @@ public sealed class CommittedConfigurationTests
         var compose = File.ReadAllText(Path.Combine(FindSolutionRoot(), "docker-compose.yml"));
         var publishedPorts = Regex.Matches(
                 compose,
-                "(?m)^\\s*-\\s*\"(?<binding>(?:127\\.0\\.0\\.1:)?\\d+:\\d+)\"\\s*$")
+                "(?m)^\\s*-\\s*\"(?<binding>(?:127\\.0\\.0\\.1:)?(?:\\d+|\\$\\{[A-Z0-9_]+:-\\d+\\}):\\d+)\"\\s*$")
             .Select(match => match.Groups["binding"].Value)
             .ToArray();
 
@@ -191,6 +191,10 @@ public sealed class CommittedConfigurationTests
             FindSolutionRoot(), ".github", "workflows", "release.yml"));
 
         workflow.Should().Contain("environment: production");
+        workflow.Should().Contain("workflow_dispatch:");
+        workflow.Should().Contain("confirm_production:");
+        workflow.Should().Contain("inputs.confirm_production == true");
+        workflow.Should().NotContain("\n  push:");
         workflow.Should().Contain("id-token: write");
         workflow.Should().Contain("uses: azure/login@v3");
         workflow.Should().Contain("uses: azure/webapps-deploy@v3");
@@ -200,6 +204,22 @@ public sealed class CommittedConfigurationTests
         workflow.Should().Contain("/api/health/live");
         workflow.Should().NotContain("creds:");
         workflow.Should().NotContain("publish-profile:");
+    }
+
+    [Fact]
+    public void CoordinatedIntegrationWorkflow_IsManualReadOnlyAndDoesNotPromote()
+    {
+        var workflow = File.ReadAllText(Path.Combine(
+            FindSolutionRoot(), ".github", "workflows", "integration.yml"));
+
+        workflow.Should().Contain("workflow_dispatch:");
+        workflow.Should().Contain("contents: read");
+        workflow.Should().Contain("integration/revisions.json");
+        workflow.Should().Contain("verify-multi-repository.ps1");
+        workflow.Should().NotContain("docker push");
+        workflow.Should().NotContain("docker/login-action");
+        workflow.Should().NotContain("azure/login");
+        workflow.Should().NotContain("webapps-deploy");
     }
 
     [Fact]

@@ -1,0 +1,77 @@
+name: Coordinated integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coordinated-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-known-revisions:
+    name: Validate API, Worker and Payment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout API
+        uses: actions/checkout@v7
+        with:
+          path: ECommerceApi
+
+      - name: Resolve locked repositories
+        id: revisions
+        shell: pwsh
+        run: |
+          $lock = Get-Content ECommerceApi/integration/revisions.json -Raw | ConvertFrom-Json
+          "worker_repository=$($lock.worker.repository)" >> $env:GITHUB_OUTPUT
+          "worker_revision=$($lock.worker.revision)" >> $env:GITHUB_OUTPUT
+          "payment_repository=$($lock.payment.repository)" >> $env:GITHUB_OUTPUT
+          "payment_revision=$($lock.payment.revision)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout Worker at locked revision
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.revisions.outputs.worker_repository }}
+          ref: ${{ steps.revisions.outputs.worker_revision }}
+          path: ECommerceWorker
+
+      - name: Checkout Payment at locked revision
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.revisions.outputs.payment_repository }}
+          ref: ${{ steps.revisions.outputs.payment_revision }}
+          path: ECommercePayment
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            ECommercePayment/requirements.txt
+            ECommercePayment/requirements-dev.txt
+
+      - name: Run coordinated local-equivalent gate
+        shell: pwsh
+        run: |
+          ./ECommerceApi/scripts/verify-multi-repository.ps1 `
+            -WorkerPath "$env:GITHUB_WORKSPACE/ECommerceWorker" `
+            -PaymentPath "$env:GITHUB_WORKSPACE/ECommercePayment"
+
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coordinated-integration-${{ github.sha }}
+          path: ECommerceApi/TestResults/coordinated
+          if-no-files-found: ignore
+          retention-days: 7

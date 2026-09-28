@@ -35,8 +35,9 @@ automaticamente durante atualizações normais.
 
 ## Implementação
 
-- `docker-compose.yml` constrói os três contextos locais, conecta dez serviços à
-  rede interna `ecommerce-local` e ordena a inicialização por health checks.
+- `docker-compose.yml` constrói os três contextos locais, conecta dez serviços a
+  redes isoladas pelo nome do projeto Compose e ordena a inicialização por
+  health checks.
 - `scripts/start-local.ps1` inicializa segredos ausentes, executa `compose up`
   com `--wait` e chama `scripts/smoke-test-local.ps1`.
 - O smoke test valida containers, endpoints, comunicação API/Payment, criação e

@@ -61,7 +61,7 @@ auditoria do estado final repetível.
 | CSRF | Não aplicável: a autenticação usa Bearer header e não cookies |
 | SQL injection | Consultas EF parametrizadas e SQL explícito interpolado pelo provider |
 | Segredos e callbacks | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado, opções validadas na inicialização, callbacks restritos a origens HTTP(S) autorizadas e redirects desabilitados nos dois sentidos |
-| CI | Restore, formato, build, testes, Testcontainers, cobertura e imagem da API neste repositório; o Worker possui workflow próprio no repositório independente |
+| CI | Gates próprios de API, Worker e Payment; lock de revisões e pipeline manual coordenado executando testes, imagens por commit, aceitação RabbitMQ/PostgreSQL e smoke do Compose completo, sem publicação ou deploy |
 | Cobertura | `scripts/verify-unit-coverage.ps1` exige mais de 80% em Domain e Application |
 | Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers, HTTP com `WebApplicationFactory` e gate distribuído isolado em `ECommerceAcceptance.slnx` cobrindo concorrência, Outbox, RabbitMQ, retry/DLQ, interrupção e webhooks reais |
 

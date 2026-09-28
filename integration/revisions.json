@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "api": {
+    "repository": "cloudjohnsp/ECommerceApi",
+    "revision": "self"
+  },
+  "worker": {
+    "repository": "cloudjohnsp/ECommerceWorker",
+    "revision": "ef1c3608d8612e466f7bcf4ee20a31743cbb7d41"
+  },
+  "payment": {
+    "repository": "cloudjohnsp/ECommercePayment",
+    "revision": "67e1ff42c1a32d6430458e88d9745c560874ba7b"
+  }
+}

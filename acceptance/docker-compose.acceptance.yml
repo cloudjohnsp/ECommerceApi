@@ -46,7 +46,7 @@ services:
       retries: 30
 
   payment:
-    image: ecommerce-acceptance-payment:local
+    image: ${ECOMMERCE_PAYMENT_IMAGE:-ecommerce-acceptance-payment:local}
     build:
       context: ${ECOMMERCE_PAYMENT_CONTEXT:-../../../../personal-projects/ECommercePayment}
       dockerfile: Dockerfile
@@ -74,7 +74,7 @@ services:
       retries: 30
 
   api:
-    image: ecommerce-acceptance-api:local
+    image: ${ECOMMERCE_API_IMAGE:-ecommerce-acceptance-api:local}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -121,7 +121,7 @@ services:
       start_period: 10s
 
   worker:
-    image: ecommerce-acceptance-worker:local
+    image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-acceptance-worker:local}
     build:
       context: ${ECOMMERCE_WORKER_CONTEXT:-../../../../personal-projects/ECommerceWorker}
       dockerfile: Dockerfile

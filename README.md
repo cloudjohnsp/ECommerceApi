@@ -260,18 +260,29 @@ Remove-Item Env:ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING
 
 ## Integração contínua
 
+Além dos pipelines próprios de API, Worker e Payment, o gate coordenado fixa as
+revisões compatíveis dos três repositórios, constrói imagens identificadas por
+commit e executa aceitação com RabbitMQ mais o smoke test dos dez serviços do
+Compose. Localmente, execute `scripts/verify-multi-repository.ps1`; detalhes e
+diagnósticos estão em
+[`docs/multi-repository-ci.md`](docs/multi-repository-ci.md). Esse fluxo apenas
+valida: não publica imagens nem cria recursos externos.
+
+O gate individual da API pode ser reproduzido por
+`scripts/verify-local.ps1`; o orquestrador chama esse mesmo script, além dos
+gates locais mantidos nos repositórios do Worker e do Payment.
+
 O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,
 build e os testes da solução em cada pull request e push para `main`. Depois que
 essas verificações passam, ele também constrói a imagem do `Dockerfile` sem
 publicá-la.
 
-Tags no formato `v*.*.*` acionam `.github/workflows/release.yml`: o candidato é
-novamente validado, a imagem da API é publicada no Azure Container Registry com
-tag imutável baseada no commit e implantada no Azure App Service. O Worker possui
-build, testes, imagem e versionamento no repositório `ECommerceWorker`.
-O login no Azure usa OIDC, sem credencial de longa duração. A preparação dos
-recursos, das permissões e do GitHub Environment `production` está documentada
-em [`docs/azure-deployment.md`](docs/azure-deployment.md).
+A promoção não é acionada pelo CI nem por tags. O workflow manual
+`.github/workflows/release.yml` exige confirmação explícita, credenciais OIDC e
+aprovação no GitHub Environment protegido `production`; só então publica a
+imagem imutável da API no Azure Container Registry e a implanta no Azure App
+Service. O Worker conserva seu ciclo independente. A configuração opcional está
+documentada em [`docs/azure-deployment.md`](docs/azure-deployment.md).
 
 Os testes de persistência incluem cenários de integração com PostgreSQL real via
 Testcontainers. Eles aplicam todas as migrations e verificam constraints,

@@ -1,7 +1,7 @@
 # Acesse https://aka.ms/customizecontainer para saber como personalizar seu contêiner de depuração e como o Visual Studio usa este Dockerfile para criar suas imagens para uma depuração mais rápida.
 
 # Esta fase é usada durante a execução no VS no modo rápido (Padrão para a configuração de Depuração)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS base
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
@@ -12,7 +12,7 @@ EXPOSE 8081
 
 
 # Esta fase é usada para compilar o projeto de serviço
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Directory.Build.props", "./"]

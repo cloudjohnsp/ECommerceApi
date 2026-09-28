@@ -1,10 +1,23 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$EnvironmentPath,
+    [string]$ProjectName,
+    [int]$ApiPort = 8080,
+    [int]$PaymentPort = 5002,
+    [int]$MailpitPort = 8025,
+    [int]$PrometheusPort = 9090,
+    [int]$GrafanaPort = 3001
+)
 
 $ErrorActionPreference = "Stop"
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$environmentPath = Join-Path $repositoryRoot ".env"
+$defaultEnvironmentPath = Join-Path $repositoryRoot ".env"
+$resolvedEnvironmentPath = if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
+    $defaultEnvironmentPath
+} else {
+    [System.IO.Path]::GetFullPath($EnvironmentPath)
+}
 $composePath = Join-Path $repositoryRoot "docker-compose.yml"
 $expectedServices = @(
     "postgres-db",
@@ -23,15 +36,19 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "Docker was not found. Install or start Docker Desktop and try again."
 }
 
-if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $resolvedEnvironmentPath -PathType Leaf)) {
     throw "The local .env was not found. Run scripts/start-local.ps1 first."
 }
 
 $composeArguments = @(
     "compose",
-    "--env-file", $environmentPath,
+    "--env-file", $resolvedEnvironmentPath,
     "--file", $composePath
 )
+if (-not [string]::IsNullOrWhiteSpace($ProjectName)) {
+    $composeArguments = @("compose", "--project-name", $ProjectName,
+        "--env-file", $resolvedEnvironmentPath, "--file", $composePath)
+}
 
 function Invoke-Compose {
     param(
@@ -84,11 +101,11 @@ foreach ($service in $expectedServices) {
     }
 }
 
-Assert-HttpSuccess -Uri "http://127.0.0.1:8080/api/health/ready"
-Assert-HttpSuccess -Uri "http://127.0.0.1:5002/health"
-Assert-HttpSuccess -Uri "http://127.0.0.1:8025/livez"
-Assert-HttpSuccess -Uri "http://127.0.0.1:9090/-/ready"
-Assert-HttpSuccess -Uri "http://127.0.0.1:3001/api/health"
+Assert-HttpSuccess -Uri "http://127.0.0.1:$ApiPort/api/health/ready"
+Assert-HttpSuccess -Uri "http://127.0.0.1:$PaymentPort/health"
+Assert-HttpSuccess -Uri "http://127.0.0.1:$MailpitPort/livez"
+Assert-HttpSuccess -Uri "http://127.0.0.1:$PrometheusPort/-/ready"
+Assert-HttpSuccess -Uri "http://127.0.0.1:$GrafanaPort/api/health"
 
 Invoke-Compose -Arguments @(
     "exec", "-T", "ecommerce-api",
@@ -105,7 +122,7 @@ $paymentBody = @{
 } | ConvertTo-Json
 
 $payment = Invoke-RestMethod `
-    -Uri "http://127.0.0.1:5002/payments" `
+    -Uri "http://127.0.0.1:$PaymentPort/payments" `
     -Method Post `
     -ContentType "application/json" `
     -Headers @{ "Idempotency-Key" = $smokeReference } `
@@ -117,7 +134,7 @@ if ([string]::IsNullOrWhiteSpace($payment.id) -or $payment.status -ne "pending")
 }
 
 $approvedPayment = Invoke-RestMethod `
-    -Uri "http://127.0.0.1:5002/payments/$($payment.id)/approve" `
+    -Uri "http://127.0.0.1:$PaymentPort/payments/$($payment.id)/approve" `
     -Method Post `
     -ContentType "application/json" `
     -Body "{}" `

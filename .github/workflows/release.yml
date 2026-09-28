@@ -1,15 +1,17 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       image_tag:
         description: Container image tag (defaults to the commit SHA)
         required: false
         type: string
+      confirm_production:
+        description: Confirm that the protected production promotion was requested
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -33,26 +35,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore ECommerceApi.slnx
-
-      - name: Verify formatting
-        run: dotnet format ECommerceApi.slnx --verify-no-changes --no-restore
-
-      - name: Build
-        run: dotnet build ECommerceApi.slnx --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test ECommerceApi.slnx --configuration Release --no-build --no-restore
-        env:
-          RUN_POSTGRES_INTEGRATION_TESTS: true
-
-      - name: Enforce unit test coverage
+      - name: Run local-equivalent API gate
         shell: pwsh
-        run: ./scripts/verify-unit-coverage.ps1 -Configuration Release
+        run: ./scripts/verify-local.ps1 -Configuration Release -SkipImage
 
   publish-and-deploy:
     name: Publish image and deploy
+    if: ${{ inputs.confirm_production == true }}
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20

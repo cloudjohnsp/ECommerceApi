@@ -32,12 +32,13 @@ evita colisões de schema entre EF Core e Alembic.
 
 ## Rede, portas e dados
 
-Todos os containers compartilham a rede Docker interna `ecommerce-local` e se
-comunicam por nomes de serviço. Somente containers com interface publicada
-também participam da rede bridge `ecommerce-local-access`, necessária para o
-encaminhamento de portas do Docker Desktop. PostgreSQL, Redis, AMQP e SMTP não
-publicam portas no host. As interfaces úteis ao desenvolvimento são publicadas
-sempre em `127.0.0.1`:
+Todos os containers compartilham a rede Docker interna criada para o projeto
+Compose e se comunicam por nomes de serviço. Somente containers com interface
+publicada também participam da rede bridge `local-access` do mesmo projeto,
+necessária para o encaminhamento de portas do Docker Desktop. Os nomes recebem
+o prefixo do projeto Compose, permitindo gates isolados em paralelo. PostgreSQL,
+Redis, AMQP e SMTP não publicam portas no host. As interfaces úteis ao
+desenvolvimento são publicadas sempre em `127.0.0.1`:
 
 | Serviço | URL local |
 |---|---|

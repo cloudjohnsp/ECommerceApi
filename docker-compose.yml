@@ -1,7 +1,6 @@
 services:
   postgres-db:
     image: postgres:18.6-alpine3.23
-    container_name: postgres-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
@@ -36,12 +35,11 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management
-    container_name: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ecommerce}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Create .env from .env.example and set RABBITMQ_PASSWORD}
     ports:
-      - "127.0.0.1:15672:15672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     networks:
       - default
       - local-access
@@ -56,7 +54,6 @@ services:
 
   redis:
     image: redis:8.2.9-alpine
-    container_name: redis
     command: redis-server --appendonly yes
     restart: unless-stopped
     volumes:
@@ -69,10 +66,9 @@ services:
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:3.37.0
-    container_name: azurite
     command: azurite-blob --blobHost 0.0.0.0 --location /data --debug /data/debug.log
     ports:
-      - "127.0.0.1:10000:10000"
+      - "127.0.0.1:${AZURITE_PORT:-10000}:10000"
     networks:
       - default
       - local-access
@@ -87,9 +83,8 @@ services:
 
   mailpit:
     image: axllent/mailpit:v1.31.1
-    container_name: mailpit
     ports:
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
     networks:
       - default
       - local-access
@@ -101,6 +96,7 @@ services:
       retries: 10
 
   ecommerce-payment:
+    image: ${ECOMMERCE_PAYMENT_IMAGE:-ecommerce-payment:local}
     build:
       context: ${ECOMMERCE_PAYMENT_CONTEXT:-../../../personal-projects/ECommercePayment}
       dockerfile: Dockerfile
@@ -114,7 +110,7 @@ services:
       WEBHOOK_TIMEOUT_SECONDS: 5
       ALLOWED_CALLBACK_ORIGINS: http://ecommerce-api:8080
     ports:
-      - "127.0.0.1:5002:5000"
+      - "127.0.0.1:${PAYMENT_GATEWAY_PORT:-5002}:5000"
     networks:
       - default
       - local-access
@@ -130,6 +126,7 @@ services:
     restart: unless-stopped
 
   ecommerce-api:  
+    image: ${ECOMMERCE_API_IMAGE:-ecommerce-api:local}
     build:
       context: .
       dockerfile: Dockerfile
@@ -161,7 +158,7 @@ services:
       ApiProtection__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
       ApiProtection__UseHttpsRedirection: "false"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${ECOMMERCE_API_PORT:-8080}:8080"
     networks:
       - default
       - local-access
@@ -187,6 +184,7 @@ services:
     restart: unless-stopped
 
   ecommerce-worker:
+    image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}
     build:
       context: ${ECOMMERCE_WORKER_CONTEXT:-../../../personal-projects/ECommerceWorker}
       dockerfile: Dockerfile
@@ -234,12 +232,11 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.13.3
-    container_name: prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - default
       - local-access
@@ -262,13 +259,12 @@ services:
 
   grafana:
     image: grafana/grafana:13.2.2
-    container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Create .env from .env.example and set GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     networks:
       - default
       - local-access
@@ -289,10 +285,8 @@ services:
 
 networks:
   default:
-    name: ecommerce-local
     internal: true
   local-access:
-    name: ecommerce-local-access
     driver: bridge
 
 volumes:

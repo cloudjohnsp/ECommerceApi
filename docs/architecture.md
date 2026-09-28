@@ -267,7 +267,13 @@ provisionados do Worker.
 
 O CI executa restore, formatação, build, testes, integrações PostgreSQL com
 Testcontainers, gate de cobertura superior a 80% para Domain/Application e build
-das duas imagens.
+das três imagens.
+
+Cada repositório produz uma imagem local identificada pelo commit e baseada em
+imagens fixadas por digest. O lock `integration/revisions.json` seleciona a
+combinação conhecida de API, Worker e Payment. O gate coordenado usa exatamente
+esses checkouts e as mesmas imagens tanto na aceitação distribuída quanto no
+smoke do Compose completo; validação e promoção permanecem pipelines distintos.
 
 Os contratos entre processos são validados adicionalmente por uma suíte de
 aceitação separada. Ela cria um Compose efêmero com PostgreSQL, RabbitMQ,

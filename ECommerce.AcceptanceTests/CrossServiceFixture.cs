@@ -220,15 +220,21 @@ public sealed class CrossServiceFixture : IAsyncLifetime
 
     private async Task<bool> AcceptanceImagesExistAsync()
     {
+        var apiImage = Environment.GetEnvironmentVariable("ECOMMERCE_API_IMAGE")
+            ?? "ecommerce-acceptance-api:local";
+        var workerImage = Environment.GetEnvironmentVariable("ECOMMERCE_WORKER_IMAGE")
+            ?? "ecommerce-acceptance-worker:local";
+        var paymentImage = Environment.GetEnvironmentVariable("ECOMMERCE_PAYMENT_IMAGE")
+            ?? "ecommerce-acceptance-payment:local";
         try
         {
             await RunAsync(
                 "docker",
                 [
                     "image", "inspect",
-                    "ecommerce-acceptance-api:local",
-                    "ecommerce-acceptance-worker:local",
-                    "ecommerce-acceptance-payment:local"
+                    apiImage,
+                    workerImage,
+                    paymentImage
                 ],
                 TimeSpan.FromSeconds(20));
             return true;

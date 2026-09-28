@@ -1,9 +1,9 @@
 # Deploy da API no Azure
 
-O workflow `.github/workflows/release.yml` valida a solução e publica uma imagem
-imutável da API no Azure Container Registry (ACR). A API é implantada em Azure
-App Service Linux e validada por `/api/health/live`. O fluxo é executado para
-tags semânticas como `v1.0.0` ou manualmente pelo GitHub Actions.
+O workflow manual `.github/workflows/release.yml` valida a solução e, somente
+após confirmação e aprovação explícitas, publica uma imagem imutável da API no
+Azure Container Registry (ACR). A API é implantada em Azure App Service Linux e
+validada por `/api/health/live`. CI e integração nunca acionam esse fluxo.
 
 O Worker possui ciclo de build, teste, imagem e implantação no repositório
 independente `ECommerceWorker`; o release desta API não o publica nem o implanta.
@@ -24,8 +24,9 @@ Restrinja ambas as atribuições ao menor escopo possível.
 
 ## Ambiente `production` do GitHub
 
-Crie um GitHub Environment chamado `production`. Proteções de aprovação podem
-ser adicionadas nesse ambiente sem mudar o workflow.
+Crie um GitHub Environment chamado `production` e configure ao menos um
+`required reviewer`. A revisão é uma pré-condição operacional para habilitar a
+promoção; não execute o workflow sem essa proteção.
 
 Cadastre estes secrets:
 
@@ -86,15 +87,14 @@ O workflow não modifica essas configurações: ele apenas implanta a imagem. Is
 evita substituir segredos durante cada release e mantém sua rotação independente
 do ciclo de deploy.
 
-## Publicar
+## Promover manualmente
 
-Após o CI de `main` estar verde:
-
-```powershell
-git tag v1.0.0
-git push origin v1.0.0
-```
+Após o CI e o gate coordenado estarem verdes, abra `Actions > Release > Run
+workflow`, informe opcionalmente a tag da imagem e marque
+`confirm_production`. O job de promoção aguardará a aprovação do reviewer do
+environment `production` antes de obter credenciais ou publicar qualquer
+imagem.
 
 O deploy sempre referencia a tag imutável `sha-<commit>`, mesmo quando também
-publica a tag amigável da versão. Se a verificação final falhar, o job termina
-com erro e a imagem anterior permanece disponível no ACR para rollback.
+publica uma tag amigável. Se a verificação final falhar, o job termina com erro
+e a imagem anterior permanece disponível no ACR para rollback.
