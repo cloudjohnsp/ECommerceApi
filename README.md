@@ -285,6 +285,12 @@ Domain e Application e exige cobertura de linhas superior a 80% em cada uma. O
 mesmo gate é executado pelo CI para impedir regressões na cobertura das regras de
 negócio e dos casos de uso.
 
+Os fluxos distribuídos possuem um gate Docker separado em
+`ECommerceAcceptance.slnx`. Ele inicia PostgreSQL, RabbitMQ, o simulador de
+pagamentos, a API e duas instâncias do Worker em um ambiente efêmero e isolado.
+Os cenários, o comando de execução e os artefatos de diagnóstico estão descritos
+em [`docs/acceptance-tests.md`](docs/acceptance-tests.md).
+
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;

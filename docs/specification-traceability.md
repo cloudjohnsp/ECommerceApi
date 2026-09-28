@@ -63,7 +63,7 @@ auditoria do estado final repetível.
 | Segredos e callbacks | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado, opções validadas na inicialização, callbacks restritos a origens HTTP(S) autorizadas e redirects desabilitados nos dois sentidos |
 | CI | Restore, formato, build, testes, Testcontainers, cobertura e imagem da API neste repositório; o Worker possui workflow próprio no repositório independente |
 | Cobertura | `scripts/verify-unit-coverage.ps1` exige mais de 80% em Domain e Application |
-| Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers e HTTP com `WebApplicationFactory` |
+| Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers, HTTP com `WebApplicationFactory` e gate distribuído isolado em `ECommerceAcceptance.slnx` cobrindo concorrência, Outbox, RabbitMQ, retry/DLQ, interrupção e webhooks reais |
 
 ## Implantação Azure
 
@@ -90,3 +90,6 @@ dotnet test ECommerceApi.slnx --configuration Release
 
 Os testes dependentes de PostgreSQL real devem ser executados com Docker e
 `RUN_POSTGRES_INTEGRATION_TESTS=true`; o CI aplica essa configuração.
+O gate distribuído permanece separado. No PowerShell, defina
+`$env:RUN_CROSS_SERVICE_ACCEPTANCE_TESTS = "true"` e execute
+`dotnet test ECommerceAcceptance.slnx`, conforme `docs/acceptance-tests.md`.

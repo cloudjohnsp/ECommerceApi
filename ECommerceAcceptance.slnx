@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/acceptance/">
+    <Project Path="ECommerce.AcceptanceTests/ECommerce.AcceptanceTests.csproj" />
+  </Folder>
+</Solution>

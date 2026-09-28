@@ -1,6 +1,6 @@
 # ADR 0011: Testes de aceitação entre os serviços
 
-- Status: aceito; implementação pendente
+- Status: aceito; implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -36,3 +36,19 @@ assertivas baseadas apenas em mocks ou tempo fixo.
 - Cenários precisarão de IDs únicos, espera limitada e limpeza determinística.
 - Falhas deverão preservar logs e dados suficientes para diagnóstico.
 - Testes rápidos de Domain e Application continuarão separados desse gate.
+
+## Implementação
+
+A suíte está em `ECommerce.AcceptanceTests` e possui solução própria em
+`ECommerceAcceptance.slnx`. O Compose dedicado fica em
+`acceptance/docker-compose.acceptance.yml` e cria um ambiente efêmero, sem
+volumes compartilhados, com portas dinâmicas e duas réplicas do Worker.
+
+Os cenários exercitam estado real no PostgreSQL e mensagens reais no RabbitMQ.
+A janela entre confirmação do broker e confirmação da Outbox é produzida por um
+trigger temporário que bloqueia a atualização; o teste interrompe os Workers,
+encerra as sessões bloqueadas e comprova a recuperação do lease e a idempotência
+da Inbox após a retomada. O trigger existe somente no banco efêmero da execução.
+
+As instruções operacionais e os artefatos preservados em caso de falha estão em
+`docs/acceptance-tests.md`.

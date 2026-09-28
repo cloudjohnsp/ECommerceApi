@@ -268,3 +268,10 @@ provisionados do Worker.
 O CI executa restore, formatação, build, testes, integrações PostgreSQL com
 Testcontainers, gate de cobertura superior a 80% para Domain/Application e build
 das duas imagens.
+
+Os contratos entre processos são validados adicionalmente por uma suíte de
+aceitação separada. Ela cria um Compose efêmero com PostgreSQL, RabbitMQ,
+simulador de pagamento, API e duas instâncias do Worker, exercitando concorrência
+e falhas parciais contra serviços reais. A suíte usa polling com prazo máximo,
+IDs exclusivos e limpeza determinística; os logs e resumos persistidos são
+preservados antes da remoção do ambiente para diagnóstico.
