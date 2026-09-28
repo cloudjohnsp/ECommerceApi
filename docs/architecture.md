@@ -163,6 +163,14 @@ duráveis. A publicação é *at least once*: uma queda depois do publish e ante
 marcar a outbox pode gerar redelivery. As routing keys incluem os eventos de
 ciclo de vida do pedido, `stock.updated` e `email.sent`.
 
+O corpo publicado é um envelope v1 com `messageId`, `eventType`, `version`,
+`occurredAt`, `correlationId` e `payload`. O Worker valida sua consistência com
+os metadados AMQP antes de entregar somente o DTO de transporte ao processador.
+A correlação nasce ou é preservada na borda HTTP, segue pela Outbox e pelo
+gateway de pagamento e entra no escopo de logs e traces do consumer. O período
+de convivência aceita o corpo legado como v1 até retirada definida em novo ADR.
+Os schemas e exemplos canônicos estão em `docs/integration-events-v1.md`.
+
 O Worker independente usa:
 
 - publisher da outbox da API com claim concorrente, lease e backoff exponencial;

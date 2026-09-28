@@ -33,17 +33,17 @@ public sealed class ProcessPaymentWebhookHandler(
         if (!signatureVerifier.IsValid(request.Payload, request.Signature))
             return Result.Failure("Invalid payment webhook signature.");
 
-        PaymentWebhook? webhook;
+        NormalizedPaymentWebhook? webhook;
         try
         {
-            webhook = JsonSerializer.Deserialize<PaymentWebhook>(request.Payload, SerializerOptions);
+            webhook = DeserializeWebhook(request.Payload);
         }
         catch (JsonException)
         {
             return Result.Failure("Invalid payment webhook payload.");
         }
 
-        if (webhook?.Data is null || string.IsNullOrWhiteSpace(webhook.Data.Id))
+        if (webhook is null || string.IsNullOrWhiteSpace(webhook.Data.Id))
             return Result.Failure("Invalid payment webhook payload.");
         var webhookValidation = ValidateWebhook(webhook);
         if (webhookValidation.IsFailure)
@@ -180,7 +180,37 @@ public sealed class ProcessPaymentWebhookHandler(
         }
     }
 
-    private static Result ValidateWebhook(PaymentWebhook webhook)
+    private static NormalizedPaymentWebhook? DeserializeWebhook(string payload)
+    {
+        var envelope = JsonSerializer.Deserialize<
+            IntegrationEventEnvelope<PaymentWebhookPayload>>(payload, SerializerOptions);
+        if (envelope?.Payload is not null && !string.IsNullOrWhiteSpace(envelope.EventType))
+        {
+            if (envelope.MessageId == Guid.Empty ||
+                envelope.Version != IntegrationEventContract.Version1 ||
+                envelope.OccurredAt == default ||
+                string.IsNullOrWhiteSpace(envelope.CorrelationId))
+            {
+                return null;
+            }
+
+            return new NormalizedPaymentWebhook(envelope.EventType, envelope.Payload);
+        }
+
+        var legacy = JsonSerializer.Deserialize<LegacyPaymentWebhook>(payload, SerializerOptions);
+        return legacy?.Data is null
+            ? null
+            : new NormalizedPaymentWebhook(
+                legacy.Event,
+                new PaymentWebhookPayload(
+                    legacy.Data.Id,
+                    legacy.Data.Status,
+                    legacy.Data.Reference,
+                    legacy.Data.Amount,
+                    legacy.Data.Currency));
+    }
+
+    private static Result ValidateWebhook(NormalizedPaymentWebhook webhook)
     {
         var expectedStatus = webhook.Event switch
         {
@@ -199,7 +229,7 @@ public sealed class ProcessPaymentWebhookHandler(
             : Result.Failure("Payment webhook event and status do not match.");
     }
 
-    private static Result ValidatePaymentIdentity(PaymentWebhookData data, Payment payment)
+    private static Result ValidatePaymentIdentity(PaymentWebhookPayload data, Payment payment)
     {
         var referenceMatches = Guid.TryParse(data.Reference, out var referencedOrderId) &&
                                referencedOrderId == payment.OrderId;
@@ -219,8 +249,9 @@ public sealed class ProcessPaymentWebhookHandler(
             : Result.Failure("Payment webhook data does not match the local payment.");
     }
 
-    private sealed record PaymentWebhook(string Event, PaymentWebhookData Data);
-    private sealed record PaymentWebhookData(
+    private sealed record NormalizedPaymentWebhook(string Event, PaymentWebhookPayload Data);
+    private sealed record LegacyPaymentWebhook(string Event, LegacyPaymentWebhookData Data);
+    private sealed record LegacyPaymentWebhookData(
         string Id,
         string Status,
         string? Reference,

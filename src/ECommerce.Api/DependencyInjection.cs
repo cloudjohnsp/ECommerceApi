@@ -13,6 +13,8 @@ using OpenTelemetry.Trace;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using ECommerce.Infrastructure.BackgroundJobs;
+using ECommerce.Api.Observability;
+using ECommerce.Application.Abstractions.Observability;
 
 namespace ECommerce.Api;
 
@@ -20,6 +22,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICorrelationContext, HttpCorrelationContext>();
         services.AddControllers();
         services.AddApiVersioning(options =>
         {

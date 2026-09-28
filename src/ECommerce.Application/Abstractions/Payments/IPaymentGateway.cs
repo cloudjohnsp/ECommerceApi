@@ -6,7 +6,8 @@ public sealed record CreateGatewayPayment(
     Guid PaymentId,
     Guid OrderId,
     decimal Amount,
-    string Currency);
+    string Currency,
+    string? CorrelationId = null);
 
 public sealed record GatewayPayment(string ExternalPaymentId, string Status);
 

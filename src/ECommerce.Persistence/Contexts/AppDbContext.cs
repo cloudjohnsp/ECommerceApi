@@ -4,15 +4,41 @@ using System.Collections.Generic;
 using System.Text;
 using System.Reflection;
 using ECommerce.Domain.Entities;
+using ECommerce.Application.Abstractions.Observability;
 
 namespace ECommerce.Persistence.Contexts
 {
-    public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+    public sealed class AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ICorrelationContext? correlationContext = null) : DbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
             base.OnModelCreating(modelBuilder);
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            AssignCorrelationIds();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            AssignCorrelationIds();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void AssignCorrelationIds()
+        {
+            if (string.IsNullOrWhiteSpace(correlationContext?.CorrelationId)) return;
+
+            foreach (var entry in ChangeTracker.Entries<OutboxMessage>()
+                         .Where(entry => entry.State == EntityState.Added))
+                entry.Entity.AssignCorrelationId(correlationContext.CorrelationId);
         }
 
 

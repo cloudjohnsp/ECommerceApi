@@ -135,11 +135,18 @@ public sealed class PaymentCreationProcessorTests
     private (Payment Payment, OutboxMessage Intention, CreateGatewayPayment GatewayRequest) SetupPendingIntention()
     {
         var payment = Payment.Create(Guid.NewGuid(), 100m, "BRL", "ECommercePayment").Value!;
-        var gatewayRequest = new CreateGatewayPayment(payment.Id, payment.OrderId, payment.Amount, "BRL");
+        const string correlationId = "payment-test";
+        var gatewayRequest = new CreateGatewayPayment(
+            payment.Id,
+            payment.OrderId,
+            payment.Amount,
+            "BRL",
+            correlationId);
         var intention = new OutboxMessage(
             payment.Id,
             OutBoxMessageType.PaymentCreationRequested,
-            JsonSerializer.Serialize(gatewayRequest));
+            JsonSerializer.Serialize(gatewayRequest),
+            correlationId);
         _outbox.Setup(x => x.GetByIdAsync(payment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(intention);
         _payments.Setup(x => x.GetByIdAsync(payment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(payment);
         _outbox.Setup(x => x.GetByIdForUpdateAsync(payment.Id, It.IsAny<CancellationToken>()))

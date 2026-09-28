@@ -4,6 +4,8 @@ using ECommerce.Infrastructure.Options;
 using ECommerce.Shared.Results;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using ECommerce.Shared.Messaging;
+using System.Text.Json;
 
 namespace ECommerce.Infrastructure.Messaging;
 
@@ -38,7 +40,7 @@ public sealed class RabbitMqEventPublisher(
                 cancellationToken: cancellationToken);
 
             var properties = CreateProperties(integrationEvent);
-            var body = Encoding.UTF8.GetBytes(integrationEvent.Payload);
+            var body = CreateBody(integrationEvent);
             await channel.BasicPublishAsync(
                 _options.ExchangeName,
                 integrationEvent.Type,
@@ -67,9 +69,26 @@ public sealed class RabbitMqEventPublisher(
         Timestamp = new AmqpTimestamp(new DateTimeOffset(integrationEvent.OccurredAt).ToUnixTimeSeconds()),
         Headers = new Dictionary<string, object?>
         {
-            [ContractVersionHeaderName] = Encoding.UTF8.GetBytes(ContractVersion)
+            [ContractVersionHeaderName] = Encoding.UTF8.GetBytes(ContractVersion),
+            ["x-correlation-id"] = Encoding.UTF8.GetBytes(NormalizeCorrelationId(integrationEvent))
         }
     };
+
+    internal static byte[] CreateBody(IntegrationEvent integrationEvent)
+    {
+        var envelope = IntegrationEventEnvelope.Create(
+            integrationEvent.Id,
+            integrationEvent.Type,
+            new DateTimeOffset(integrationEvent.OccurredAt),
+            NormalizeCorrelationId(integrationEvent),
+            integrationEvent.Payload);
+        return JsonSerializer.SerializeToUtf8Bytes(envelope);
+    }
+
+    private static string NormalizeCorrelationId(IntegrationEvent integrationEvent) =>
+        string.IsNullOrWhiteSpace(integrationEvent.CorrelationId)
+            ? integrationEvent.Id.ToString("N")
+            : integrationEvent.CorrelationId.Trim();
 
     public async ValueTask DisposeAsync()
     {

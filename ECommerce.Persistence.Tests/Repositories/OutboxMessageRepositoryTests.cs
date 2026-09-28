@@ -4,6 +4,7 @@ using ECommerce.Persistence.Contexts;
 using ECommerce.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using ECommerce.Application.Abstractions.Observability;
 
 namespace ECommerce.Persistence.Tests.Repositories;
 
@@ -25,6 +26,18 @@ public sealed class OutboxMessageRepositoryTests
         persisted.Type.Should().Be(OutBoxMessageType.OrderCreated);
         persisted.Status.Should().Be(OutBoxMessageStatus.Pending);
         persisted.Payload.Should().Be(message.Payload);
+    }
+
+    [Fact]
+    public async Task SaveChanges_AssignsRequestCorrelationToNewOutboxMessage()
+    {
+        await using var context = CreateContext(new StubCorrelationContext("checkout-123"));
+        var message = new OutboxMessage(OutBoxMessageType.OrderCreated, "{}");
+        context.OutboxMessages.Add(message);
+
+        await context.SaveChangesAsync();
+
+        message.CorrelationId.Should().Be("checkout-123");
     }
 
     [Fact]
@@ -86,12 +99,14 @@ public sealed class OutboxMessageRepositoryTests
         ids.Should().Equal(first.Id, second.Id, orderMessage.Id);
     }
 
-    private static AppDbContext CreateContext()
+    private static AppDbContext CreateContext(ICorrelationContext? correlationContext = null)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
-        return new AppDbContext(options);
+        return new AppDbContext(options, correlationContext);
     }
+
+    private sealed record StubCorrelationContext(string? CorrelationId) : ICorrelationContext;
 }

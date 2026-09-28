@@ -6,7 +6,8 @@ public sealed record IntegrationEvent(
     Guid Id,
     string Type,
     string Payload,
-    DateTime OccurredAt);
+    DateTime OccurredAt,
+    string CorrelationId = "");
 
 public interface IIntegrationEventPublisher
 {

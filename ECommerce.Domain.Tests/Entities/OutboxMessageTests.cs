@@ -18,6 +18,18 @@ public sealed class OutboxMessageTests
         message.LockId.Should().BeNull();
         message.LockedUntil.Should().BeNull();
         message.LastError.Should().BeNull();
+        message.CorrelationId.Should().Be(message.Id.ToString("N"));
+    }
+
+    [Fact]
+    public void Constructor_NormalizesExplicitCorrelationId()
+    {
+        var message = new OutboxMessage(
+            OutBoxMessageType.OrderCreated,
+            "{}",
+            " checkout-123 ");
+
+        message.CorrelationId.Should().Be("checkout-123");
     }
 
     [Fact]

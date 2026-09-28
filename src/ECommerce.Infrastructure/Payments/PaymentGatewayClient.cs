@@ -24,7 +24,8 @@ public sealed class PaymentGatewayClient(
                 amount = payment.Amount,
                 currency = payment.Currency,
                 reference = payment.OrderId.ToString(),
-                callbackUrl = _options.CallbackUrl
+                callbackUrl = _options.CallbackUrl,
+                correlationId = payment.CorrelationId
             })
         };
         request.Headers.Add("Idempotency-Key", payment.PaymentId.ToString());

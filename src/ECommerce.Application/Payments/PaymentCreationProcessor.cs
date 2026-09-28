@@ -32,6 +32,7 @@ public sealed class PaymentCreationProcessor(
         {
             gatewayRequest = JsonSerializer.Deserialize<CreateGatewayPayment>(intention.Payload)
                 ?? throw new JsonException();
+            gatewayRequest = gatewayRequest with { CorrelationId = intention.CorrelationId };
         }
         catch (JsonException)
         {

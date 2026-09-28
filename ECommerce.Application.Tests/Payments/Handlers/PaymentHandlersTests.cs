@@ -477,6 +477,32 @@ public sealed class PaymentHandlersTests
     }
 
     [Fact]
+    public async Task Webhook_VersionedEnvelope_MarksPaymentAndOrderAsPaid()
+    {
+        var product = ProductFactory.Create(stock: 10);
+        product.ReserveStock(1);
+        var order = Order.Create(Guid.NewGuid()).Value!;
+        order.AddItem(product.Id, product.Name, product.Price, 1);
+        var payment = Payment.Create(order.Id, order.Total, "BRL", "ECommercePayment").Value!;
+        payment.RegisterExternalPayment("pay_123");
+        SetupWebhook(payment, order);
+        _products.Setup(x => x.GetByIdForUpdateAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+        SetupActiveReservation(order, product, 1);
+        var handler = CreateWebhookHandler();
+
+        var result = await handler.Handle(
+            new ProcessPaymentWebhookCommand(
+                CreateVersionedWebhookPayload("payment.approved", "approved", payment),
+                "valid"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        payment.Status.Should().Be(PaymentStatus.Paid);
+        order.Status.Should().Be(OrderStatus.Paid);
+    }
+
+    [Fact]
     public async Task Webhook_Declined_FailsAttemptAndKeepsOrderAndReservationActive()
     {
         var product = ProductFactory.Create(stock: 10);
@@ -762,6 +788,23 @@ public sealed class PaymentHandlersTests
                 currency = currency ?? payment.Currency
             }
         });
+
+    private static string CreateVersionedWebhookPayload(
+        string eventName,
+        string status,
+        Payment payment) =>
+        JsonSerializer.Serialize(new IntegrationEventEnvelope<PaymentWebhookPayload>(
+            Guid.NewGuid(),
+            eventName,
+            IntegrationEventContract.Version1,
+            DateTimeOffset.UtcNow,
+            "checkout-123",
+            new PaymentWebhookPayload(
+                "pay_123",
+                status,
+                payment.OrderId.ToString(),
+                payment.Amount.ToString(CultureInfo.InvariantCulture),
+                payment.Currency)));
 
     private ProcessPaymentWebhookHandler CreateWebhookHandler() => new(
         _signatureVerifier.Object,

@@ -25,7 +25,12 @@ public sealed class IntegrationEventOutboxProcessor(
             return Result.Failure($"Outbox message type '{message.Type}' is not an integration event.");
 
         var publishResult = await publisher.PublishAsync(
-            new IntegrationEvent(message.Id, eventType, message.Payload, message.CreatedAt),
+            new IntegrationEvent(
+                message.Id,
+                eventType,
+                message.Payload,
+                message.CreatedAt,
+                message.CorrelationId),
             cancellationToken);
         if (publishResult.IsFailure)
             return publishResult;

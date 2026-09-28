@@ -39,6 +39,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(x => x.LockId);
         builder.Property(x => x.LockedUntil);
         builder.Property(x => x.LastError).HasMaxLength(2000);
+        builder.Property(x => x.CorrelationId).HasMaxLength(128).IsRequired();
 
         builder.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt })
             .HasDatabaseName("IX_OutboxMessages_PendingDispatch")

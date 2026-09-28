@@ -40,13 +40,14 @@ public sealed class PaymentGatewayClientTests
         var orderId = Guid.NewGuid();
 
         var result = await sut.CreateAsync(
-            new CreateGatewayPayment(paymentId, orderId, 199.90m, "BRL"));
+            new CreateGatewayPayment(paymentId, orderId, 199.90m, "BRL", "checkout-123"));
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.ExternalPaymentId.Should().Be("pay_123");
         capturedRequest!.Headers.GetValues("Idempotency-Key").Should().ContainSingle(paymentId.ToString());
         capturedBody.Should().Contain($"\"reference\":\"{orderId}\"");
         capturedBody.Should().Contain("\"callbackUrl\":\"http://api/api/webhooks/payments\"");
+        capturedBody.Should().Contain("\"correlationId\":\"checkout-123\"");
     }
 
     [Fact]

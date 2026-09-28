@@ -42,6 +42,7 @@ auditoria do estado final repetível.
 | Redis | Cache-aside resiliente para produtos e categorias, invalidação após commit e health check |
 | RabbitMQ | API grava a Outbox atomicamente; Worker independente faz claim com `SKIP LOCKED`, lease, retry e publicação com confirmação, além de fila quorum, inbox e dead-letter |
 | Eventos | Ciclo do pedido, falha/reembolso de pagamento, estoque e confirmação sanitizada de e-mail |
+| Contratos de eventos | Envelope v1 com mensagem, tipo, versão, ocorrência, correlação e payload; exemplos canônicos testados igualmente na API e no Worker |
 | Background jobs | Hangfire para pagamento, e-mail e expiração na API; publicação de eventos, consumidores e outboxes duráveis no Worker |
 | Armazenamento de imagens | Azure Blob SDK com Azurite local; somente metadados são persistidos no PostgreSQL |
 

@@ -148,14 +148,13 @@ pelo webhook assinado do gateway.
 
 Nenhum segredo de execução é versionado em `appsettings.json`. Para executar a
 API diretamente, inicialize o armazenamento local de segredos e informe ao
-menos a conexão do PostgreSQL, a chave JWT, as credenciais do RabbitMQ e o
-segredo compartilhado com o gateway:
+menos a conexão do PostgreSQL, a chave JWT e o segredo compartilhado com o
+gateway. O RabbitMQ pertence ao Worker quando o publisher legado está
+desativado:
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=ecommerce;Username=postgres;Password=<password>" --project src/ECommerce.Api
 dotnet user-secrets set "Jwt:SecretKey" "<at-least-32-random-characters>" --project src/ECommerce.Api
-dotnet user-secrets set "RabbitMq:UserName" "ecommerce" --project src/ECommerce.Api
-dotnet user-secrets set "RabbitMq:Password" "<password>" --project src/ECommerce.Api
 dotnet user-secrets set "PaymentGateway:WebhookSecret" "<shared-secret-with-at-least-32-random-bytes>" --project src/ECommerce.Api
 dotnet run --project src/ECommerce.Api
 ```
@@ -286,8 +285,8 @@ negócio e dos casos de uso.
 Health checks disponíveis:
 
 - `/api/health/live`: confirma que o processo está ativo, sem consultar dependências;
-- `/api/health/ready`: verifica PostgreSQL, Redis, RabbitMQ, gateway de pagamento,
-  Azure Blob Storage e SMTP;
+- `/api/health/ready`: verifica PostgreSQL, Redis, gateway de pagamento, Azure
+  Blob Storage e SMTP; RabbitMQ só é incluído ao habilitar o publisher legado;
 - `/api/health`: executa todas as verificações registradas.
 
 `/api/v1/health` permanece como alias versionado de liveness para compatibilidade.
@@ -321,7 +320,9 @@ HMAC. Nenhuma credencial, token ou caminho de arquivo é versionado no ambiente.
 A API produz logs estruturados em JSON com Serilog, incluindo `CorrelationId`,
 `TraceId` e `SpanId`, e adiciona `X-Correlation-ID` a toda resposta. Um
 identificador válido recebido nesse header é preservado; caso ele não seja
-enviado, a API gera um novo identificador.
+enviado, a API gera um novo identificador. A correlação é persistida com cada
+mensagem de Outbox, enviada ao gateway de pagamento e preservada no envelope
+consumido pelo Worker.
 
 OpenTelemetry coleta métricas de ASP.NET Core, `HttpClient` e runtime, além de
 traces de requisições e chamadas HTTP de saída. O Prometheus pode coletar as
@@ -428,4 +429,7 @@ permanecem encapsulados no domínio. A publicação feita pelo Worker usa
 confirmação do broker e entrega persistente. Como o processamento é
 *at-least-once*, consumidores devem
 deduplicar pelo `MessageId`, que corresponde
-ao identificador da mensagem na outbox.
+ao identificador da mensagem na outbox. O envelope v1 contém `messageId`,
+`eventType`, `version`, `occurredAt`, `correlationId` e `payload`; routing keys,
+schemas e a política de evolução estão documentados em
+[`docs/integration-events-v1.md`](docs/integration-events-v1.md).
