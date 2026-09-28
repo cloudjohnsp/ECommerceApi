@@ -10,6 +10,6 @@
   },
   "payment": {
     "repository": "cloudjohnsp/ECommercePayment",
-    "revision": "67e1ff42c1a32d6430458e88d9745c560874ba7b"
+    "revision": "26f5c2d3ab58b49417fc83654eaa432334b1f16e"
   }
 }

@@ -78,6 +78,10 @@ Cada imagem recebe:
 - label `org.opencontainers.image.revision=<commit>`;
 - base de runtime/build fixada por digest no Dockerfile.
 
+O Payment fixa também as dependências Python diretas e transitivas nos arquivos
+de requirements usados pelo runtime e pelo gate. Os projetos .NET mantêm
+versões de pacotes explícitas nos respectivos arquivos de projeto.
+
 O script grava em `TestResults/coordinated/<timestamp>` o manifesto resolvido,
 os IDs de conteúdo das imagens e os logs do Compose completo. A suíte de
 aceitação preserva seus próprios diagnósticos em `TestResults/acceptance`.
