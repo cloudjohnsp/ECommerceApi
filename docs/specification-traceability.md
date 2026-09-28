@@ -40,7 +40,8 @@ auditoria do estado final repetível.
 | Índices e constraints | Configurações EF, `RelationalConstraintTests` e testes PostgreSQL de violações reais, incluindo reserva acima do estoque e produto duplicado no pedido |
 | Transações | `IUnitOfWork`, bloqueios pessimistas e ordem global de locks documentada em `architecture.md` |
 | Redis | Cache-aside resiliente para produtos e categorias, invalidação após commit e health check |
-| RabbitMQ | API grava a Outbox atomicamente; Worker independente faz claim com `SKIP LOCKED`, lease, retry e publicação com confirmação, além de fila quorum, inbox e dead-letter |
+| RabbitMQ | API grava a Outbox atomicamente; Worker independente faz claim com `SKIP LOCKED`, lease e publicação confirmada, além de Inbox transacional, retry por exchange/fila TTL com limite explícito e DLQ durável com metadados sanitizados |
+| Idempotência de consumers | `MessageId` único, advisory lock concorrente e transação única para Inbox, projeções, invoice, analytics e intenção de notificação; replay preserva a identidade original. Evidências: `IntegrationEventDeliveryPolicyTests`, testes de redelivery dos processadores e `WorkerPostgreSqlIntegrationTests` no repositório do Worker |
 | Eventos | Ciclo do pedido, falha/reembolso de pagamento, estoque e confirmação sanitizada de e-mail |
 | Contratos de eventos | Envelope v1 com mensagem, tipo, versão, ocorrência, correlação e payload; exemplos canônicos testados igualmente na API e no Worker |
 | Background jobs | Hangfire para pagamento, e-mail e expiração na API; publicação de eventos, consumidores e outboxes duráveis no Worker |

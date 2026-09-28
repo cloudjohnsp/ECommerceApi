@@ -135,6 +135,10 @@ services:
       RabbitMq__Password: ${RABBITMQ_PASSWORD:?Create .env from .env.example and set RABBITMQ_PASSWORD}
       RabbitMq__VirtualHost: /
       RabbitMq__ExchangeName: ecommerce.events
+      RabbitMq__RetryExchangeName: ecommerce.events.retry
+      RabbitMq__RetryQueueName: ecommerce.worker.orders.retry
+      RabbitMq__MaximumRetryAttempts: 3
+      RabbitMq__RetryDelaySeconds: 15
       Email__Enabled: "true"
       Email__Host: mailpit
       Email__Port: 1025

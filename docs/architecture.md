@@ -175,13 +175,16 @@ O Worker independente usa:
 
 - publisher da outbox da API com claim concorrente, lease e backoff exponencial;
 - fila quorum durável e ACK manual;
-- atraso antes de retry e limite de entregas;
-- dead-letter exchange e fila para mensagens inválidas ou esgotadas;
+- exchange e fila de retry com TTL, publisher confirm, contagem explícita e
+  limite configurável de tentativas;
+- dead-letter exchange e fila duráveis para mensagens inválidas ou esgotadas,
+  com motivo sanitizado e metadados para diagnóstico e replay;
 - inbox com `MessageId` único;
 - projeção local do pedido;
 - projeção local de `AvailableStock` alimentada por `stock.updated`;
 - projeção sanitizada das entregas alimentada por `email.sent`;
 - nota fiscal simulada única por pedido pago;
+- analytics simulada única por `MessageId`;
 - outbox de notificações, com lease e backoff exponencial;
 - outbox de integração para publicar a confirmação do SMTP sem dual-write.
 
@@ -193,6 +196,11 @@ e antes de `SentAt` pode repetir a mensagem, limitação documentada do protocol
 Consumidores concorrentes do mesmo `MessageId` são serializados por advisory lock
 transacional antes da segunda consulta à inbox. A constraint única permanece como
 barreira final, sem transformar uma redelivery simultânea em falha e novo retry.
+Retries preservam o envelope e o `MessageId`; quando o limite é alcançado, a DLQ
+também preserva essa identidade. Assim, o replay operacional pode ser feito sem
+repetir invoice, notificação, projeção ou analytics já confirmadas. O Worker
+publica contadores separados de retry e dead-letter e mantém um runbook de
+inspeção, correção e replay seguro.
 
 ## Segurança
 

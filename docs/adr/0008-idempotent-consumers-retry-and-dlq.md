@@ -1,6 +1,6 @@
 # ADR 0008: Consumers idempotentes, retry limitado e DLQ
 
-- Status: aceito; migração pendente
+- Status: implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -33,3 +33,23 @@ idempotente sem uma chave persistida.
 - Operação precisará de métricas, alertas e procedimento de replay da DLQ.
 - Replay exigirá preservar o `MessageId` original.
 - Testes deverão cobrir concorrência, redelivery e limite de tentativas.
+
+## Implementação
+
+- O Worker independente usa `ConsumedIntegrationEvent.MessageId` como chave
+  única da Inbox e um advisory lock PostgreSQL por mensagem. Inbox, projeções,
+  invoice, analytics e intenção de notificação são confirmadas na mesma
+  transação antes do ACK.
+- `order.paid` (pagamento concluído), `order.cancelled`, `stock.updated` e
+  `email.sent` possuem efeitos cobertos por testes. Invoice é única por pedido e
+  analytics é única por `MessageId`.
+- Falhas transitórias são republicadas com publisher confirm no exchange de
+  retry e retornam após TTL configurável. `x-retry-count` limita as tentativas;
+  mensagens inválidas ou esgotadas seguem para exchange e fila de dead-letter
+  duráveis.
+- A cópia para DLQ preserva corpo, `MessageId`, tipo, versão, correlação e routing
+  key e acrescenta somente motivo sanitizado, contagem e instante. O runbook do
+  Worker exige preservar o `MessageId` original no replay.
+- Métricas distinguem consumo, duplicidade, falha, retry e dead-letter. Testes
+  unitários cobrem redelivery e o limite, e testes PostgreSQL cobrem o lock
+  concorrente, migrations e atomicidade dos efeitos.
