@@ -1,0 +1,69 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "ecommerce_worker_api_outbox_backlog", "legendFormat": "API Outbox", "refId": "A" },
+        { "expr": "ecommerce_worker_notification_outbox_backlog", "legendFormat": "Notifications", "refId": "B" },
+        { "expr": "ecommerce_worker_integration_outbox_backlog", "legendFormat": "Worker Outbox", "refId": "C" }
+      ],
+      "title": "Backlog",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (messaging_event_type) (rate(ecommerce_worker_events_retried_total[5m]))", "legendFormat": "retry {{messaging_event_type}}", "refId": "A" },
+        { "expr": "sum by (messaging_event_type) (increase(ecommerce_worker_events_dead_lettered_total[5m]))", "legendFormat": "DLQ {{messaging_event_type}}", "refId": "B" }
+      ],
+      "title": "Retries e DLQ",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(ecommerce_worker_operation_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{operation}}", "refId": "A" }
+      ],
+      "title": "Latência operacional p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, queue) (rate(ecommerce_worker_message_age_seconds_bucket[5m])))", "legendFormat": "p95 {{queue}}", "refId": "A" }
+      ],
+      "title": "Idade das mensagens p95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 41,
+  "tags": ["ecommerce", "worker"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "ECommerce Worker",
+  "uid": "ecommerce-worker",
+  "version": 1
+}

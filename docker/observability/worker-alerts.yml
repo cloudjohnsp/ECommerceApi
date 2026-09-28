@@ -1,0 +1,38 @@
+groups:
+  - name: ecommerce-worker
+    rules:
+      - alert: ECommerceWorkerDown
+        expr: up{job="ecommerce-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: ECommerce Worker is not scrapeable
+      - alert: ECommerceWorkerBacklogHigh
+        expr: max({__name__=~"ecommerce_worker_(api_outbox|notification_outbox|integration_outbox)_backlog"}) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ECommerce Worker backlog remains above 100 messages
+      - alert: ECommerceWorkerDeadLetteredMessage
+        expr: increase(ecommerce_worker_events_dead_lettered_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: ECommerce Worker sent a message to the DLQ
+      - alert: ECommerceWorkerRetryRateHigh
+        expr: sum(rate(ecommerce_worker_events_retried_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ECommerce Worker retry rate is elevated
+      - alert: ECommerceWorkerOperationLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le, operation) (rate(ecommerce_worker_operation_duration_seconds_bucket[10m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ECommerce Worker p95 operation latency exceeds five seconds

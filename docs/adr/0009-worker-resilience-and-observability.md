@@ -1,6 +1,6 @@
 # ADR 0009: Resiliência e observabilidade do Worker
 
-- Status: aceito; implementação pendente no Worker independente
+- Status: implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -31,3 +31,22 @@ serão interrompidos no shutdown e operações em curso terão prazo de drenagem
 - Dashboards e alertas precisarão acompanhar as novas métricas.
 - Shutdown poderá deixar claims expirarem e serem retomados com segurança.
 - Configurações inválidas deverão falhar na inicialização com mensagem sanitizada.
+
+## Implementação
+
+- `/health/live` não consulta dependências; `/health/ready` verifica PostgreSQL,
+  RabbitMQ e SMTP somente quando o papel de e-mail está habilitado.
+- Serilog, ActivitySource e métricas carregam os identificadores disponíveis sem
+  registrar payload, destinatário, token ou segredo. `PaymentId` permanece
+  ausente porque nenhum contrato atual do Worker o transporta.
+- Backlogs das outboxes, idade das mensagens, duração por operação, retry e DLQ
+  são exportados ao Prometheus. O Compose provisiona dashboard do Worker e
+  regras de alerta para indisponibilidade, backlog, retry, DLQ e p95.
+- `WorkerRuntime` limita concorrência, pool EF, timeouts RabbitMQ/PostgreSQL e
+  drenagem. Batch, polling, leases, tentativas e SMTP também têm intervalos
+  validados com `ValidateOnStart`.
+- No shutdown, novos trabalhos deixam de ser aceitos, o consumer é cancelado e
+  operações em curso recebem prazo de drenagem; após ele, o token é cancelado e
+  mensagens/claims podem ser retomados com segurança.
+- Testes cobrem drenagem bem-sucedida, bloqueio de novos trabalhos e cancelamento
+  ao atingir o prazo. A validação integrada cobre health, métricas e startup.

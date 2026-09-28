@@ -129,6 +129,11 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__WorkerDatabase: Host=postgres-db;Port=5432;Database=ecommerce;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
+      WorkerRuntime__ShutdownDrainSeconds: 30
+      WorkerRuntime__ConsumerConcurrency: 1
+      WorkerRuntime__DatabasePoolSize: 32
+      WorkerRuntime__DatabaseCommandTimeoutSeconds: 30
+      WorkerRuntime__RabbitMqConnectionTimeoutSeconds: 10
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: ${RABBITMQ_USER:-ecommerce}
@@ -143,6 +148,7 @@ services:
       Email__Host: mailpit
       Email__Port: 1025
       Email__UseSsl: "false"
+      Email__TimeoutSeconds: 15
       ApiOutboxPublisher__Enabled: "true"
       ASPNETCORE_URLS: http://+:8080
     ports:
@@ -166,6 +172,7 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/worker-alerts.yml:/etc/prometheus/worker-alerts.yml:ro
       - prometheus-data:/prometheus
     depends_on:
       - ecommerce-api

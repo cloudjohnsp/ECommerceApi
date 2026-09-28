@@ -255,6 +255,14 @@ checks. O Compose sobe PostgreSQL, Redis, RabbitMQ, Azurite, Mailpit, API, Worke
 Prometheus e Grafana. O release publica imagens imutáveis: API no Azure App
 Service e Worker no Azure Container Apps.
 
+No Worker, liveness confirma somente o processo e readiness reflete PostgreSQL,
+RabbitMQ e SMTP quando habilitado. Concorrência, pool, timeouts, polling, batch e
+leases são limitados e validados no startup. O encerramento interrompe novos
+trabalhos e concede prazo configurável às operações em curso antes de cancelar
+seus tokens; entregas sem ACK e claims com lease permanecem recuperáveis.
+Backlog, idade de mensagem, latência, retry e DLQ alimentam o dashboard e alertas
+provisionados do Worker.
+
 O CI executa restore, formatação, build, testes, integrações PostgreSQL com
 Testcontainers, gate de cobertura superior a 80% para Domain/Application e build
 das duas imagens.
