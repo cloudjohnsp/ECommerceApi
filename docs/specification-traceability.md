@@ -51,7 +51,7 @@ auditoria do estado final repetível.
 
 | Requisito | Evidência |
 | --- | --- |
-| Docker | Imagem não-root da API e imagem independente do Worker; Compose com PostgreSQL, RabbitMQ, Redis, Azurite, Mailpit, Prometheus e Grafana e portas locais somente no loopback |
+| Docker | Imagens não-root e ciclos próprios para API, Worker e Payment; Compose unificado com os dez serviços, rede interna, readiness, volumes persistentes, smoke test e portas mínimas somente no loopback |
 | Observabilidade | Serilog JSON, correlation id, OpenTelemetry, Prometheus, dashboards de API/Worker, alertas de backlog/retry/DLQ/latência e health checks separados de liveness/readiness |
 | Resiliência do Worker | Limites validados de batch, polling, concorrência, pools e timeouts; readiness condicional por papel e drenagem com prazo e retomada segura de ACK/claims |
 | OpenAPI | Documento OpenAPI e Swagger UI configurados pela API com esquema Bearer |

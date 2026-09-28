@@ -251,8 +251,10 @@ inspeção, correção e replay seguro.
 ## Operação
 
 A API e o Worker possuem logs JSON, OpenTelemetry, métricas Prometheus e health
-checks. O Compose sobe PostgreSQL, Redis, RabbitMQ, Azurite, Mailpit, API, Worker,
-Prometheus e Grafana. O release publica imagens imutáveis: API no Azure App
+checks. O Compose unificado constrói API, Worker e Payment em seus contextos
+locais e sobe PostgreSQL, Redis, RabbitMQ, Azurite, Mailpit, API, Worker,
+Payment, Prometheus e Grafana em uma rede interna, com inicialização ordenada por
+readiness. O release publica imagens imutáveis: API no Azure App
 Service e Worker no Azure Container Apps.
 
 No Worker, liveness confirma somente o processo e readiness reflete PostgreSQL,

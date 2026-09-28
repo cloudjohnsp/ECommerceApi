@@ -54,7 +54,10 @@ public sealed class CommittedConfigurationTests
         compose.Should().NotContain("Password=postgres");
         compose.Should().NotContain("RabbitMq__Password: guest");
         compose.Should().NotContain(":-development-secret");
-        compose.Should().Contain("image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}");
+        compose.Should().Contain("context: ${ECOMMERCE_WORKER_CONTEXT:-../../../personal-projects/ECommerceWorker}");
+        compose.Should().Contain("context: ${ECOMMERCE_PAYMENT_CONTEXT:-../../../personal-projects/ECommercePayment}");
+        compose.Should().Contain("PaymentGateway__BaseUrl: http://ecommerce-payment:5000");
+        compose.Should().Contain("internal: true");
         compose.Should().Contain("ApiOutboxPublisher__Enabled: \"true\"");
         compose.Should().NotContain("dockerfile: Dockerfile.worker");
         environmentTemplate.Should().Contain("POSTGRES_PASSWORD=");
@@ -63,6 +66,10 @@ public sealed class CommittedConfigurationTests
         environmentTemplate.Should().Contain("PAYMENT_GATEWAY_WEBHOOK_SECRET=");
         environmentTemplate.Should().Contain("GRAFANA_ADMIN_PASSWORD=");
         environmentTemplate.Should().Contain("SEED_ADMIN_PASSWORD=");
+        environmentTemplate.Should().Contain(line =>
+            line.StartsWith("ECOMMERCE_WORKER_CONTEXT=", StringComparison.Ordinal));
+        environmentTemplate.Should().Contain(line =>
+            line.StartsWith("ECOMMERCE_PAYMENT_CONTEXT=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -129,7 +136,24 @@ public sealed class CommittedConfigurationTests
         script.Should().Contain("docker-compose.yml");
         script.Should().Contain("--detach");
         script.Should().Contain("--build");
+        script.Should().Contain("--wait");
+        script.Should().Contain("--force-recreate");
+        script.Should().Contain("smoke-test-local.ps1");
         script.Should().Contain("$LASTEXITCODE");
+    }
+
+    [Fact]
+    public void LocalSmokeTest_ValidatesReadinessPaymentFlowAndWorkerQueues()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindSolutionRoot(), "scripts", "smoke-test-local.ps1"));
+
+        script.Should().Contain("/api/health/ready");
+        script.Should().Contain("http://ecommerce-payment:5000/health");
+        script.Should().Contain("Idempotency-Key");
+        script.Should().Contain("/approve");
+        script.Should().Contain("ecommerce.worker.orders.retry");
+        script.Should().Contain("ecommerce.worker.orders.dead");
     }
 
     [Fact]

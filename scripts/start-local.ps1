@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$SkipSmokeTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +25,10 @@ $composeArguments.Add("--file")
 $composeArguments.Add($composePath)
 $composeArguments.Add("up")
 $composeArguments.Add("--detach")
+$composeArguments.Add("--wait")
+$composeArguments.Add("--wait-timeout")
+$composeArguments.Add("300")
+$composeArguments.Add("--force-recreate")
 
 if (-not $NoBuild) {
     $composeArguments.Add("--build")
@@ -32,6 +37,10 @@ if (-not $NoBuild) {
 & docker $composeArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Docker Compose failed with exit code $LASTEXITCODE."
+}
+
+if (-not $SkipSmokeTest) {
+    & (Join-Path $PSScriptRoot "smoke-test-local.ps1")
 }
 
 Write-Output "ECommerce local services started successfully."

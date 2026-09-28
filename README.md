@@ -181,8 +181,8 @@ para `ecommerce.worker.orders.dead`. Notificações usam uma outbox com lease e
 backoff exponencial, visível no Mailpit durante o desenvolvimento. Depois do
 envio, uma segunda outbox local publica `email.sent` com confirmação do broker e
 retry, sem repetir o SMTP quando apenas o RabbitMQ estiver indisponível.
-O processo também expõe `/health/live`, `/health/ready` e `/metrics` na porta
-`8082` do host quando executado pelo Compose. O Prometheus coleta métricas de
+O processo também expõe `/health/live`, `/health/ready` e `/metrics` somente na
+rede interna do Compose. O Prometheus coleta métricas de
 eventos consumidos, duplicados, falhos e notificações enviadas ou reprocessadas.
 
 `UserSecretsId` é usado somente no ambiente `Development`. Em ambientes
@@ -190,19 +190,19 @@ publicados, forneça os mesmos valores por variáveis de ambiente ou pelo cofre 
 segredos da plataforma; a validação de opções interrompe a inicialização quando
 uma configuração obrigatória estiver ausente.
 
-Para inicializar os segredos locais e subir todo o ambiente Docker com um único
-comando, primeiro construa a imagem no repositório independente e depois execute:
+Para inicializar os segredos locais, construir API, Worker e Payment a partir de
+seus repositórios e subir todo o ambiente Docker com um único comando, execute:
 
 ```powershell
-docker build --tag ecommerce-worker:local <caminho-para-ECommerceWorker>
 .\scripts\start-local.ps1
 ```
 
 O script verifica a disponibilidade do Docker, preenche somente os segredos
-obrigatórios que estiverem ausentes ou em branco e executa o Compose com os
-caminhos explícitos do `.env` e do `docker-compose.yml`. Valores já configurados
-são preservados e os segredos não são impressos. Use `-NoBuild` para reutilizar
-as imagens locais sem reconstruí-las. O arquivo `.env` é ignorado pelo Git. O valor de
+obrigatórios que estiverem ausentes ou em branco, aguarda readiness e executa o
+smoke test do fluxo integrado. Os contextos locais do Worker e do Payment podem
+ser ajustados no `.env`. Valores já configurados são preservados e os segredos
+não são impressos. Use `-NoBuild` para reutilizar as imagens locais sem
+reconstruí-las. O arquivo `.env` é ignorado pelo Git. O valor de
 `PAYMENT_GATEWAY_WEBHOOK_SECRET` deve ser o mesmo configurado no projeto
 `ECommercePayment`.
 
@@ -215,6 +215,9 @@ perfil local `https` do `launchSettings.json` habilita o
 redirecionamento porque também inicia `https://localhost:5001`.
 A imagem da API e a imagem criada no repositório independente do Worker executam
 com o usuário não privilegiado fornecido pelas imagens oficiais do .NET.
+Detalhes de rede, portas, persistência, smoke test, Azurite local e rotação
+explícita de credenciais estão em
+[`docs/local-development.md`](docs/local-development.md).
 
 Se a política de execução do PowerShell bloquear scripts locais, execute apenas
 para este processo:

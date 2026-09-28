@@ -1,6 +1,6 @@
 # ADR 0010: Ambiente local unificado com Docker Compose
 
-- Status: aceito; implementação pendente
+- Status: implementado
 - Data: 2026-09-27
 
 ## Contexto
@@ -32,3 +32,14 @@ automaticamente durante atualizações normais.
 - Portas publicadas serão mínimas e preferencialmente ligadas ao loopback.
 - Mudanças de credenciais em volumes existentes exigirão migração explícita.
 - Um smoke test deverá validar health/readiness e o fluxo essencial após o start.
+
+## Implementação
+
+- `docker-compose.yml` constrói os três contextos locais, conecta dez serviços à
+  rede interna `ecommerce-local` e ordena a inicialização por health checks.
+- `scripts/start-local.ps1` inicializa segredos ausentes, executa `compose up`
+  com `--wait` e chama `scripts/smoke-test-local.ps1`.
+- O smoke test valida containers, endpoints, comunicação API/Payment, criação e
+  aprovação de pagamento e as filas do Worker.
+- `docs/local-development.md` documenta caminhos, portas, persistência, ausência
+  de recursos Azure reais e a migração explícita de credenciais persistidas.

@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
       POSTGRES_DB: ecommerce
-    ports:
-      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql
@@ -17,6 +15,25 @@ services:
       timeout: 5s
       retries: 10
 
+  payment-database-init:
+    image: postgres:18.6-alpine3.23
+    environment:
+      PGHOST: postgres-db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
+    command:
+      - sh
+      - -ec
+      - |
+        if [ "$$(psql --dbname postgres --tuples-only --no-align --command "SELECT 1 FROM pg_database WHERE datname = 'ecommerce_payment'")" != "1" ]; then
+          createdb --template template0 ecommerce_payment
+        fi
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    restart: "no"
+
   rabbitmq:
     image: rabbitmq:4-management
     container_name: rabbitmq
@@ -24,8 +41,10 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ecommerce}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Create .env from .env.example and set RABBITMQ_PASSWORD}
     ports:
-      - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+    networks:
+      - default
+      - local-access
     restart: unless-stopped
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -39,8 +58,6 @@ services:
     image: redis:8.2.9-alpine
     container_name: redis
     command: redis-server --appendonly yes
-    ports:
-      - "127.0.0.1:6379:6379"
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -56,6 +73,9 @@ services:
     command: azurite-blob --blobHost 0.0.0.0 --location /data --debug /data/debug.log
     ports:
       - "127.0.0.1:10000:10000"
+    networks:
+      - default
+      - local-access
     restart: unless-stopped
     volumes:
       - azurite-data:/data
@@ -69,14 +89,45 @@ services:
     image: axllent/mailpit:v1.31.1
     container_name: mailpit
     ports:
-      - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
+    networks:
+      - default
+      - local-access
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8025/livez"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  ecommerce-payment:
+    build:
+      context: ${ECOMMERCE_PAYMENT_CONTEXT:-../../../personal-projects/ECommercePayment}
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_HOST: postgres-db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ecommerce_payment
+      DATABASE_USER: ${POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
+      WEBHOOK_SECRET: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:?Create .env from .env.example and set PAYMENT_GATEWAY_WEBHOOK_SECRET}
+      WEBHOOK_TIMEOUT_SECONDS: 5
+      ALLOWED_CALLBACK_ORIGINS: http://ecommerce-api:8080
+    ports:
+      - "127.0.0.1:5002:5000"
+    networks:
+      - default
+      - local-access
+    depends_on:
+      payment-database-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
 
   ecommerce-api:  
     build:
@@ -103,14 +154,17 @@ services:
       Email__Host: mailpit
       Email__Port: 1025
       Email__PublicAppBaseUrl: ${FRONTEND_ORIGIN:-http://localhost:3000}
-      PaymentGateway__BaseUrl: http://host.docker.internal:5002
-      PaymentGateway__CallbackUrl: http://host.docker.internal:8080/api/webhooks/payments
+      PaymentGateway__BaseUrl: http://ecommerce-payment:5000
+      PaymentGateway__CallbackUrl: http://ecommerce-api:8080/api/webhooks/payments
       PaymentGateway__WebhookSecret: ${PAYMENT_GATEWAY_WEBHOOK_SECRET:?Create .env from .env.example and set PAYMENT_GATEWAY_WEBHOOK_SECRET}
       PaymentGateway__TimeoutSeconds: 10
       ApiProtection__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
       ApiProtection__UseHttpsRedirection: "false"
     ports:
       - "127.0.0.1:8080:8080"
+    networks:
+      - default
+      - local-access
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -122,10 +176,20 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
+      ecommerce-payment:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/api/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 20s
     restart: unless-stopped
 
   ecommerce-worker:
-    image: ${ECOMMERCE_WORKER_IMAGE:-ecommerce-worker:local}
+    build:
+      context: ${ECOMMERCE_WORKER_CONTEXT:-../../../personal-projects/ECommerceWorker}
+      dockerfile: Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__WorkerDatabase: Host=postgres-db;Port=5432;Database=ecommerce;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Create .env from .env.example and set POSTGRES_PASSWORD}
@@ -151,8 +215,6 @@ services:
       Email__TimeoutSeconds: 15
       ApiOutboxPublisher__Enabled: "true"
       ASPNETCORE_URLS: http://+:8080
-    ports:
-      - "127.0.0.1:8082:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -160,6 +222,14 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
+      ecommerce-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 20s
     restart: unless-stopped
 
   prometheus:
@@ -170,12 +240,24 @@ services:
       - --storage.tsdb.path=/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+    networks:
+      - default
+      - local-access
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker/observability/worker-alerts.yml:/etc/prometheus/worker-alerts.yml:ro
       - prometheus-data:/prometheus
     depends_on:
-      - ecommerce-api
+      ecommerce-api:
+        condition: service_healthy
+      ecommerce-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
 
   grafana:
@@ -187,15 +269,31 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "127.0.0.1:3001:3000"
+    networks:
+      - default
+      - local-access
     volumes:
       - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 20s
     restart: unless-stopped
-      
 
+networks:
+  default:
+    name: ecommerce-local
+    internal: true
+  local-access:
+    name: ecommerce-local-access
+    driver: bridge
 
 volumes:
   postgres-data:

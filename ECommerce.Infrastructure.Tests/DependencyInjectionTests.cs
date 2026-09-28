@@ -1,4 +1,6 @@
 using ECommerce.Infrastructure.Options;
+using ECommerce.Application.Abstractions.Messaging;
+using ECommerce.Infrastructure.Messaging;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +10,39 @@ namespace ECommerce.Infrastructure.Tests;
 
 public sealed class DependencyInjectionTests
 {
+    [Fact]
+    public void AddInfrastructure_WhenApiOutboxPublishingIsDisabled_ShouldNotRegisterPublisherPipeline()
+    {
+        var services = new ServiceCollection();
+        var configuration = CreateConfiguration(new string('s', 32));
+
+        services.AddInfrastructure(configuration);
+
+        services.Should().NotContain(descriptor =>
+            descriptor.ServiceType == typeof(IIntegrationEventPublisher) ||
+            descriptor.ServiceType == typeof(IIntegrationEventOutboxProcessor) ||
+            descriptor.ServiceType == typeof(IntegrationEventOutboxJob));
+    }
+
+    [Fact]
+    public void AddInfrastructure_WhenApiOutboxPublishingIsEnabled_ShouldRegisterPublisherPipeline()
+    {
+        var services = new ServiceCollection();
+        var configuration = CreateConfiguration(
+            new string('s', 32),
+            "OutboxProcessor:PublishIntegrationEvents",
+            "true");
+
+        services.AddInfrastructure(configuration);
+
+        services.Should().Contain(descriptor =>
+            descriptor.ServiceType == typeof(IIntegrationEventPublisher));
+        services.Should().Contain(descriptor =>
+            descriptor.ServiceType == typeof(IIntegrationEventOutboxProcessor));
+        services.Should().Contain(descriptor =>
+            descriptor.ServiceType == typeof(IntegrationEventOutboxJob));
+    }
+
     [Fact]
     public void AddInfrastructure_ShouldRejectWebhookSecretShorterThan32Utf8Bytes()
     {

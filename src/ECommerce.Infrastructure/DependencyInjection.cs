@@ -28,6 +28,7 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using ECommerce.Application.Abstractions.Orders;
 using ECommerce.Infrastructure.BackgroundJobs;
+using ECommerce.Application.Messaging;
 
 namespace ECommerce.Infrastructure;
 
@@ -45,7 +46,10 @@ public static class DependencyInjection
         var outboxOptions = configuration.GetSection(OutboxProcessorOptions.SectionName)
             .Get<OutboxProcessorOptions>() ?? new OutboxProcessorOptions();
         if (outboxOptions.PublishIntegrationEvents)
+        {
             services.AddRabbitMq(configuration);
+            services.AddScoped<IIntegrationEventOutboxProcessor, IntegrationEventOutboxProcessor>();
+        }
         services.AddRedisCache(configuration);
         services.AddProductImageStorage(configuration);
         services.AddEmailDelivery(configuration);
@@ -187,12 +191,13 @@ public static class DependencyInjection
 
         services.AddScoped<PaymentOutboxJob>();
         services.AddScoped<UserEmailOutboxJob>();
-        services.AddScoped<IntegrationEventOutboxJob>();
         services.AddScoped<OrderExpirationJob>();
         services.AddSingleton<IOrderExpirationPolicy, ConfiguredOrderExpirationPolicy>();
 
         var options = configuration.GetSection(OutboxProcessorOptions.SectionName)
             .Get<OutboxProcessorOptions>() ?? new OutboxProcessorOptions();
+        if (options.PublishIntegrationEvents)
+            services.AddScoped<IntegrationEventOutboxJob>();
         var expirationOptions = configuration.GetSection(OrderExpirationOptions.SectionName)
             .Get<OrderExpirationOptions>() ?? new OrderExpirationOptions();
         if (!options.Enabled && !expirationOptions.Enabled)
