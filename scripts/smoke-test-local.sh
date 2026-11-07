@@ -33,13 +33,13 @@ environment_path="${environment_path:-$repository_root/.env}"
 compose_path="$repository_root/docker-compose.yml"
 expected_services=(postgres-db rabbitmq redis azurite mailpit ecommerce-payment ecommerce-api ecommerce-worker prometheus grafana)
 
-command -v docker >/dev/null 2>&1 || { echo "Docker was not found. Install or start Docker Desktop and try again." >&2; exit 1; }
+if command -v docker >/dev/null 2>&1; then docker_bin=docker; elif command -v docker.exe >/dev/null 2>&1; then docker_bin=docker.exe; else echo "Docker was not found. Install or start Docker Desktop and try again." >&2; exit 1; fi
 command -v curl >/dev/null 2>&1 || { echo "curl is required for the smoke test." >&2; exit 1; }
 if command -v python3 >/dev/null 2>&1; then python_bin=python3; elif command -v python >/dev/null 2>&1; then python_bin=python; else echo "Python is required to validate payment responses." >&2; exit 1; fi
 [[ -f "$environment_path" ]] || { echo "The local .env was not found. Run scripts/start-local.sh first." >&2; exit 1; }
 
-compose=(docker compose --env-file "$environment_path" --file "$compose_path")
-[[ -n "$project_name" ]] && compose=(docker compose --project-name "$project_name" --env-file "$environment_path" --file "$compose_path")
+compose=("$docker_bin" compose --env-file "$environment_path" --file "$compose_path")
+[[ -n "$project_name" ]] && compose=("$docker_bin" compose --project-name "$project_name" --env-file "$environment_path" --file "$compose_path")
 
 invoke_compose() { "${compose[@]}" "$@"; }
 assert_http_success() { curl --fail --silent --show-error --max-time 10 "$1" >/dev/null; }
@@ -49,7 +49,7 @@ for service in "${expected_services[@]}"; do
   grep -Fxq "$service" <<<"$configured_services" || { echo "Required Compose service '$service' is missing." >&2; exit 1; }
   container_id="$(invoke_compose ps --quiet "$service" | head -n 1)"
   [[ -n "$container_id" ]] || { echo "Required Compose service '$service' is not running." >&2; exit 1; }
-  state="$(docker inspect --format '{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$container_id")"
+  state="$("$docker_bin" inspect --format '{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$container_id")"
   [[ "$state" == "true healthy" ]] || { echo "Compose service '$service' is not healthy (state: $state)." >&2; exit 1; }
 done
 

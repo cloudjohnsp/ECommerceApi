@@ -15,6 +15,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 solution_root="$(cd -- "$script_dir/.." && pwd)"
 minimum_line_coverage=80.0
 if command -v python3 >/dev/null 2>&1; then python_bin=python3; elif command -v python >/dev/null 2>&1; then python_bin=python; else echo "Python is required to read Cobertura reports." >&2; exit 1; fi
+if command -v dotnet >/dev/null 2>&1; then dotnet_bin=dotnet; elif command -v dotnet.exe >/dev/null 2>&1; then dotnet_bin=dotnet.exe; else echo "dotnet was not found." >&2; exit 1; fi
 
 targets=("ECommerce.Domain.Tests/ECommerce.Domain.Tests.csproj:ECommerce.Domain" "ECommerce.Application.Tests/ECommerce.Application.Tests.csproj:ECommerce.Application")
 for target in "${targets[@]}"; do
@@ -23,7 +24,7 @@ for target in "${targets[@]}"; do
   results_directory="$(mktemp -d "${TMPDIR:-/tmp}/ecommerce-coverage.XXXXXX")"
   cleanup() { rm -rf -- "$results_directory"; }
   trap cleanup EXIT
-  dotnet test "$solution_root/$project" --configuration "$configuration" --no-build --no-restore --collect:'XPlat Code Coverage' --results-directory "$results_directory"
+  "$dotnet_bin" test "$solution_root/$project" --configuration "$configuration" --no-build --no-restore --collect:'XPlat Code Coverage' --results-directory "$results_directory"
   report="$(find "$results_directory" -name coverage.cobertura.xml -print -quit)"
   [[ -n "$report" ]] || { echo "Coverage report was not generated for $project." >&2; exit 1; }
   line_rate="$($python_bin - "$report" "$assembly" <<'PY'

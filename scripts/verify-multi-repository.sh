@@ -52,7 +52,8 @@ revision_lock_path="$api_root/integration/revisions.json"
 artifact_root="$api_root/TestResults/coordinated/$(date -u +%Y%m%d-%H%M%S)"
 temporary_paths=()
 
-command -v docker >/dev/null 2>&1 || { echo "Docker is required for the coordinated gate." >&2; exit 1; }
+if command -v docker >/dev/null 2>&1; then docker_bin=docker; elif command -v docker.exe >/dev/null 2>&1; then docker_bin=docker.exe; else echo "Docker is required for the coordinated gate." >&2; exit 1; fi
+if command -v dotnet >/dev/null 2>&1; then dotnet_bin=dotnet; elif command -v dotnet.exe >/dev/null 2>&1; then dotnet_bin=dotnet.exe; else echo "dotnet is required for the coordinated gate." >&2; exit 1; fi
 if command -v python3 >/dev/null 2>&1; then python_bin=python3; elif command -v python >/dev/null 2>&1; then python_bin=python; else echo "Python is required for the coordinated gate." >&2; exit 1; fi
 [[ -d "$worker_path/.git" ]] || { echo "Worker repository was not found at '$worker_path'." >&2; exit 1; }
 [[ -d "$payment_path/.git" ]] || { echo "Payment repository was not found at '$payment_path'." >&2; exit 1; }
@@ -116,8 +117,8 @@ run_external_gate() {
 }
 
 if [[ "$skip_project_gates" == false ]]; then
-  run_in_directory "Restore acceptance tests" "$api_root" dotnet restore ECommerceAcceptance.slnx
-  run_in_directory "Verify acceptance formatting" "$api_root" dotnet format ECommerceAcceptance.slnx --verify-no-changes --no-restore
+  run_in_directory "Restore acceptance tests" "$api_root" "$dotnet_bin" restore ECommerceAcceptance.slnx
+  run_in_directory "Verify acceptance formatting" "$api_root" "$dotnet_bin" format ECommerceAcceptance.slnx --verify-no-changes --no-restore
   bash "$script_dir/verify-local.sh" --configuration Release --skip-image
   run_external_gate "$worker_path" --configuration Release --skip-image
   if [[ -z "$payment_python_path" ]]; then
@@ -144,14 +145,14 @@ api_tag="ecommerce-api:sha-$api_revision"; [[ "$api_dirty" == false ]] || api_ta
 worker_tag="ecommerce-worker:sha-$worker_revision"; [[ "$worker_dirty" == false ]] || worker_tag+="-dirty"
 payment_tag="ecommerce-payment:sha-$payment_revision"; [[ "$payment_dirty" == false ]] || payment_tag+="-dirty"
 if [[ "$skip_image_build" == false ]]; then
-  run_in_directory "Build API image" "$api_root" docker build --label "org.opencontainers.image.revision=$api_revision" --tag "$api_tag" .
-  run_in_directory "Build Worker image" "$worker_path" docker build --label "org.opencontainers.image.revision=$worker_revision" --tag "$worker_tag" .
-  run_in_directory "Build Payment image" "$payment_path" docker build --label "org.opencontainers.image.revision=$payment_revision" --tag "$payment_tag" .
+  run_in_directory "Build API image" "$api_root" "$docker_bin" build --label "org.opencontainers.image.revision=$api_revision" --tag "$api_tag" .
+  run_in_directory "Build Worker image" "$worker_path" "$docker_bin" build --label "org.opencontainers.image.revision=$worker_revision" --tag "$worker_tag" .
+  run_in_directory "Build Payment image" "$payment_path" "$docker_bin" build --label "org.opencontainers.image.revision=$payment_revision" --tag "$payment_tag" .
 fi
-assert_image_revision() { [[ "$(docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" == "$2" ]] || { echo "Image '$1' does not have expected revision '$2'." >&2; exit 1; }; }
+assert_image_revision() { [[ "$("$docker_bin" image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" == "$2" ]] || { echo "Image '$1' does not have expected revision '$2'." >&2; exit 1; }; }
 assert_image_revision "$api_tag" "$api_revision"; assert_image_revision "$worker_tag" "$worker_revision"; assert_image_revision "$payment_tag" "$payment_revision"
 
-API_REVISION="$api_revision" WORKER_REVISION="$worker_revision" PAYMENT_REVISION="$payment_revision" API_TAG="$api_tag" WORKER_TAG="$worker_tag" PAYMENT_TAG="$payment_tag" \
+API_REVISION="$api_revision" WORKER_REVISION="$worker_revision" PAYMENT_REVISION="$payment_revision" API_TAG="$api_tag" WORKER_TAG="$worker_tag" PAYMENT_TAG="$payment_tag" DOCKER_BIN="$docker_bin" \
   "$python_bin" - "$artifact_root/manifest.json" <<'PY'
 import json, os, subprocess, sys
 images = [('api', 'API'), ('worker', 'WORKER'), ('payment', 'PAYMENT')]
@@ -159,14 +160,14 @@ value = {'generatedAtUtc': __import__('datetime').datetime.now(__import__('datet
 for service, prefix in images:
     revision, tag = os.environ[f'{prefix}_REVISION'], os.environ[f'{prefix}_TAG']
     value['repositories'].append({'Name': prefix.title(), 'Revision': revision})
-    value['images'].append({'service': service, 'tag': tag, 'id': subprocess.check_output(['docker', 'image', 'inspect', tag, '--format', '{{.Id}}'], text=True).strip()})
+    value['images'].append({'service': service, 'tag': tag, 'id': subprocess.check_output([os.environ['DOCKER_BIN'], 'image', 'inspect', tag, '--format', '{{.Id}}'], text=True).strip()})
 json.dump(value, open(sys.argv[1], 'w', encoding='utf-8'), indent=2)
 PY
 
 export ECOMMERCE_API_IMAGE="$api_tag" ECOMMERCE_WORKER_IMAGE="$worker_tag" ECOMMERCE_PAYMENT_IMAGE="$payment_tag"
 export ECOMMERCE_WORKER_CONTEXT="$worker_path" ECOMMERCE_PAYMENT_CONTEXT="$payment_path"
 if [[ "$skip_acceptance" == false ]]; then
-  run_in_directory "Run cross-service acceptance gate" "$api_root" env RUN_CROSS_SERVICE_ACCEPTANCE_TESTS=true ECOMMERCE_ACCEPTANCE_REUSE_IMAGES=true dotnet test ECommerceAcceptance.slnx --configuration Release --no-restore
+  run_in_directory "Run cross-service acceptance gate" "$api_root" env RUN_CROSS_SERVICE_ACCEPTANCE_TESTS=true ECOMMERCE_ACCEPTANCE_REUSE_IMAGES=true "$dotnet_bin" test ECommerceAcceptance.slnx --configuration Release --no-restore
 fi
 
 if [[ "$skip_full_compose_smoke" == false ]]; then
@@ -198,7 +199,7 @@ GRAFANA_PORT=$grafana_port
 RABBITMQ_MANAGEMENT_PORT=$rabbit_port
 AZURITE_PORT=$azurite_port
 EOF
-  compose=(docker compose --project-name "$project_name" --env-file "$gate_environment_path" --file "$api_root/docker-compose.yml")
+  compose=("$docker_bin" compose --project-name "$project_name" --env-file "$gate_environment_path" --file "$api_root/docker-compose.yml")
   trap '"${compose[@]}" ps --all > "$artifact_root/compose-ps.txt" 2>&1 || true; "${compose[@]}" logs --no-color --timestamps > "$artifact_root/compose.log" 2>&1 || true; "${compose[@]}" down --volumes --remove-orphans --timeout 10 >/dev/null 2>&1 || true; cleanup' EXIT
   echo "==> Start full coordinated Compose"
   "${compose[@]}" up --detach --no-build --wait --wait-timeout 300

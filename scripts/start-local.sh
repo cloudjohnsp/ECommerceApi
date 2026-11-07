@@ -17,10 +17,10 @@ repository_root="$(cd -- "$script_dir/.." && pwd)"
 environment_path="$repository_root/.env"
 compose_path="$repository_root/docker-compose.yml"
 
-command -v docker >/dev/null 2>&1 || { echo "Docker was not found. Install or start Docker Desktop and try again." >&2; exit 1; }
+if command -v docker >/dev/null 2>&1; then docker_bin=docker; elif command -v docker.exe >/dev/null 2>&1; then docker_bin=docker.exe; else echo "Docker was not found. Install or start Docker Desktop and try again." >&2; exit 1; fi
 bash "$script_dir/initialize-dev-env.sh"
 
-compose=(docker compose --env-file "$environment_path" --file "$compose_path" up --detach --wait --wait-timeout 300 --force-recreate)
+compose=("$docker_bin" compose --env-file "$environment_path" --file "$compose_path" up --detach --wait --wait-timeout 300 --force-recreate)
 [[ "$no_build" == false ]] && compose+=(--build)
 "${compose[@]}"
 
