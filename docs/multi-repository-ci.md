@@ -25,7 +25,7 @@ Para atualizar o conjunto compatível:
 3. execute o gate coordenado completo;
 4. faça commit do novo lock na API.
 
-O parâmetro `-AllowDirty` existe somente para validação pré-commit. Nesse modo,
+O parâmetro `--allow-dirty` existe somente para validação pré-commit. Nesse modo,
 a tag recebe o sufixo `-dirty`, deixando explícito que a imagem não representa
 exatamente o commit informado.
 
@@ -33,17 +33,17 @@ exatamente o commit informado.
 
 A partir de `ECommerceApi`:
 
-```powershell
-.\scripts\verify-multi-repository.ps1
+```bash
+bash ./scripts/verify-multi-repository.sh
 ```
 
 Os caminhos padrão correspondem aos checkouts locais usados pelo projeto. Para
 outra organização de diretórios:
 
-```powershell
-.\scripts\verify-multi-repository.ps1 `
-  -WorkerPath C:\repos\ECommerceWorker `
-  -PaymentPath C:\repos\ECommercePayment
+```bash
+bash ./scripts/verify-multi-repository.sh \
+  --worker-path /repos/ECommerceWorker \
+  --payment-path /repos/ECommercePayment
 ```
 
 O script executa, em ordem:
@@ -61,13 +61,13 @@ O script executa, em ordem:
 Dependências Python são instaladas em um virtualenv temporário. Para usar um
 ambiente já preparado sem reinstalar pacotes:
 
-```powershell
-.\scripts\verify-multi-repository.ps1 `
-  -PaymentPythonPath C:\repos\ECommercePayment\.test-venv\Scripts\python.exe `
-  -SkipPaymentInstall
+```bash
+bash ./scripts/verify-multi-repository.sh \
+  --payment-python-path /repos/ECommercePayment/.test-venv/bin/python \
+  --skip-payment-install
 ```
 
-As opções `Skip*` servem para diagnóstico incremental; não equivalem ao gate de
+As opções `--skip-*` servem para diagnóstico incremental; não equivalem ao gate de
 conclusão.
 
 ## Imagens e artefatos

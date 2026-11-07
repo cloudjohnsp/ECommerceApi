@@ -37,11 +37,11 @@ mesmos gates sem criar recursos externos ou custos em nuvem.
 Os três repositórios possuem gates próprios. API e Worker executam restore,
 verificação de formato, build, testes PostgreSQL e build da imagem; o Payment
 executa instalação, lint Ruff, pytest e build da imagem. Os mesmos
-gates podem ser executados localmente pelos scripts `scripts/verify-local.ps1`
+gates podem ser executados localmente pelos scripts `scripts/verify-local.sh`
 de cada repositório.
 
 O conjunto compatível é fixado em `integration/revisions.json`. O gate em
-`scripts/verify-multi-repository.ps1` valida essas revisões, executa os gates
+`scripts/verify-multi-repository.sh` valida essas revisões, executa os gates
 individuais, constrói imagens `sha-<commit>` com bases fixadas por digest e
 confere o label OCI de revisão. Em seguida, ele executa a suíte de aceitação
 entre serviços e o Compose completo com PostgreSQL, RabbitMQ, Redis, Azurite,
