@@ -54,6 +54,7 @@ Volumes nomeados preservam PostgreSQL, RabbitMQ, Redis, Azurite, Prometheus e
 Grafana durante rebuilds e atualizações normais. Containers são recriados para
 convergir rede e configuração, mas seus volumes não são removidos.
 `start-local.sh` não executa
+`start-local.sh` não executa
 `down -v` e nunca substitui valor não vazio no `.env`. Para parar sem apagar os
 dados:
 
@@ -97,6 +98,7 @@ feita nesta ordem para não interromper o ambiente:
 4. atualize somente então o valor correspondente no `.env` local;
 5. recrie API, Worker, Payment e o serviço alterado com
    `docker compose --env-file .env up --detach --force-recreate --wait`;
+6. execute `bash ./scripts/smoke-test-local.sh`.
 6. execute `bash ./scripts/smoke-test-local.sh`.
 
 Evite colocar a nova senha diretamente em histórico de shell compartilhado.
