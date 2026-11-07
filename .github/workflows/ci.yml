@@ -29,8 +29,8 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Run local-equivalent API gate
-        shell: pwsh
-        run: ./scripts/verify-local.ps1 -Configuration Release -SkipImage
+        shell: bash
+        run: bash ./scripts/verify-local.sh --configuration Release --skip-image
 
   container:
     name: Build container
