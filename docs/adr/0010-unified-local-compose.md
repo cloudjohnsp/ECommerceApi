@@ -38,8 +38,8 @@ automaticamente durante atualizações normais.
 - `docker-compose.yml` constrói os três contextos locais, conecta dez serviços a
   redes isoladas pelo nome do projeto Compose e ordena a inicialização por
   health checks.
-- `scripts/start-local.ps1` inicializa segredos ausentes, executa `compose up`
-  com `--wait` e chama `scripts/smoke-test-local.ps1`.
+- `scripts/start-local.sh` inicializa segredos ausentes, executa `compose up`
+  com `--wait` e chama `scripts/smoke-test-local.sh`.
 - O smoke test valida containers, endpoints, comunicação API/Payment, criação e
   aprovação de pagamento e as filas do Worker.
 - `docs/local-development.md` documenta caminhos, portas, persistência, ausência

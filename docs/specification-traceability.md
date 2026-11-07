@@ -62,7 +62,7 @@ auditoria do estado final repetível.
 | SQL injection | Consultas EF parametrizadas e SQL explícito interpolado pelo provider |
 | Segredos e callbacks | Valores operacionais ausentes dos arquivos versionados, `.env` ignorado, opções validadas na inicialização, callbacks restritos a origens HTTP(S) autorizadas e redirects desabilitados nos dois sentidos |
 | CI | Gates próprios de API, Worker e Payment; lock de revisões e pipeline manual coordenado executando testes, imagens por commit, aceitação RabbitMQ/PostgreSQL e smoke do Compose completo, sem publicação ou deploy |
-| Cobertura | `scripts/verify-unit-coverage.ps1` exige mais de 80% em Domain e Application |
+| Cobertura | `scripts/verify-unit-coverage.sh` exige mais de 80% em Domain e Application |
 | Testes | xUnit, FluentAssertions, Moq, integração PostgreSQL/Testcontainers, HTTP com `WebApplicationFactory` e gate distribuído isolado em `ECommerceAcceptance.slnx` cobrindo concorrência, Outbox, RabbitMQ, retry/DLQ, interrupção e webhooks reais |
 
 ## Implantação Azure
@@ -85,7 +85,7 @@ Uma alteração só preserva esta rastreabilidade quando passam:
 dotnet format ECommerceApi.slnx --verify-no-changes
 dotnet build ECommerceApi.slnx --configuration Release
 dotnet test ECommerceApi.slnx --configuration Release
-.\scripts\verify-unit-coverage.ps1 -Configuration Release
+bash ./scripts/verify-unit-coverage.sh --configuration Release
 ```
 
 Os testes dependentes de PostgreSQL real devem ser executados com Docker e

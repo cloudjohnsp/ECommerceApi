@@ -194,7 +194,7 @@ Para inicializar os segredos locais, construir API, Worker e Payment a partir de
 seus repositórios e subir todo o ambiente Docker com um único comando, execute:
 
 ```powershell
-.\scripts\start-local.ps1
+bash ./scripts/start-local.sh
 ```
 
 O script verifica a disponibilidade do Docker, preenche somente os segredos
@@ -223,7 +223,7 @@ Se a política de execução do PowerShell bloquear scripts locais, execute apen
 para este processo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
+bash ./scripts/start-local.sh
 ```
 
 No Compose, o seed idempotente cria três categorias e três produtos de exemplo.
@@ -263,13 +263,13 @@ Remove-Item Env:ECOMMERCE_WORKER_DESIGN_TIME_CONNECTION_STRING
 Além dos pipelines próprios de API, Worker e Payment, o gate coordenado fixa as
 revisões compatíveis dos três repositórios, constrói imagens identificadas por
 commit e executa aceitação com RabbitMQ mais o smoke test dos dez serviços do
-Compose. Localmente, execute `scripts/verify-multi-repository.ps1`; detalhes e
+Compose. Localmente, execute `scripts/verify-multi-repository.sh`; detalhes e
 diagnósticos estão em
 [`docs/multi-repository-ci.md`](docs/multi-repository-ci.md). Esse fluxo apenas
 valida: não publica imagens nem cria recursos externos.
 
 O gate individual da API pode ser reproduzido por
-`scripts/verify-local.ps1`; o orquestrador chama esse mesmo script, além dos
+`scripts/verify-local.sh`; o orquestrador chama esse mesmo script, além dos
 gates locais mantidos nos repositórios do Worker e do Payment.
 
 O workflow `.github/workflows/ci.yml` executa restore, verificação de formato,
@@ -291,7 +291,7 @@ disponível e executar os testes com `RUN_POSTGRES_INTEGRATION_TESTS=true`; sem
 essa opção, somente esses cenários são reportados como ignorados. O workflow de
 CI habilita a opção e executa os testes contra um container efêmero.
 
-O script `scripts/verify-unit-coverage.ps1` mede separadamente as assemblies de
+O script `scripts/verify-unit-coverage.sh` mede separadamente as assemblies de
 Domain e Application e exige cobertura de linhas superior a 80% em cada uma. O
 mesmo gate é executado pelo CI para impedir regressões na cobertura das regras de
 negócio e dos casos de uso.

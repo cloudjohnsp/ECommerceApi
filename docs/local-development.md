@@ -5,7 +5,7 @@ repositório. Ele constrói as três aplicações a partir de Dockerfiles mantid
 em seus próprios repositórios e inicia todas as dependências com um comando:
 
 ```powershell
-./scripts/start-local.sh
+bash ./scripts/start-local.sh
 ```
 
 O comando cria ou completa o `.env` sem exibir segredos, constrói as imagens,
@@ -80,7 +80,7 @@ filas principal, de retry e DLQ do Worker.
 Para repetir somente essa validação:
 
 ```powershell
-./scripts/smoke-test-local.sh
+bash ./scripts/smoke-test-local.sh
 ```
 
 ## Migração explícita de credenciais persistidas
@@ -97,7 +97,7 @@ feita nesta ordem para não interromper o ambiente:
 4. atualize somente então o valor correspondente no `.env` local;
 5. recrie API, Worker, Payment e o serviço alterado com
    `docker compose --env-file .env up --detach --force-recreate --wait`;
-6. execute `./scripts/smoke-test-local.sh`.
+6. execute `bash ./scripts/smoke-test-local.sh`.
 
 Evite colocar a nova senha diretamente em histórico de shell compartilhado.
 Se a senha persistida e o `.env` já estiverem divergentes, restaure

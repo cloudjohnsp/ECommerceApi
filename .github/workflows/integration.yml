@@ -24,13 +24,17 @@ jobs:
 
       - name: Resolve locked repositories
         id: revisions
-        shell: pwsh
+        shell: bash
         run: |
-          $lock = Get-Content ECommerceApi/integration/revisions.json -Raw | ConvertFrom-Json
-          "worker_repository=$($lock.worker.repository)" >> $env:GITHUB_OUTPUT
-          "worker_revision=$($lock.worker.revision)" >> $env:GITHUB_OUTPUT
-          "payment_repository=$($lock.payment.repository)" >> $env:GITHUB_OUTPUT
-          "payment_revision=$($lock.payment.revision)" >> $env:GITHUB_OUTPUT
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          with open("ECommerceApi/integration/revisions.json", encoding="utf-8") as source:
+              lock = json.load(source)
+          print(f"worker_repository={lock['worker']['repository']}")
+          print(f"worker_revision={lock['worker']['revision']}")
+          print(f"payment_repository={lock['payment']['repository']}")
+          print(f"payment_revision={lock['payment']['revision']}")
+          PY
 
       - name: Checkout Worker at locked revision
         uses: actions/checkout@v7
@@ -61,11 +65,11 @@ jobs:
             ECommercePayment/requirements-dev.txt
 
       - name: Run coordinated local-equivalent gate
-        shell: pwsh
+        shell: bash
         run: |
-          ./ECommerceApi/scripts/verify-multi-repository.ps1 `
-            -WorkerPath "$env:GITHUB_WORKSPACE/ECommerceWorker" `
-            -PaymentPath "$env:GITHUB_WORKSPACE/ECommercePayment"
+          bash ./ECommerceApi/scripts/verify-multi-repository.sh \
+            --worker-path "$GITHUB_WORKSPACE/ECommerceWorker" \
+            --payment-path "$GITHUB_WORKSPACE/ECommercePayment"
 
       - name: Preserve diagnostics
         if: always()
